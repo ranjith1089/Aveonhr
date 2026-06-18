@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Travel Expense Generator</title>
   <link rel="stylesheet" href="{% static 'payslip/styles.css' %}" />
+  <!-- Tesseract.js for client-side OCR (works on Vercel, no backend OCR needed) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     /* Modern Expense Report Styles */
     body {
@@ -1036,22 +1038,6 @@
 
     let currentBillData = null;
 
-    function getCsrfToken() {
-      const name = 'csrftoken';
-      let cookieValue = null;
-      if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-          const cookie = cookies[i].trim();
-          if (cookie.substring(0, name.length + 1) === (name + '=')) {
-            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-            break;
-          }
-        }
-      }
-      return cookieValue;
-    }
-
     function handleBillUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -1060,95 +1046,206 @@
       const validTypes = ['image/png', 'image/jpeg'];
       if (!validTypes.includes(file.type)) {
         alert('Please upload a PNG or JPG image.');
+        event.target.value = '';
         return;
       }
 
       if (file.size > 10 * 1024 * 1024) {
         alert('File size exceeds 10MB limit.');
+        event.target.value = '';
         return;
       }
 
-      // Show loading state
+      // Show modal with the uploaded image preview immediately
       showBillModal();
-      document.getElementById('billPreviewImg').src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" font-family="Arial" font-size="16" fill="%239ca3af" text-anchor="middle" dy=".3em"%3EProcessing...%3C/text%3E%3C/svg%3E';
+      const imageUrl = URL.createObjectURL(file);
+      document.getElementById('billPreviewImg').src = imageUrl;
 
-      // Create FormData
-      const formData = new FormData();
-      formData.append('bill_image', file);
-      formData.append('currency', document.getElementById('report-currency').value || 'INR');
+      // Show processing state in fields
+      setModalProcessingState(true);
 
-      // Get CSRF token
-      const csrfToken = getCsrfToken();
-
-      // Upload to OCR endpoint
-      const fetchOptions = {
-        method: 'POST',
-        body: formData,
-        credentials: 'same-origin'
-      };
-
-      // Add CSRF token to headers if available
-      if (csrfToken) {
-        fetchOptions.headers = {
-          'X-CSRFToken': csrfToken
-        };
-      }
-
-      fetch('/api/ocr/process-bill/', fetchOptions)
-      .then(response => {
-        return response.json().then(data => {
-          if (!response.ok) {
-            throw new Error(data.error || `HTTP ${response.status}`);
-          }
-          return data;
+      // Run OCR client-side with Tesseract.js
+      runClientOcr(file)
+        .then(result => {
+          setModalProcessingState(false);
+          displayBillPreview(result);
+        })
+        .catch(error => {
+          console.error('OCR error:', error);
+          setModalProcessingState(false);
+          // Still let user fill manually
+          document.getElementById('modalWarnings').style.display = 'block';
+          document.getElementById('modalWarnings').innerHTML =
+            '⚠ Could not auto-read this bill. Please enter the details manually below.';
         });
-      })
-      .then(data => {
-        if (data.success) {
-          displayBillPreview(data.data);
-        } else {
-          alert(`OCR Error: ${data.error}`);
-          closeBillModal();
-        }
-      })
-      .catch(error => {
-        console.error('Upload error:', error);
-        alert(`Upload failed: ${error.message}`);
-        closeBillModal();
-      });
 
-      // Reset file input
+      // Reset file input so the same file can be re-selected
       event.target.value = '';
+    }
+
+    function setModalProcessingState(processing) {
+      const fields = ['modalDate', 'modalMerchant', 'modalAmount'];
+      fields.forEach(id => {
+        document.getElementById(id).disabled = processing;
+      });
+      const badges = ['dateConfidence', 'merchantConfidence', 'amountConfidence'];
+      badges.forEach(id => {
+        const el = document.getElementById(id);
+        el.textContent = processing ? '...' : '-';
+        el.style.background = '#e5e7eb';
+        el.style.color = '#374151';
+      });
+      if (processing) {
+        const w = document.getElementById('modalWarnings');
+        w.style.display = 'block';
+        w.style.background = '#eff6ff';
+        w.style.borderColor = '#bfdbfe';
+        w.style.color = '#1e40af';
+        w.innerHTML = '⏳ Reading bill... this may take a few seconds.';
+      } else {
+        const w = document.getElementById('modalWarnings');
+        w.style.background = '#fef3c7';
+        w.style.borderColor = '#fcd34d';
+        w.style.color = '#92400e';
+      }
+    }
+
+    async function runClientOcr(file) {
+      // Tesseract.js OCR
+      const { data } = await Tesseract.recognize(file, 'eng');
+      const text = data.text || '';
+      const confidence = (data.confidence || 0) / 100;
+      return extractBillFields(text, confidence);
+    }
+
+    // ---- Client-side field extraction (ported from backend) ----
+    function extractBillFields(text, ocrConfidence) {
+      const currency = extractCurrency(text);
+      return {
+        date: extractDate(text),
+        merchant: extractMerchant(text),
+        amount: extractAmount(text),
+        currency: currency,
+        warnings: [],
+        rawText: text,
+        ocrConfidence: ocrConfidence
+      };
+    }
+
+    function extractDate(text) {
+      // DD/MM/YYYY or DD-MM-YYYY (with optional keyword)
+      const patterns = [
+        /(?:Date|Invoice Date|Bill Date)\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i,
+        /\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/,
+        /\b(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})\b/i
+      ];
+      for (const p of patterns) {
+        const m = text.match(p);
+        if (m) {
+          const iso = parseToIso(m[1]);
+          if (iso) return { value: iso, confidence: 0.85 };
+        }
+      }
+      return { value: '', confidence: 0.0 };
+    }
+
+    function parseToIso(dateStr) {
+      // Try DD/MM/YYYY or DD-MM-YYYY
+      const parts = dateStr.replace(/-/g, '/').split('/');
+      if (parts.length === 3) {
+        let [d, mo, y] = parts.map(s => s.trim());
+        if (y.length === 2) y = '20' + y;
+        const dd = parseInt(d, 10), mm = parseInt(mo, 10), yyyy = parseInt(y, 10);
+        if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && yyyy > 1900) {
+          return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+        }
+      }
+      // Try "15 Jun 2026" style
+      const d2 = new Date(dateStr);
+      if (!isNaN(d2.getTime())) {
+        return `${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2, '0')}-${String(d2.getDate()).padStart(2, '0')}`;
+      }
+      return null;
+    }
+
+    function extractAmount(text) {
+      const patterns = [
+        /(?:Grand Total|Total|Amount Due|Net Amount|Amount)\s*:?\s*(?:Rs\.?|INR|[₹$€£¥])?\s*([0-9][0-9,]*\.?[0-9]*)/i,
+        /(?:Rs\.?|INR|[₹$€£¥])\s*([0-9][0-9,]*\.?[0-9]*)/i,
+        /\b([0-9,]+\.[0-9]{2})\b/
+      ];
+      let best = 0;
+      for (const p of patterns) {
+        const m = text.match(p);
+        if (m) {
+          const val = parseFloat(m[1].replace(/,/g, ''));
+          if (!isNaN(val) && val > 0) {
+            return { value: val, confidence: 0.85 };
+          }
+        }
+      }
+      // Fallback: pick the largest number that looks like money
+      const nums = text.match(/[0-9][0-9,]*\.[0-9]{2}/g) || [];
+      nums.forEach(n => {
+        const v = parseFloat(n.replace(/,/g, ''));
+        if (v > best) best = v;
+      });
+      if (best > 0) return { value: best, confidence: 0.65 };
+      return { value: '', confidence: 0.0 };
+    }
+
+    function extractMerchant(text) {
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+      const keywords = ['hotel', 'restaurant', 'airline', 'flight', 'taxi', 'uber', 'ola',
+        'petrol', 'fuel', 'cafe', 'indian oil', 'bpcl', 'hpcl', 'shell',
+        'marriott', 'hilton', 'taj', 'oberoi', 'hyatt', 'travels', 'transport'];
+      // Keyword match first
+      for (const line of lines.slice(0, 8)) {
+        if (keywords.some(k => line.toLowerCase().includes(k))) {
+          return { value: line, confidence: 0.80 };
+        }
+      }
+      // Otherwise first meaningful line (often the merchant name at top)
+      if (lines.length > 0) {
+        return { value: lines[0], confidence: 0.55 };
+      }
+      return { value: '', confidence: 0.0 };
+    }
+
+    function extractCurrency(text) {
+      const map = { '₹': 'INR', 'Rs': 'INR', 'INR': 'INR', '$': 'USD', '€': 'EUR', '£': 'GBP', '¥': 'JPY' };
+      for (const [sym, code] of Object.entries(map)) {
+        if (text.includes(sym)) return { value: code, confidence: 0.95 };
+      }
+      return { value: document.getElementById('report-currency').value || 'INR', confidence: 0.5 };
     }
 
     function displayBillPreview(billData) {
       currentBillData = billData;
 
-      // Set image
-      document.getElementById('billPreviewImg').src = 'data:image/png;base64,' + billData.image_base64;
-
-      // Set form fields
-      const dateVal = billData.date.value || '';
-      document.getElementById('modalDate').value = dateVal;
+      // Set form fields (image already shown from upload)
+      document.getElementById('modalDate').value = billData.date.value || '';
       setConfidenceBadge('dateConfidence', billData.date.confidence);
 
       document.getElementById('modalMerchant').value = billData.merchant.value || '';
       setConfidenceBadge('merchantConfidence', billData.merchant.confidence);
 
-      const amountVal = billData.amount.value || '';
-      document.getElementById('modalAmount').value = amountVal;
+      document.getElementById('modalAmount').value = billData.amount.value || '';
       setConfidenceBadge('amountConfidence', billData.amount.confidence);
 
-      // Set warnings
+      // Warnings
+      const warnings = [];
+      if (billData.date.confidence < 0.75) warnings.push('Could not confidently read the date — please verify.');
+      if (billData.amount.confidence < 0.75) warnings.push('Could not confidently read the amount — please verify.');
+      if (billData.merchant.confidence < 0.70) warnings.push('Could not confidently read the merchant — please verify.');
+
       const warningsDiv = document.getElementById('modalWarnings');
-      if (billData.warnings && billData.warnings.length > 0) {
+      if (warnings.length > 0) {
         warningsDiv.style.display = 'block';
-        warningsDiv.innerHTML = billData.warnings.map(w => `⚠ ${w}`).join('<br>');
+        warningsDiv.innerHTML = warnings.map(w => `⚠ ${w}`).join('<br>');
       } else {
         warningsDiv.style.display = 'none';
       }
-
-      // Make modal visible (it was just shown with loading state)
     }
 
     function setConfidenceBadge(elementId, confidence) {
