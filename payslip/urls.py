@@ -9,6 +9,7 @@ from .views import (
     travel_expense,
     upload_payslips,
     proposal_quotation,
+    process_bill_ocr,
 )
 
 urlpatterns = [
@@ -18,6 +19,7 @@ urlpatterns = [
     path("travel-expense/", travel_expense, name="travel_expense"),
     path("payslip/", upload_payslips, name="upload_payslips"),
     path("proposal-quotation/", proposal_quotation, name="proposal_quotation"),
+    path("api/ocr/process-bill/", process_bill_ocr, name="process_bill_ocr"),
     path("preview/<str:token>/", preview_pdf, name="preview_pdf"),
     path("download/<str:token>/", download_file, name="download_file"),
 ]
