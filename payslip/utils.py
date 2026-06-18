@@ -293,6 +293,9 @@ def build_payslip_pdf(row: pd.Series, company: CompanyInfo, logo_bytes: bytes | 
     styles = getSampleStyleSheet()
     story: list = []
 
+    BRAND_COLOR = colors.HexColor("#1e3a5f")
+    BRAND_LIGHT = colors.HexColor("#e8f0fe")
+
     logo = None
     logo_buffer = None  # keep reference alive for PDF rendering
     if logo_bytes:
@@ -302,7 +305,6 @@ def build_payslip_pdf(row: pd.Series, company: CompanyInfo, logo_bytes: bytes | 
             pil_img = PilImage.open(BytesIO(logo_bytes))
             pil_img.load()
             pil_img = pil_img.convert("RGBA")
-            # Use 3× resolution for crispness, then display at correct pt size
             pil_img.thumbnail((int(max_w_pt * 3), int(max_h_pt * 3)), PilImage.LANCZOS)
             display_w = pil_img.width / 3
             display_h = pil_img.height / 3
@@ -310,13 +312,17 @@ def build_payslip_pdf(row: pd.Series, company: CompanyInfo, logo_bytes: bytes | 
             pil_img.save(logo_buffer, format="PNG")
             logo_buffer.seek(0)
             logo = Image(logo_buffer, width=display_w, height=display_h)
-            logo.hAlign = "RIGHT"
+            logo.hAlign = "CENTER"
         except Exception:
             logo = None
 
     month_label = format_month(row.get("month"))
     center_title = ParagraphStyle("CenterTitle", parent=styles["Title"], alignment=TA_CENTER)
     center_normal = ParagraphStyle("CenterNormal", parent=styles["Normal"], alignment=TA_CENTER)
+    month_style = ParagraphStyle(
+        "MonthStyle", parent=styles["Heading3"],
+        alignment=TA_CENTER, textColor=BRAND_COLOR,
+    )
     company_lines = [
         Paragraph(f"<b>{company.name}</b>", center_title),
         Paragraph(company.address.replace("\n", "<br />"), center_normal),
@@ -325,10 +331,19 @@ def build_payslip_pdf(row: pd.Series, company: CompanyInfo, logo_bytes: bytes | 
     if contact_parts:
         company_lines.append(Paragraph(" | ".join(contact_parts), center_normal))
 
+    # Brand accent bar (full width, thin colored stripe)
+    accent_bar = Table([[""]],
+        colWidths=[170 * mm], rowHeights=[3 * mm])
+    accent_bar.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), BRAND_COLOR),
+        ("LINEBELOW", (0, 0), (-1, -1), 0, colors.white),
+    ]))
+    story.append(accent_bar)
+
     header_table = Table(
         [
             [company_lines, logo or ""],
-            [Paragraph(f"Payslip for the month of {month_label}", styles["Heading3"]), ""],
+            [Paragraph(f"Payslip for the month of {month_label}", month_style), ""],
         ],
         colWidths=[140 * mm, 30 * mm],
         rowHeights=[24 * mm, None],
@@ -338,12 +353,13 @@ def build_payslip_pdf(row: pd.Series, company: CompanyInfo, logo_bytes: bytes | 
             [
                 ("SPAN", (0, 1), (1, 1)),
                 ("ALIGN", (0, 0), (0, 0), "CENTER"),
-                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (1, 0), (1, 0), 2),
-                ("RIGHTPADDING", (1, 0), (1, 0), 2),
+                ("ALIGN", (1, 0), (1, 0), "CENTER"),
+                ("VALIGN", (0, 0), (-1, 0), "MIDDLE"),
+                ("VALIGN", (0, 1), (-1, 1), "MIDDLE"),
+                ("BACKGROUND", (0, 1), (-1, 1), BRAND_LIGHT),
                 ("BOX", (0, 0), (-1, -1), 0.5, colors.grey),
                 ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
+                ("LINEABOVE", (0, 1), (-1, 1), 1, BRAND_COLOR),
                 ("ALIGN", (0, 1), (1, 1), "CENTER"),
             ]
         )
@@ -491,8 +507,28 @@ def build_payslip_pdf(row: pd.Series, company: CompanyInfo, logo_bytes: bytes | 
         )
     )
     story.append(net_table)
-    story.append(Spacer(1, 4))
-    story.append(Paragraph("This is a system generated payslip and does not require signature.", styles["Normal"]))
+    story.append(Spacer(1, 8))
+
+    footer_label = ParagraphStyle(
+        "FooterLabel", parent=styles["Normal"],
+        fontSize=7, textColor=colors.HexColor("#6b7280"), alignment=TA_CENTER,
+    )
+    footer_bar = Table(
+        [["This is a computer generated payslip and does not require a signature."],
+         [company.name]],
+        colWidths=[170 * mm],
+    )
+    footer_bar.setStyle(TableStyle([
+        ("LINEABOVE", (0, 0), (-1, 0), 1, colors.HexColor("#1e3a5f")),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#6b7280")),
+        ("TEXTCOLOR", (0, 1), (-1, 1), colors.HexColor("#1e3a5f")),
+        ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+    ]))
+    story.append(footer_bar)
 
     doc.build(story)
     return buffer.getvalue()
