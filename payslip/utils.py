@@ -11,7 +11,7 @@ from datetime import date, datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.enums import TA_JUSTIFY
+from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from PIL import Image as PilImage
@@ -312,13 +312,15 @@ def build_payslip_pdf(row: pd.Series, company: CompanyInfo, logo_bytes: bytes | 
             logo = None
 
     month_label = format_month(row.get("month"))
+    center_title = ParagraphStyle("CenterTitle", parent=styles["Title"], alignment=TA_CENTER)
+    center_normal = ParagraphStyle("CenterNormal", parent=styles["Normal"], alignment=TA_CENTER)
     company_lines = [
-        Paragraph(f"<b>{company.name}</b>", styles["Title"]),
-        Paragraph(company.address.replace("\n", "<br />"), styles["Normal"]),
+        Paragraph(f"<b>{company.name}</b>", center_title),
+        Paragraph(company.address.replace("\n", "<br />"), center_normal),
     ]
     contact_parts = [part for part in [company.email, company.phone] if part]
     if contact_parts:
-        company_lines.append(Paragraph(" | ".join(contact_parts), styles["Normal"]))
+        company_lines.append(Paragraph(" | ".join(contact_parts), center_normal))
 
     header_table = Table(
         [
@@ -332,6 +334,7 @@ def build_payslip_pdf(row: pd.Series, company: CompanyInfo, logo_bytes: bytes | 
         TableStyle(
             [
                 ("SPAN", (0, 1), (1, 1)),
+                ("ALIGN", (0, 0), (0, 0), "CENTER"),
                 ("ALIGN", (1, 0), (1, 0), "RIGHT"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("LEFTPADDING", (1, 0), (1, 0), 2),
