@@ -1111,14 +1111,60 @@
     }
 
     async function runClientOcr(file) {
-      // Tesseract.js OCR
-      const { data } = await Tesseract.recognize(file, 'eng');
+      // Preprocess image (upscale + grayscale + contrast) to boost OCR accuracy
+      const preprocessed = await preprocessImage(file);
+
+      // Tesseract.js OCR with receipt-friendly settings
+      const { data } = await Tesseract.recognize(preprocessed, 'eng', {
+        tessedit_pageseg_mode: '6'  // Assume a uniform block of text
+      });
       const text = data.text || '';
       const confidence = (data.confidence || 0) / 100;
       return extractBillFields(text, confidence);
     }
 
-    // ---- Client-side field extraction (ported from backend) ----
+    // Preprocess image on canvas: scale up small images, grayscale, boost contrast
+    function preprocessImage(file) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            // Scale up so the longest side is at least 1500px (Tesseract reads larger text better)
+            const targetMax = 1500;
+            const longest = Math.max(img.width, img.height);
+            const scale = longest < targetMax ? targetMax / longest : 1;
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+
+            // Grayscale + contrast stretch
+            const imageData = ctx.getImageData(0, 0, w, h);
+            const d = imageData.data;
+            const contrast = 1.4;
+            const intercept = 128 * (1 - contrast);
+            for (let i = 0; i < d.length; i += 4) {
+              let gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+              gray = gray * contrast + intercept;
+              gray = Math.max(0, Math.min(255, gray));
+              d[i] = d[i + 1] = d[i + 2] = gray;
+            }
+            ctx.putImageData(imageData, 0, 0);
+            canvas.toBlob((blob) => resolve(blob || file), 'image/png');
+          } catch (e) {
+            resolve(file); // Fall back to original on any canvas error
+          }
+        };
+        img.onerror = () => resolve(file);
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    // ---- Client-side field extraction ----
     function extractBillFields(text, ocrConfidence) {
       const currency = extractCurrency(text);
       return {
@@ -1133,34 +1179,34 @@
     }
 
     function extractDate(text) {
-      // DD/MM/YYYY or DD-MM-YYYY (with optional keyword)
+      // Allow optional spaces around separators (handwritten / OCR noise): "20 / 2 / 2025"
       const patterns = [
-        /(?:Date|Invoice Date|Bill Date)\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i,
-        /\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/,
+        /(?:Date|Invoice Date|Bill Date)\s*:?\s*(\d{1,2}\s*[/.\-]\s*\d{1,2}\s*[/.\-]\s*\d{2,4})/i,
+        /\b(\d{1,2}\s*[/.\-]\s*\d{1,2}\s*[/.\-]\s*\d{2,4})\b/,
         /\b(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})\b/i
       ];
       for (const p of patterns) {
         const m = text.match(p);
         if (m) {
           const iso = parseToIso(m[1]);
-          if (iso) return { value: iso, confidence: 0.85 };
+          if (iso) return { value: iso, confidence: 0.80 };
         }
       }
       return { value: '', confidence: 0.0 };
     }
 
     function parseToIso(dateStr) {
-      // Try DD/MM/YYYY or DD-MM-YYYY
-      const parts = dateStr.replace(/-/g, '/').split('/');
+      // Normalise separators and strip spaces: "20 / 2 / 2025" -> "20/2/2025"
+      const clean = dateStr.replace(/\s+/g, '').replace(/[.\-]/g, '/');
+      const parts = clean.split('/');
       if (parts.length === 3) {
-        let [d, mo, y] = parts.map(s => s.trim());
+        let [d, mo, y] = parts;
         if (y.length === 2) y = '20' + y;
         const dd = parseInt(d, 10), mm = parseInt(mo, 10), yyyy = parseInt(y, 10);
-        if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && yyyy > 1900) {
+        if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && yyyy > 1900 && yyyy < 2100) {
           return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
         }
       }
-      // Try "15 Jun 2026" style
       const d2 = new Date(dateStr);
       if (!isNaN(d2.getTime())) {
         return `${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2, '0')}-${String(d2.getDate()).padStart(2, '0')}`;
@@ -1170,44 +1216,53 @@
 
     function extractAmount(text) {
       const patterns = [
-        /(?:Grand Total|Total|Amount Due|Net Amount|Amount)\s*:?\s*(?:Rs\.?|INR|[₹$€£¥])?\s*([0-9][0-9,]*\.?[0-9]*)/i,
-        /(?:Rs\.?|INR|[₹$€£¥])\s*([0-9][0-9,]*\.?[0-9]*)/i,
+        /(?:Grand Total|Total|Amount Due|Net Amount|Amount|Rs\.?|INR|[₹$€£¥])\s*:?\s*([0-9][0-9,]*\.?[0-9]{0,2})/i,
         /\b([0-9,]+\.[0-9]{2})\b/
       ];
-      let best = 0;
       for (const p of patterns) {
         const m = text.match(p);
         if (m) {
           const val = parseFloat(m[1].replace(/,/g, ''));
           if (!isNaN(val) && val > 0) {
-            return { value: val, confidence: 0.85 };
+            return { value: val, confidence: 0.80 };
           }
         }
       }
-      // Fallback: pick the largest number that looks like money
+      // Fallback: largest decimal-looking number
+      let best = 0;
       const nums = text.match(/[0-9][0-9,]*\.[0-9]{2}/g) || [];
       nums.forEach(n => {
         const v = parseFloat(n.replace(/,/g, ''));
         if (v > best) best = v;
       });
-      if (best > 0) return { value: best, confidence: 0.65 };
+      if (best > 0) return { value: best, confidence: 0.60 };
       return { value: '', confidence: 0.0 };
+    }
+
+    function cleanMerchant(line) {
+      // Strip leading OCR noise (symbols, stray digits) and tidy whitespace
+      return line
+        .replace(/^[^A-Za-z]+/, '')   // drop leading non-letters like "=\ 7 "
+        .replace(/\s{2,}/g, ' ')
+        .trim();
     }
 
     function extractMerchant(text) {
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
       const keywords = ['hotel', 'restaurant', 'airline', 'flight', 'taxi', 'uber', 'ola',
-        'petrol', 'fuel', 'cafe', 'indian oil', 'bpcl', 'hpcl', 'shell',
-        'marriott', 'hilton', 'taj', 'oberoi', 'hyatt', 'travels', 'transport'];
+        'petrol', 'fuel', 'cafe', 'indian oil', 'bpcl', 'hpcl', 'hp ', 'shell', 'sons',
+        'marriott', 'hilton', 'taj', 'oberoi', 'hyatt', 'travels', 'transport', 'dealers'];
       // Keyword match first
-      for (const line of lines.slice(0, 8)) {
+      for (const line of lines.slice(0, 10)) {
         if (keywords.some(k => line.toLowerCase().includes(k))) {
-          return { value: line, confidence: 0.80 };
+          const cleaned = cleanMerchant(line);
+          if (cleaned.length > 2) return { value: cleaned, confidence: 0.80 };
         }
       }
       // Otherwise first meaningful line (often the merchant name at top)
       if (lines.length > 0) {
-        return { value: lines[0], confidence: 0.55 };
+        const cleaned = cleanMerchant(lines[0]);
+        if (cleaned.length > 2) return { value: cleaned, confidence: 0.55 };
       }
       return { value: '', confidence: 0.0 };
     }
