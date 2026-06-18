@@ -1178,40 +1178,48 @@
       };
     }
 
-    function extractDate(text) {
-      // Allow optional spaces around separators (handwritten / OCR noise): "20 / 2 / 2025"
-      const patterns = [
-        /(?:Date|Invoice Date|Bill Date)\s*:?\s*(\d{1,2}\s*[/.\-]\s*\d{1,2}\s*[/.\-]\s*\d{2,4})/i,
-        /\b(\d{1,2}\s*[/.\-]\s*\d{1,2}\s*[/.\-]\s*\d{2,4})\b/,
-        /\b(\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})\b/i
-      ];
-      for (const p of patterns) {
-        const m = text.match(p);
-        if (m) {
-          const iso = parseToIso(m[1]);
-          if (iso) return { value: iso, confidence: 0.80 };
-        }
-      }
-      return { value: '', confidence: 0.0 };
-    }
-
-    function parseToIso(dateStr) {
-      // Normalise separators and strip spaces: "20 / 2 / 2025" -> "20/2/2025"
-      const clean = dateStr.replace(/\s+/g, '').replace(/[.\-]/g, '/');
-      const parts = clean.split('/');
-      if (parts.length === 3) {
-        let [d, mo, y] = parts;
-        if (y.length === 2) y = '20' + y;
-        const dd = parseInt(d, 10), mm = parseInt(mo, 10), yyyy = parseInt(y, 10);
-        if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && yyyy > 1900 && yyyy < 2100) {
-          return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
-        }
-      }
-      const d2 = new Date(dateStr);
-      if (!isNaN(d2.getTime())) {
-        return `${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2, '0')}-${String(d2.getDate()).padStart(2, '0')}`;
+    function buildIso(d, mo, y) {
+      let dd = parseInt(d, 10), mm = parseInt(mo, 10);
+      let yyyy = parseInt(y, 10);
+      if (y.length === 2) yyyy = 2000 + yyyy;
+      if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && yyyy >= 2000 && yyyy <= 2099) {
+        return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
       }
       return null;
+    }
+
+    function firstValidDate(re, text) {
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        const iso = buildIso(m[1], m[2], m[3]);
+        if (iso) return iso;
+      }
+      return null;
+    }
+
+    function extractDate(text) {
+      // 1) Month-name dates: "16 Apr 2026", "16 April 26"
+      const nameMatch = text.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{2,4})\b/i);
+      if (nameMatch) {
+        const d2 = new Date(`${nameMatch[1]} ${nameMatch[2]} ${nameMatch[3].length === 2 ? '20' + nameMatch[3] : nameMatch[3]}`);
+        if (!isNaN(d2.getTime())) {
+          return { value: `${d2.getFullYear()}-${String(d2.getMonth() + 1).padStart(2, '0')}-${String(d2.getDate()).padStart(2, '0')}`, confidence: 0.85 };
+        }
+      }
+
+      // 2) Clean numeric dates with real separators: "16/04/26", "20 / 2 / 2025", "16-04-2026"
+      const strict = firstValidDate(
+        /(\d{1,2})\s*[/.\-]\s*(\d{1,2})\s*[/.\-]\s*(\d{2,4})/g, text);
+      if (strict) return { value: strict, confidence: 0.85 };
+
+      // 3) Fallback: separator may be a misread slash (read as l, I, |, :, ;).
+      //    Require a non-space separator so we don't grab unrelated number groups
+      //    like "12 to 1". Validate strictly (day 1-31, month 1-12, year 2000-2099).
+      const loose = firstValidDate(
+        /(\d{1,2})\s*[/.,:;\-|lI!]\s*(\d{1,2})\s*[/.,:;\-|lI!]\s*(\d{2,4})/g, text);
+      if (loose) return { value: loose, confidence: 0.65 };
+
+      return { value: '', confidence: 0.0 };
     }
 
     function extractAmount(text) {
