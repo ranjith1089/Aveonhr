@@ -1126,274 +1126,216 @@ def build_experience_certificate_pdf(data: dict) -> bytes:
 def build_travel_expense_pdf(data: dict) -> bytes:
     import json
     from datetime import datetime
-    
+
+    BRAND      = colors.HexColor("#1e3a5f")
+    BRAND_LIGHT = colors.HexColor("#e8f0fe")
+    GRAY_TEXT  = colors.HexColor("#6b7280")
+    GRAY_LINE  = colors.HexColor("#e5e7eb")
+    BLUE_TOTAL = colors.HexColor("#0078d4")
+
     buffer = BytesIO()
     doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=20 * mm,
-        leftMargin=20 * mm,
-        topMargin=20 * mm,
-        bottomMargin=20 * mm,
+        buffer, pagesize=A4,
+        rightMargin=20 * mm, leftMargin=20 * mm,
+        topMargin=15 * mm, bottomMargin=20 * mm,
     )
     styles = getSampleStyleSheet()
     story: list = []
 
-    # Extract data
-    company_name = str(data.get("company_name_travel", "")).strip().upper()
-    company_address = str(data.get("company_address_travel", "")).strip()
+    # ── Extract data ──────────────────────────────────────────────────────────
+    company_name      = str(data.get("company_name_travel", "")).strip().upper()
+    company_address   = str(data.get("company_address_travel", "")).strip()
     company_city_state = str(data.get("company_city_state", "")).strip()
-    company_country = str(data.get("company_country", "India")).strip()
-    
-    report_title = str(data.get("report_title", "")).strip()
-    business_purpose = str(data.get("business_purpose", "")).strip()
-    submitted_by = str(data.get("submitted_by", "")).strip()
-    submitted_on = data.get("submitted_on")
-    report_to = str(data.get("report_to", "")).strip()
-    period_start = data.get("reporting_period_start")
-    period_end = data.get("reporting_period_end")
-    
-    # Parse expense data
+    company_country   = str(data.get("company_country", "India")).strip()
+    report_title      = str(data.get("report_title", "")).strip()
+    business_purpose  = str(data.get("business_purpose", "")).strip()
+    submitted_by      = str(data.get("submitted_by", "")).strip()
+    submitted_on      = data.get("submitted_on")
+    report_to         = str(data.get("report_to", "")).strip()
+    period_start      = data.get("reporting_period_start")
+    period_end        = data.get("reporting_period_end")
+    report_number     = str(data.get("report_number", "ER-10001")).strip()
+    report_currency   = str(data.get("report_currency", "INR")).strip()
+
+    # ── Currency symbol (ASCII-safe for Helvetica) ────────────────────────────
+    currency_symbol = {"INR": "Rs.", "USD": "$", "EUR": "EUR", "GBP": "GBP", "JPY": "JPY"}.get(report_currency, "Rs.")
+
+    # ── Parse expense rows ────────────────────────────────────────────────────
     expense_data_str = data.get("expense_data", "[]")
     try:
         expenses = json.loads(expense_data_str) if expense_data_str else []
-    except:
+    except Exception:
         expenses = []
 
-    # Format dates
-    if submitted_on:
-        submitted_on_str = submitted_on.strftime("%b. %d, %Y").replace(" 0", " ")
-    else:
-        submitted_on_str = "-"
-    
-    if period_start:
-        period_start_str = period_start.strftime("%b. %d, %Y").replace(" 0", " ")
-    else:
-        period_start_str = "-"
-    
-    if period_end:
-        period_end_str = period_end.strftime("%b. %d, %Y").replace(" 0", " ")
-    else:
-        period_end_str = "-"
+    # ── Format dates ──────────────────────────────────────────────────────────
+    def _fmt(d):
+        if not d:
+            return "-"
+        try:
+            return d.strftime("%b. %d, %Y").replace(" 0", " ")
+        except Exception:
+            return str(d)
 
-    # Get report number
-    report_number = str(data.get("report_number", "ER-10001")).strip()
-    
-    # Header: Company Name (Left, Bold) and "EXPENSE REPORT" (Right, Gray)
-    header_style_left = ParagraphStyle(
-        'HeaderLeft',
-        parent=styles['Normal'],
-        fontSize=14,
-        fontName='Helvetica-Bold',
-        textColor=colors.black,
-        leading=16
-    )
-    
-    header_style_right = ParagraphStyle(
-        'HeaderRight',
-        parent=styles['Normal'],
-        fontSize=24,
-        fontName='Helvetica',
-        textColor=colors.HexColor('#9ca3af'),
-        alignment=2,  # Right align
-        leading=28
-    )
-    
+    submitted_on_str  = _fmt(submitted_on)
+    period_start_str  = _fmt(period_start)
+    period_end_str    = _fmt(period_end)
+
+    # ── Styles ────────────────────────────────────────────────────────────────
+    lbl = ParagraphStyle("ER_lbl",  parent=styles["Normal"], fontSize=7,
+                         fontName="Helvetica", textColor=GRAY_TEXT, spaceAfter=1)
+    val = ParagraphStyle("ER_val",  parent=styles["Normal"], fontSize=10,
+                         fontName="Helvetica-Bold", spaceAfter=6)
+    th  = ParagraphStyle("ER_th",   parent=styles["Normal"], fontSize=9,
+                         fontName="Helvetica-Bold", textColor=GRAY_TEXT)
+    th_r = ParagraphStyle("ER_thr", parent=styles["Normal"], fontSize=9,
+                          fontName="Helvetica-Bold", textColor=GRAY_TEXT, alignment=2)
+    amt_r = ParagraphStyle("ER_amtr", parent=styles["Normal"], fontSize=9, alignment=2)
+    ttl_lbl = ParagraphStyle("ER_ttllbl", parent=styles["Normal"], fontSize=10,
+                              fontName="Helvetica-Bold", alignment=2)
+    ttl_val = ParagraphStyle("ER_ttlval", parent=styles["Normal"], fontSize=11,
+                              fontName="Helvetica-Bold", textColor=BLUE_TOTAL, alignment=2)
+    sig_lbl = ParagraphStyle("ER_sig", parent=styles["Normal"], fontSize=9,
+                              fontName="Helvetica-Bold", textColor=BRAND)
+    foot    = ParagraphStyle("ER_foot", parent=styles["Normal"], fontSize=7,
+                              textColor=GRAY_TEXT, alignment=1)
+
+    # ── Brand accent bar ──────────────────────────────────────────────────────
+    accent = Table([[""]], colWidths=[170 * mm], rowHeights=[3 * mm])
+    accent.setStyle(TableStyle([("BACKGROUND", (0,0), (-1,-1), BRAND)]))
+    story.append(accent)
+    story.append(Spacer(1, 10))
+
+    # ── Page header: company left, title right ────────────────────────────────
+    city_line = ", ".join(filter(None, [company_city_state, company_country]))
     company_info = Paragraph(
         f"<b>{company_name}</b><br/>"
-        f"<font size=9>📍 {company_address}<br/>"
-        f"📍 {company_city_state}, {company_country}</font>",
-        header_style_left
+        f"<font size=9>{company_address}<br/>{city_line}</font>",
+        ParagraphStyle("ER_co", parent=styles["Normal"], fontSize=13,
+                       fontName="Helvetica-Bold", leading=16),
     )
-    
-    title_info = Paragraph(
-        f"EXPENSE<br/>REPORT<br/>"
-        f"<font size=10 color='black'><b>REF: {report_number}</b></font>",
-        header_style_right
+    title_block = Paragraph(
+        f"<font color='#9ca3af'>EXPENSE<br/>REPORT</font><br/>"
+        f"<font size=9 color='black'><b>REF: {report_number}</b></font>",
+        ParagraphStyle("ER_title", parent=styles["Normal"], fontSize=22,
+                       fontName="Helvetica", alignment=2, leading=26),
     )
-    
-    header_table = Table([[company_info, title_info]], colWidths=[100 * mm, 70 * mm])
-    header_table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('ALIGN', (0, 0), (0, 0), 'LEFT'),
-        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+    hdr = Table([[company_info, title_block]], colWidths=[100 * mm, 70 * mm])
+    hdr.setStyle(TableStyle([
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ("ALIGN",  (1,0), (1,0),  "RIGHT"),
     ]))
-    story.append(header_table)
-    story.append(Spacer(1, 20))
+    story.append(hdr)
+    story.append(Spacer(1, 14))
 
-    # Report Details Section - Clean layout matching image
-    label_style = ParagraphStyle(
-        'Label',
-        parent=styles['Normal'],
-        fontSize=8,
-        textColor=colors.HexColor('#6b7280'),
-        spaceAfter=2
-    )
-    
-    value_style = ParagraphStyle(
-        'Value',
-        parent=styles['Normal'],
-        fontSize=10,
-        fontName='Helvetica-Bold',
-        spaceAfter=12
-    )
-    
-    # Two-column layout for report details
-    details_data = [
-        [
-            Paragraph("REPORT TITLE", label_style),
-            Paragraph("SUBMITTED BY", label_style),
-            Paragraph("SUBMITTED ON", label_style),
-        ],
-        [
-            Paragraph(report_title, value_style),
-            Paragraph(submitted_by, value_style),
-            Paragraph(submitted_on_str, value_style),
-        ],
-        [
-            Paragraph("BUSINESS PURPOSE", label_style),
-            Paragraph("REPORTING PERIOD", label_style),
-            Paragraph("REPORT TO", label_style),
-        ],
-        [
-            Paragraph(business_purpose, value_style),
-            Paragraph(f"{period_start_str} - {period_end_str}", value_style),
-            Paragraph(report_to, value_style),
-        ],
-    ]
-    
-    details_table = Table(details_data, colWidths=[57 * mm, 57 * mm, 56 * mm])
-    details_table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    # ── Divider ───────────────────────────────────────────────────────────────
+    div = Table([[""]], colWidths=[170 * mm], rowHeights=[0.5])
+    div.setStyle(TableStyle([("LINEABOVE", (0,0), (-1,-1), 0.8, BRAND)]))
+    story.append(div)
+    story.append(Spacer(1, 10))
+
+    # ── Report details (3-column) ─────────────────────────────────────────────
+    details = Table([
+        [Paragraph("REPORT TITLE",    lbl), Paragraph("SUBMITTED BY",  lbl), Paragraph("SUBMITTED ON", lbl)],
+        [Paragraph(report_title,      val), Paragraph(submitted_by,    val), Paragraph(submitted_on_str, val)],
+        [Paragraph("BUSINESS PURPOSE",lbl), Paragraph("REPORTING PERIOD", lbl), Paragraph("REPORT TO",  lbl)],
+        [Paragraph(business_purpose,  val),
+         Paragraph(f"{period_start_str} - {period_end_str}", val),
+         Paragraph(report_to,         val)],
+    ], colWidths=[57 * mm, 70 * mm, 43 * mm])
+    details.setStyle(TableStyle([
+        ("VALIGN",       (0,0), (-1,-1), "TOP"),
+        ("LEFTPADDING",  (0,0), (-1,-1), 0),
+        ("RIGHTPADDING", (0,0), (-1,-1), 4),
+        ("BOTTOMPADDING",(0,0), (-1,-1), 0),
+        ("TOPPADDING",   (0,0), (-1,-1), 0),
     ]))
-    story.append(details_table)
-    story.append(Spacer(1, 20))
+    story.append(details)
+    story.append(Spacer(1, 16))
 
-    # Get report currency
-    report_currency = str(data.get("report_currency", "INR")).strip()
-    currency_symbol = {'INR': '₹', 'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥'}.get(report_currency, '₹')
-    
-    # Expense Table Header
-    expense_table_data = [
-        [
-            Paragraph("<b>DATE</b>", ParagraphStyle('th', fontSize=9, textColor=colors.HexColor('#6b7280'))),
-            Paragraph("<b>DESCRIPTION</b>", ParagraphStyle('th', fontSize=9, textColor=colors.HexColor('#6b7280'))),
-            Paragraph("<b>MERCHANT</b>", ParagraphStyle('th', fontSize=9, textColor=colors.HexColor('#6b7280'))),
-            Paragraph("<b>AMOUNT</b>", ParagraphStyle('th', fontSize=9, textColor=colors.HexColor('#6b7280'), alignment=2)),
-        ]
-    ]
-    
-    total_amount = 0
-    
+    # ── Expense table ─────────────────────────────────────────────────────────
+    COL_W = [30 * mm, 72 * mm, 38 * mm, 30 * mm]
+    rows = [[Paragraph("DATE", th), Paragraph("DESCRIPTION", th),
+             Paragraph("MERCHANT", th), Paragraph("AMOUNT", th_r)]]
+    total_amount = 0.0
+
     for exp in expenses:
-        exp_date = exp.get("date", "-")
+        exp_date    = exp.get("date", "-")
         description = exp.get("description", "-")
-        merchant = exp.get("merchant", "—") or "—"
-        amount = float(exp.get("amount", 0))
-        
-        # Format date
+        merchant    = exp.get("merchant", "-") or "-"
+        try:
+            amount = float(exp.get("amount", 0))
+        except (ValueError, TypeError):
+            amount = 0.0
+
         if exp_date and exp_date != "-":
             try:
-                date_obj = datetime.strptime(exp_date, "%Y-%m-%d")
-                exp_date = date_obj.strftime("%d %b %Y")
-            except:
+                exp_date = datetime.strptime(exp_date, "%Y-%m-%d").strftime("%d %b %Y")
+            except Exception:
                 pass
-        
-        expense_table_data.append([
-            exp_date,
-            description,
-            merchant,
-            f"{currency_symbol}{amount:,.2f}"
+
+        rows.append([
+            exp_date, description, merchant,
+            Paragraph(f"{currency_symbol} {amount:,.2f}", amt_r),
         ])
-        
         total_amount += amount
 
-    expense_table = Table(
-        expense_table_data,
-        colWidths=[35 * mm, 75 * mm, 35 * mm, 25 * mm]
-    )
-    expense_table.setStyle(
-        TableStyle(
-            [
-                # Header styling
-                ("ALIGN", (0, 0), (-1, 0), "LEFT"),
-                ("ALIGN", (3, 0), (3, -1), "RIGHT"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
-                ("LINEBELOW", (0, 0), (-1, 0), 1, colors.HexColor('#e5e7eb')),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ("LINEBELOW", (0, 1), (-1, -1), 0.5, colors.HexColor('#f3f4f6')),
-            ]
-        )
-    )
-    story.append(expense_table)
+    exp_tbl = Table(rows, colWidths=COL_W)
+    exp_tbl.setStyle(TableStyle([
+        ("BACKGROUND",   (0,0), (-1,0),  BRAND_LIGHT),
+        ("LINEBELOW",    (0,0), (-1,0),  1,   BRAND),
+        ("LINEBELOW",    (0,1), (-1,-1), 0.4, GRAY_LINE),
+        ("FONTSIZE",     (0,0), (-1,-1), 9),
+        ("TOPPADDING",   (0,0), (-1,-1), 7),
+        ("BOTTOMPADDING",(0,0), (-1,-1), 7),
+        ("LEFTPADDING",  (0,0), (-1,-1), 4),
+        ("RIGHTPADDING", (0,0), (-1,-1), 4),
+        ("ALIGN",        (3,0), (3,-1),  "RIGHT"),
+        ("VALIGN",       (0,0), (-1,-1), "MIDDLE"),
+    ]))
+    story.append(exp_tbl)
+    story.append(Spacer(1, 16))
+
+    # ── Totals block (right-aligned, fixed column widths) ─────────────────────
+    amt_col = 45 * mm   # wide enough for "Rs. 99,999.00"
+    lbl_col = 40 * mm
+    gap_col = 170 * mm - lbl_col - amt_col
+
+    totals = Table([
+        [Paragraph("Subtotal",   ttl_lbl), Paragraph(f"{currency_symbol} {total_amount:,.2f}", ttl_lbl)],
+        [Paragraph("Grand Total", ttl_lbl), Paragraph(f"{currency_symbol} {total_amount:,.2f}", ttl_val)],
+    ], colWidths=[lbl_col, amt_col],
+       hAlign="RIGHT")
+    totals.setStyle(TableStyle([
+        ("ALIGN",        (0,0), (-1,-1), "RIGHT"),
+        ("TOPPADDING",   (0,0), (-1,-1), 6),
+        ("BOTTOMPADDING",(0,0), (-1,-1), 6),
+        ("LEFTPADDING",  (0,0), (-1,-1), 4),
+        ("RIGHTPADDING", (0,0), (-1,-1), 4),
+        ("LINEABOVE",    (0,0), (-1,0),  0.5, GRAY_LINE),
+        ("LINEABOVE",    (0,1), (-1,1),  1.2, BRAND),
+        ("BACKGROUND",   (0,1), (-1,1),  BRAND_LIGHT),
+        ("LINEBELOW",    (0,1), (-1,1),  1.2, BRAND),
+    ]))
+    story.append(totals)
+    story.append(Spacer(1, 30))
+
+    # ── Signature section ─────────────────────────────────────────────────────
+    sig = Table([
+        [Paragraph("EMPLOYEE SIGNATURE", sig_lbl), Paragraph("APPROVER SIGNATURE", sig_lbl)],
+        ["", ""],
+    ], colWidths=[85 * mm, 85 * mm])
+    sig.setStyle(TableStyle([
+        ("LINEABOVE",    (0,0), (-1,0),  1,  GRAY_LINE),
+        ("TOPPADDING",   (0,0), (-1,0),  28),
+        ("BOTTOMPADDING",(0,0), (-1,0),  6),
+        ("TOPPADDING",   (0,1), (-1,1),  30),
+    ]))
+    story.append(sig)
     story.append(Spacer(1, 20))
 
-    # Subtotal and Grand Total - Right aligned
-    subtotal_data = [
-        ["", "", "Subtotal", f"{currency_symbol}{total_amount:,.2f}"],
-    ]
-    
-    subtotal_table = Table(subtotal_data, colWidths=[35 * mm, 75 * mm, 35 * mm, 25 * mm])
-    subtotal_table.setStyle(TableStyle([
-        ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-    ]))
-    story.append(subtotal_table)
-    story.append(Spacer(1, 8))
-    
-    # Grand Total - Bold and Blue
-    grand_total_data = [
-        ["", "", Paragraph("<b>Grand Total</b>", styles['Normal']), 
-         Paragraph(f"<font size=16 color='#0078d4'><b>{currency_symbol}{total_amount:,.2f}</b></font>", styles['Normal'])],
-    ]
-    
-    grand_total_table = Table(grand_total_data, colWidths=[35 * mm, 75 * mm, 35 * mm, 25 * mm])
-    grand_total_table.setStyle(TableStyle([
-        ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
-        ('FONTSIZE', (2, 0), (2, 0), 12),
-        ('FONTNAME', (2, 0), (2, 0), 'Helvetica-Bold'),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-    ]))
-    story.append(grand_total_table)
-    story.append(Spacer(1, 40))
-    
-    # Signature Section
-    signature_data = [
-        [Paragraph("<b>EMPLOYEE SIGNATURE</b>", styles['Normal']), 
-         Paragraph("<b>APPROVER SIGNATURE</b>", styles['Normal'])],
-        ["", ""],
-        ["", ""],
-    ]
-    
-    signature_table = Table(signature_data, colWidths=[85 * mm, 85 * mm])
-    signature_table.setStyle(TableStyle([
-        ('FONTSIZE', (0, 0), (-1, 0), 9),
-        ('LINEABOVE', (0, 0), (-1, 0), 1, colors.HexColor('#e5e7eb')),
-        ('TOPPADDING', (0, 0), (-1, 0), 30),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-    ]))
-    story.append(signature_table)
-    story.append(Spacer(1, 30))
-    
-    # Footer
-    footer_style = ParagraphStyle(
-        'Footer',
-        parent=styles['Normal'],
-        fontSize=8,
-        textColor=colors.HexColor('#9ca3af'),
-        alignment=1  # Center
-    )
-    
-    story.append(Paragraph(
-        f"GENERATED VIA {company_name} EXPENSE MANAGEMENT SYSTEM",
-        footer_style
-    ))
-    
+    # ── Footer ────────────────────────────────────────────────────────────────
+    story.append(Paragraph(f"Generated via {company_name} Expense Management System", foot))
+
     doc.build(story)
     return buffer.getvalue()
 
