@@ -1110,27 +1110,48 @@
       }
     }
 
-    async function runClientOcr(file) {
-      // Preprocess image (upscale + grayscale + contrast) to boost OCR accuracy
-      const preprocessed = await preprocessImage(file);
-
-      // Tesseract.js OCR with receipt-friendly settings
-      const { data } = await Tesseract.recognize(preprocessed, 'eng', {
-        tessedit_pageseg_mode: '6'  // Assume a uniform block of text
+    let _ocrWorker = null;
+    async function getOcrWorker() {
+      if (_ocrWorker) return _ocrWorker;
+      // Reuse a single worker across uploads (faster after the first run)
+      _ocrWorker = await Tesseract.createWorker('eng', 1, {
+        // OEM 1 = LSTM neural engine (best accuracy)
       });
-      const text = data.text || '';
-      const confidence = (data.confidence || 0) / 100;
+      return _ocrWorker;
+    }
+
+    async function runClientOcr(file) {
+      const worker = await getOcrWorker();
+      await worker.setParameters({ tessedit_pageseg_mode: '6' }); // uniform text block
+
+      // Pass 1: binarized (best for clean printed receipts)
+      const binImg = await preprocessImage(file, 'binarize');
+      const resBin = await worker.recognize(binImg);
+      let best = resBin.data;
+
+      // Pass 2 only if binarization gave a weak result (e.g. faint/low-contrast bill):
+      // grayscale often recovers those. Keeps fast path fast.
+      if ((best.confidence || 0) < 70) {
+        const grayImg = await preprocessImage(file, 'grayscale');
+        const resGray = await worker.recognize(grayImg);
+        if ((resGray.data.confidence || 0) > (best.confidence || 0)) {
+          best = resGray.data;
+        }
+      }
+
+      const text = best.text || '';
+      const confidence = (best.confidence || 0) / 100;
       return extractBillFields(text, confidence);
     }
 
-    // Preprocess image on canvas: scale up small images, grayscale, boost contrast
-    function preprocessImage(file) {
+    // Preprocess image on canvas. mode: 'binarize' (Otsu black/white) or 'grayscale'.
+    function preprocessImage(file, mode) {
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
           try {
-            // Scale up so the longest side is at least 1500px (Tesseract reads larger text better)
-            const targetMax = 1500;
+            // Scale up so the longest side is ~2000px (Tesseract reads larger text better)
+            const targetMax = 2000;
             const longest = Math.max(img.width, img.height);
             const scale = longest < targetMax ? targetMax / longest : 1;
             const w = Math.round(img.width * scale);
@@ -1140,19 +1161,54 @@
             canvas.width = w;
             canvas.height = h;
             const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, w, h);
 
-            // Grayscale + contrast stretch
             const imageData = ctx.getImageData(0, 0, w, h);
             const d = imageData.data;
-            const contrast = 1.4;
+
+            // 1) Grayscale + mild contrast stretch
+            const contrast = 1.3;
             const intercept = 128 * (1 - contrast);
-            for (let i = 0; i < d.length; i += 4) {
-              let gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-              gray = gray * contrast + intercept;
-              gray = Math.max(0, Math.min(255, gray));
-              d[i] = d[i + 1] = d[i + 2] = gray;
+            const grayVals = new Uint8ClampedArray(w * h);
+            const hist = new Array(256).fill(0);
+            for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+              let g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+              g = g * contrast + intercept;
+              g = Math.max(0, Math.min(255, g));
+              const gi = g | 0;
+              grayVals[p] = gi;
+              hist[gi]++;
             }
+
+            if (mode === 'binarize') {
+              // 2) Otsu's method: find threshold that maximises between-class variance
+              const total = w * h;
+              let sum = 0;
+              for (let t = 0; t < 256; t++) sum += t * hist[t];
+              let sumB = 0, wB = 0, maxVar = 0, threshold = 127;
+              for (let t = 0; t < 256; t++) {
+                wB += hist[t];
+                if (wB === 0) continue;
+                const wF = total - wB;
+                if (wF === 0) break;
+                sumB += t * hist[t];
+                const mB = sumB / wB;
+                const mF = (sum - sumB) / wF;
+                const between = wB * wF * (mB - mF) * (mB - mF);
+                if (between > maxVar) { maxVar = between; threshold = t; }
+              }
+              for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+                const v = grayVals[p] > threshold ? 255 : 0;
+                d[i] = d[i + 1] = d[i + 2] = v;
+              }
+            } else {
+              for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+                d[i] = d[i + 1] = d[i + 2] = grayVals[p];
+              }
+            }
+
             ctx.putImageData(imageData, 0, 0);
             canvas.toBlob((blob) => resolve(blob || file), 'image/png');
           } catch (e) {
