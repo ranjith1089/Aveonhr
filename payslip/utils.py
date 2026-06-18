@@ -13,7 +13,6 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.enums import TA_JUSTIFY, TA_CENTER
 from reportlab.lib.units import mm
-from reportlab.lib.utils import ImageReader
 from PIL import Image as PilImage
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
@@ -295,19 +294,23 @@ def build_payslip_pdf(row: pd.Series, company: CompanyInfo, logo_bytes: bytes | 
     story: list = []
 
     logo = None
+    logo_buffer = None  # keep reference alive for PDF rendering
     if logo_bytes:
         try:
-            max_width = 26 * mm
-            max_height = 18 * mm
-            with PilImage.open(BytesIO(logo_bytes)) as img:
-                img = img.convert("RGBA")
-                img.thumbnail((int(max_width), int(max_height)), PilImage.LANCZOS)
-                logo_buffer = BytesIO()
-                img.save(logo_buffer, format="PNG")
-                logo_buffer.seek(0)
-                logo_reader = ImageReader(logo_buffer)
-                logo = Image(logo_reader, width=img.width, height=img.height)
-                logo.hAlign = "RIGHT"
+            max_w_pt = 26 * mm
+            max_h_pt = 18 * mm
+            pil_img = PilImage.open(BytesIO(logo_bytes))
+            pil_img.load()
+            pil_img = pil_img.convert("RGBA")
+            # Use 3× resolution for crispness, then display at correct pt size
+            pil_img.thumbnail((int(max_w_pt * 3), int(max_h_pt * 3)), PilImage.LANCZOS)
+            display_w = pil_img.width / 3
+            display_h = pil_img.height / 3
+            logo_buffer = BytesIO()
+            pil_img.save(logo_buffer, format="PNG")
+            logo_buffer.seek(0)
+            logo = Image(logo_buffer, width=display_w, height=display_h)
+            logo.hAlign = "RIGHT"
         except Exception:
             logo = None
 
