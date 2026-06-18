@@ -1081,14 +1081,20 @@
       const csrfToken = getCsrfToken();
 
       // Upload to OCR endpoint
-      fetch('/api/ocr/process-bill/', {
+      const fetchOptions = {
         method: 'POST',
         body: formData,
-        credentials: 'same-origin',
-        headers: {
+        credentials: 'same-origin'
+      };
+
+      // Add CSRF token to headers if available
+      if (csrfToken) {
+        fetchOptions.headers = {
           'X-CSRFToken': csrfToken
-        }
-      })
+        };
+      }
+
+      fetch('/api/ocr/process-bill/', fetchOptions)
       .then(response => {
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);

@@ -883,6 +883,9 @@ def proposal_quotation(request: HttpRequest) -> HttpResponse:
     return render(request, "payslip/proposal_quotation.html", context)
 
 
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
 def process_bill_ocr(request: HttpRequest) -> HttpResponse:
     """
     API endpoint for OCR-based bill/invoice processing.
