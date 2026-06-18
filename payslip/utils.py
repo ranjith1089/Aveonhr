@@ -171,6 +171,8 @@ def display_value(value: object) -> str:
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     if isinstance(value, (pd.Timestamp, datetime, date)):
+        if pd.isnull(value):
+            return "-"
         return value.strftime("%Y-%m-%d")
     if isinstance(value, str) and "00:00:00" in value:
         return value.split(" ")[0]
@@ -188,6 +190,8 @@ def format_month(value: object) -> str:
         return "-"
     try:
         parsed = pd.to_datetime(value)
+        if pd.isnull(parsed):
+            return "-"
         return parsed.strftime("%b %Y").upper()
     except Exception:
         return display_value(value)
