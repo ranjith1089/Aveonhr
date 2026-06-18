@@ -429,28 +429,186 @@
       background: linear-gradient(135deg, #5a67d8 0%, #4c51bf 100%);
     }
     
-    
+
     /* Responsive */
     @media (max-width: 1024px) {
       .two-column-layout {
         grid-template-columns: 1fr;
       }
-      
+
       .form-row,
       .form-row-triple {
         grid-template-columns: 1fr;
       }
     }
-    
+
     @media (max-width: 768px) {
+      .expense-container {
+        padding: 0 16px;
+        margin: 24px auto;
+      }
+
       .expense-header {
         flex-direction: column;
         gap: 16px;
       }
-      
+
+      .expense-title h1 {
+        font-size: 28px;
+      }
+
       .expenses-header {
         flex-direction: column;
         align-items: flex-start;
+        gap: 12px;
+      }
+
+      .expenses-section {
+        padding: 20px;
+      }
+
+      /* Bill Modal Responsive - Tablet */
+      #billModal > div {
+        width: 95% !important;
+        max-width: 95% !important;
+        max-height: 95vh !important;
+        border-radius: 8px !important;
+      }
+
+      #billModal > div > div:nth-child(3) {
+        flex-direction: column !important;
+        padding: 16px !important;
+      }
+
+      #billModal > div > div:nth-child(3) > div:first-child {
+        min-width: auto !important;
+        width: 100% !important;
+        margin-bottom: 16px !important;
+      }
+
+      #billModal > div > div:nth-child(3) > div:last-child {
+        min-width: auto !important;
+        width: 100% !important;
+      }
+
+      #billPreviewImg {
+        max-height: 300px !important;
+      }
+
+      .expense-table {
+        font-size: 12px;
+      }
+
+      .expense-table th,
+      .expense-table td {
+        padding: 8px 4px !important;
+      }
+
+      .add-expense-btn {
+        padding: 8px 12px;
+        font-size: 12px;
+        gap: 6px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .expense-container {
+        padding: 0 12px;
+        margin: 16px auto;
+      }
+
+      .expense-title h1 {
+        font-size: 24px;
+      }
+
+      .expense-card {
+        padding: 16px;
+        border-radius: 12px;
+      }
+
+      .form-row,
+      .form-row-triple {
+        grid-template-columns: 1fr;
+      }
+
+      /* Bill Modal Responsive - Phone */
+      #billModal {
+        padding: 16px !important;
+      }
+
+      #billModal > div {
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: 90vh !important;
+        border-radius: 8px !important;
+      }
+
+      #billModal > div > div:first-child {
+        padding: 16px !important;
+      }
+
+      #billModal > div > div:nth-child(3) {
+        flex-direction: column !important;
+        padding: 16px !important;
+        gap: 16px !important;
+      }
+
+      #billModal > div > div:nth-child(3) > div {
+        width: 100% !important;
+        min-width: auto !important;
+      }
+
+      #billPreviewImg {
+        max-height: 250px !important;
+        width: 100% !important;
+      }
+
+      #billModal input[type="date"],
+      #billModal input[type="text"],
+      #billModal input[type="number"] {
+        font-size: 16px !important;
+        padding: 12px !important;
+      }
+
+      #billModal button {
+        font-size: 14px !important;
+        padding: 12px 16px !important;
+      }
+
+      .expenses-section {
+        padding: 16px;
+      }
+
+      .expenses-title h2 {
+        font-size: 16px;
+      }
+
+      .expense-table {
+        font-size: 11px;
+      }
+
+      .expense-table th,
+      .expense-table td {
+        padding: 6px 2px !important;
+      }
+
+      .expense-table th {
+        font-size: 10px;
+      }
+
+      .add-expense-btn {
+        padding: 8px 10px;
+        font-size: 11px;
+        gap: 4px;
+      }
+
+      .add-expense-btn svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      .expense-footer {
+        flex-direction: column;
         gap: 12px;
       }
     }
@@ -657,31 +815,31 @@
       <input type="file" id="billFileInput" accept=".png,.jpg,.jpeg" style="display: none;" onchange="handleBillUpload(event)">
 
       <!-- Bill Preview & Confirmation Modal -->
-      <div id="billModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+      <div id="billModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 12px;">
         <div style="background: white; border-radius: 12px; max-width: 900px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
           <!-- Modal Header -->
-          <div style="padding: 24px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: #1f2937;">Bill / Invoice Preview</h3>
-            <button type="button" onclick="closeBillModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280;">×</button>
+          <div style="padding: 24px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: #1f2937; flex: 1;">Bill / Invoice Preview</h3>
+            <button type="button" onclick="closeBillModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #6b7280; padding: 0; width: 32px; height: 32px;">×</button>
           </div>
 
           <!-- Modal Body -->
-          <div style="padding: 24px; display: flex; gap: 24px;">
+          <div style="padding: 24px; display: flex; gap: 24px; flex-wrap: wrap;">
             <!-- Image Preview (Left) -->
-            <div style="flex: 1; min-width: 300px;">
+            <div style="flex: 1; min-width: 280px; display: flex; align-items: center; justify-content: center;">
               <img id="billPreviewImg" src="" alt="Bill preview" style="width: 100%; border-radius: 8px; border: 1px solid #e5e7eb; max-height: 400px; object-fit: contain;">
             </div>
 
             <!-- Extracted Data (Right) -->
-            <div style="flex: 1; min-width: 280px;">
+            <div style="flex: 1; min-width: 260px;">
               <h4 style="margin: 0 0 16px 0; font-size: 14px; font-weight: 600; color: #374151;">Extracted Data</h4>
 
               <!-- Date Field -->
               <div style="margin-bottom: 16px;">
                 <label style="display: block; font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 4px;">Date <span style="color: #ef4444;">*</span></label>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                  <input type="date" id="modalDate" style="flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
-                  <span id="dateConfidence" style="font-size: 11px; padding: 4px 8px; border-radius: 4px; background: #e5e7eb; color: #374151;">-</span>
+                  <input type="date" id="modalDate" style="flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 0;">
+                  <span id="dateConfidence" style="font-size: 11px; padding: 4px 8px; border-radius: 4px; background: #e5e7eb; color: #374151; white-space: nowrap;">-</span>
                 </div>
               </div>
 
@@ -689,8 +847,8 @@
               <div style="margin-bottom: 16px;">
                 <label style="display: block; font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 4px;">Merchant</label>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                  <input type="text" id="modalMerchant" placeholder="e.g., Hotel Grand Plaza" style="flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
-                  <span id="merchantConfidence" style="font-size: 11px; padding: 4px 8px; border-radius: 4px; background: #e5e7eb; color: #374151;">-</span>
+                  <input type="text" id="modalMerchant" placeholder="e.g., Hotel Grand Plaza" style="flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 0;">
+                  <span id="merchantConfidence" style="font-size: 11px; padding: 4px 8px; border-radius: 4px; background: #e5e7eb; color: #374151; white-space: nowrap;">-</span>
                 </div>
               </div>
 
@@ -698,20 +856,20 @@
               <div style="margin-bottom: 16px;">
                 <label style="display: block; font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 4px;">Amount <span style="color: #ef4444;">*</span></label>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                  <input type="number" id="modalAmount" placeholder="0.00" step="0.01" min="0.01" style="flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
-                  <span id="amountConfidence" style="font-size: 11px; padding: 4px 8px; border-radius: 4px; background: #e5e7eb; color: #374151;">-</span>
+                  <input type="number" id="modalAmount" placeholder="0.00" step="0.01" min="0.01" style="flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; min-width: 0;">
+                  <span id="amountConfidence" style="font-size: 11px; padding: 4px 8px; border-radius: 4px; background: #e5e7eb; color: #374151; white-space: nowrap;">-</span>
                 </div>
               </div>
 
               <!-- Warnings -->
-              <div id="modalWarnings" style="display: none; padding: 12px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; font-size: 12px; color: #92400e; margin-bottom: 16px;"></div>
+              <div id="modalWarnings" style="display: none; padding: 12px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; font-size: 12px; color: #92400e; margin-bottom: 16px; line-height: 1.5;"></div>
 
               <!-- Action Buttons -->
               <div style="display: flex; gap: 12px; margin-top: 24px;">
-                <button type="button" onclick="confirmBill()" style="flex: 1; background: #1e3a5f; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer;">
+                <button type="button" onclick="confirmBill()" style="flex: 1; background: #1e3a5f; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s;">
                   Confirm & Add
                 </button>
-                <button type="button" onclick="closeBillModal()" style="flex: 1; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer;">
+                <button type="button" onclick="closeBillModal()" style="flex: 1; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; padding: 10px 16px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.2s;">
                   Cancel
                 </button>
               </div>
