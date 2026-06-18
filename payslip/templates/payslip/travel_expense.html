@@ -1096,10 +1096,12 @@
 
       fetch('/api/ocr/process-bill/', fetchOptions)
       .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        return response.json();
+        return response.json().then(data => {
+          if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+          }
+          return data;
+        });
       })
       .then(data => {
         if (data.success) {
@@ -1111,7 +1113,7 @@
       })
       .catch(error => {
         console.error('Upload error:', error);
-        alert('Failed to process bill image. Please try again.');
+        alert(`Upload failed: ${error.message}`);
         closeBillModal();
       });
 
