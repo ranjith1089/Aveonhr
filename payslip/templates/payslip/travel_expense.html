@@ -1036,6 +1036,22 @@
 
     let currentBillData = null;
 
+    function getCsrfToken() {
+      const name = 'csrftoken';
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
     function handleBillUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -1061,11 +1077,17 @@
       formData.append('bill_image', file);
       formData.append('currency', document.getElementById('report-currency').value || 'INR');
 
+      // Get CSRF token
+      const csrfToken = getCsrfToken();
+
       // Upload to OCR endpoint
       fetch('/api/ocr/process-bill/', {
         method: 'POST',
         body: formData,
-        credentials: 'same-origin'
+        credentials: 'same-origin',
+        headers: {
+          'X-CSRFToken': csrfToken
+        }
       })
       .then(response => {
         if (!response.ok) {
