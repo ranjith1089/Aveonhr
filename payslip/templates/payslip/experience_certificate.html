@@ -340,7 +340,33 @@
     el.textContent = `Duration: ${parts.join(', ') || 'less than a month'}`;
   }
 
-  form.addEventListener('input', () => {
+  // ---------- Title <-> Gender sync ----------
+  // Mr. is invalid for female; Ms./Mrs. are invalid for male. Hide the
+  // wrong options and auto-pick a sensible default when the current title
+  // doesn't match the selected gender.
+  const TITLES_BY_GENDER = {
+    male:   ['Mr.'],
+    female: ['Ms.', 'Mrs.'],
+  };
+  function syncTitleByGender() {
+    const genderSel = form.querySelector('[name=gender]');
+    const titleSel  = form.querySelector('[name=title]');
+    if (!genderSel || !titleSel) return;
+    const gender = (genderSel.value || '').toLowerCase();
+    const allowed = TITLES_BY_GENDER[gender];
+    if (!allowed) return;  // unknown gender -> leave choices alone
+    Array.from(titleSel.options).forEach(opt => {
+      if (!opt.value) return;  // keep the blank/default option visible
+      opt.hidden = !allowed.includes(opt.value);
+      opt.disabled = !allowed.includes(opt.value);
+    });
+    if (!allowed.includes(titleSel.value)) {
+      titleSel.value = allowed[0];
+    }
+  }
+
+  form.addEventListener('input', e => {
+    if (e.target && e.target.name === 'gender') syncTitleByGender();
     refreshSummary();
     refreshTenure();
     refreshInternDuration();
@@ -403,6 +429,7 @@
   if (HAS_PREVIEW) clearDraft();
 
   applySectionVisibility();
+  syncTitleByGender();
   refreshTenure();
   refreshInternDuration();
   refreshSummary();
