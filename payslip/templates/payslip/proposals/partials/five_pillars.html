@@ -1,0 +1,11 @@
+<div class="why-g">
+  {% for p in five_pillars %}
+  <div class="why-c" style="border-color:{{ p.color }}33;">
+    <div class="why-icon" style="border-color:{{ p.color }};color:{{ p.color }};background:{{ p.color }}0C;">{{ p.icon }}</div>
+    <div>
+      <div class="why-title">{{ p.title }}</div>
+      <div class="why-desc">{{ p.desc }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>

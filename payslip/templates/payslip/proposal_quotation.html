@@ -40,7 +40,7 @@
     color: #1A1A2E; border-bottom: 1px solid #E5E7EB;
   }
   .pb-mod-row {
-    display: grid; grid-template-columns: 28px 1fr 130px;
+    display: grid; grid-template-columns: 28px 1fr;
     gap: 12px; padding: 10px 16px; align-items: center;
     border-top: 1px solid #F1F5F9;
   }
@@ -54,16 +54,8 @@
     border-radius: 8px; padding: 1px 7px; font-size: 9.5px;
     font-weight: 800; letter-spacing: 1px; margin-left: 6px;
   }
-  .pb-price { display: flex; align-items: center; gap: 4px; }
-  .pb-price input {
-    width: 80px; padding: 4px 8px; font-size: 12.5px;
-    border: 1px solid #CBD5E1; border-radius: 4px;
-  }
-  .pb-price small { font-size: 11px; color: #64748B; }
 
-  .pb-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
-  }
+  .pb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .pb-grid p { margin: 0; }
   .pb-grid p.full { grid-column: 1 / -1; }
   .pb-grid label { display: block; font-size: 12.5px; font-weight: 600; color: #334155; margin-bottom: 4px; }
@@ -72,6 +64,24 @@
     width: 100%; padding: 8px 10px; font-size: 13px;
     border: 1px solid #CBD5E1; border-radius: 6px; background: #fff;
   }
+
+  .pb-price-banner {
+    margin-top: 14px;
+    background: linear-gradient(135deg, #FFFBEB, #FEF3C7);
+    border: 2px solid #F59E0B; border-radius: 10px;
+    padding: 14px 18px;
+  }
+  .pb-price-banner label {
+    font-size: 11.5px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; color: #92400E;
+  }
+  .pb-price-banner input {
+    margin-top: 6px; font-size: 20px; font-weight: 800;
+    padding: 8px 14px;
+    border: 2px solid #F59E0B; border-radius: 8px;
+    background: #fff; color: #92400E; width: 220px;
+  }
+  .pb-price-banner small { display: block; font-size: 12px; color: #92400E; margin-top: 6px; }
 
   .pb-total {
     margin-top: 16px;
@@ -105,7 +115,7 @@
 
   <header class="card" style="margin-bottom: 16px;">
     <h1>📄 Proposal Builder</h1>
-    <p>Pick a bundle or build a custom stack. Live pricing, ready-to-share preview.</p>
+    <p>Pick a package, set the negotiated price, generate a ready-to-share proposal.</p>
   </header>
 
   {% if preview_url %}
@@ -131,7 +141,7 @@
     <form method="post" enctype="multipart/form-data" id="pb-form">
       {% csrf_token %}
 
-      <!-- =============== Addressee =============== -->
+      <!-- Addressee -->
       <div class="pb-section">
         <h3>Addressee</h3>
         <div class="pb-grid">
@@ -145,71 +155,73 @@
         </div>
       </div>
 
-      <!-- =============== Selection mode =============== -->
+      <!-- Package -->
       <div class="pb-section">
         <h3>What's in this proposal?</h3>
         <div class="pb-mode">
           <label>
             <input type="radio" name="selection_mode" value="BUNDLE"
               {% if form.selection_mode.value == 'BUNDLE' or not form.selection_mode.value %}checked{% endif %}>
-            <strong>Pre-built Bundle</strong>
-            <em>Pick one — Complete CMS, COE, HR & Payroll, etc.</em>
+            <strong>Pre-built Package</strong>
+            <em>Complete CMS, COE, HR & Payroll, etc.</em>
           </label>
           <label>
             <input type="radio" name="selection_mode" value="CUSTOM"
               {% if form.selection_mode.value == 'CUSTOM' %}checked{% endif %}>
             <strong>Custom Stack</strong>
-            <em>Pick individual modules, set your own prices.</em>
+            <em>Pick which modules show in the proposal.</em>
           </label>
         </div>
 
-        <!-- Bundle dropdown -->
         <div id="pb-bundle-block">
-          <label style="font-size: 12.5px; font-weight: 600; color: #334155;">Bundle</label>
+          <label style="font-size: 12.5px; font-weight: 600; color: #334155;">Package</label>
           {{ form.bundle }}
           <p id="pb-bundle-tagline" class="pb-help"></p>
         </div>
 
-        <!-- Custom modules -->
         <div id="pb-custom-block" style="display: none;">
-          <p class="pb-help">Tick the modules you want. Edit per-student price inline.</p>
+          <p class="pb-help">Tick the modules that should appear in the proposal's "Core Features" grid.</p>
           {{ form.selected_modules.errors }}
           <div id="pb-categories"></div>
         </div>
-
-        {{ form.pricing_overrides }}
       </div>
 
-      <!-- =============== Commercials =============== -->
+      <!-- Commercials (single price + supporting fields) -->
       <div class="pb-section">
         <h3>Commercials</h3>
-        <div class="pb-grid">
-          <p><label>Minimum Student Commitment</label>{{ form.minimum_student_commitment }}</p>
+
+        <div class="pb-price-banner">
+          <label for="id_price_per_unit">Negotiated Price (per student/employee per year)</label><br>
+          {{ form.price_per_unit }}
+          <small>Change this per customer — Rs. 250, 300, 500 or whatever you've negotiated. The proposal shows just this single price; no per-module breakdown.</small>
+        </div>
+
+        <div class="pb-grid" style="margin-top: 14px;">
+          <p><label>Minimum Commitment (students / employees)</label>{{ form.minimum_student_commitment }}</p>
           <p><label>One-Time Implementation Fee (INR)</label>{{ form.one_time_implementation_fee }}</p>
           <p><label>GST (%)</label>{{ form.gst_percent }}</p>
           <p style="display: flex; align-items: center; gap: 8px; padding-top: 22px;">
             {{ form.waive_one_time_fee }}<label style="margin: 0;">Show one-time fee as waived</label>
           </p>
         </div>
+
+        <div class="pb-total">
+          <div class="pb-total-cell">
+            <div class="pb-total-lbl">Annual Subscription</div>
+            <div class="pb-total-val" id="pb-tot-annual">₹0</div>
+          </div>
+          <div class="pb-total-cell">
+            <div class="pb-total-lbl">+ One-Time + GST</div>
+            <div class="pb-total-val" id="pb-tot-extras">₹0</div>
+          </div>
+          <div class="pb-total-cell">
+            <div class="pb-total-lbl">Grand Total (Year 1)</div>
+            <div class="pb-total-val" id="pb-tot-grand">₹0</div>
+          </div>
+        </div>
       </div>
 
-      <!-- =============== Live total =============== -->
-      <div class="pb-total">
-        <div class="pb-total-cell">
-          <div class="pb-total-lbl">Annual Subscription</div>
-          <div class="pb-total-val" id="pb-tot-annual">₹0</div>
-        </div>
-        <div class="pb-total-cell">
-          <div class="pb-total-lbl">+ One-Time + GST</div>
-          <div class="pb-total-val" id="pb-tot-extras">₹0</div>
-        </div>
-        <div class="pb-total-cell">
-          <div class="pb-total-lbl">Grand Total (Year 1)</div>
-          <div class="pb-total-val" id="pb-tot-grand">₹0</div>
-        </div>
-      </div>
-
-      <!-- =============== Signature =============== -->
+      <!-- Signature -->
       <div class="pb-section">
         <h3>Signature</h3>
         <div class="pb-grid">
@@ -238,18 +250,11 @@
   const bundleSelect = form.querySelector('select[name=bundle]');
   const taglineEl    = document.getElementById('pb-bundle-tagline');
   const categoriesEl = document.getElementById('pb-categories');
-  const overridesEl  = form.querySelector('[name=pricing_overrides]');
 
-  // Server-rendered initial state — read these BEFORE drawing the module grid
-  // so we can re-check / re-fill prices after a validation re-render.
   let initialSelected = [];
   form.querySelectorAll('input[name=selected_modules]:checked').forEach(c => initialSelected.push(c.value));
-  let initialOverrides = {};
-  try { initialOverrides = JSON.parse(overridesEl.value || '{}'); } catch (e) {}
 
-  // -------- Build category-grouped module grid (replaces the default checkbox list) --------
   function buildModuleGrid() {
-    // Discard Django's default rendering — we draw our own.
     categoriesEl.innerHTML = '';
     const byCat = {};
     for (const [code, mod] of Object.entries(CATALOG.modules)) {
@@ -263,7 +268,6 @@
       wrap.innerHTML = `<div class="pb-category-title">${catLabel}</div>`;
       for (const [code, mod] of list) {
         const checked = initialSelected.includes(code) ? 'checked' : '';
-        const price   = initialOverrides[code] != null ? initialOverrides[code] : mod.price;
         const tagHtml = mod.tag ? `<span class="tag">${mod.tag}</span>` : '';
         const row = document.createElement('div');
         row.className = 'pb-mod-row' + (checked ? ' checked' : '');
@@ -272,11 +276,6 @@
           <div class="pb-mod-name">
             <span class="icon">${mod.icon}</span><strong>${mod.name}</strong>${tagHtml}
             <span class="desc">${mod.short_desc}</span>
-          </div>
-          <div class="pb-price">
-            <small>₹</small>
-            <input type="number" data-code="${code}" value="${price}" min="0" step="1">
-            <small>/stu</small>
           </div>`;
         wrap.appendChild(row);
       }
@@ -285,7 +284,6 @@
   }
   buildModuleGrid();
 
-  // -------- Mode toggle --------
   function applyMode() {
     const mode = form.querySelector('input[name=selection_mode]:checked').value;
     bundleBlock.style.display = mode === 'BUNDLE' ? '' : 'none';
@@ -294,16 +292,14 @@
   }
   modeRadios.forEach(r => r.addEventListener('change', applyMode));
 
-  // -------- Bundle change → tagline --------
   function applyBundle() {
     const code = bundleSelect.value;
     const b = CATALOG.bundles[code];
-    taglineEl.textContent = b ? `${b.tagline}  •  Bundle ₹${b.price}/student (standalone ₹${b.standalone_total}).` : '';
+    taglineEl.textContent = b ? `${b.tagline}` : '';
     refreshTotals();
   }
   bundleSelect.addEventListener('change', applyBundle);
 
-  // -------- Recompute pricing_overrides JSON + live total --------
   function inrFmt(n) {
     n = Math.round(n);
     const sign = n < 0 ? '-' : '';
@@ -318,33 +314,19 @@
   }
 
   function refreshTotals() {
-    const mode = form.querySelector('input[name=selection_mode]:checked').value;
     const students = parseFloat(form.querySelector('[name=minimum_student_commitment]').value) || 0;
+    const price    = parseFloat(form.querySelector('[name=price_per_unit]').value) || 0;
     const oneTime  = parseFloat(form.querySelector('[name=one_time_implementation_fee]').value) || 0;
     const waive    = form.querySelector('[name=waive_one_time_fee]').checked;
     const gstPct   = parseFloat(form.querySelector('[name=gst_percent]').value) || 0;
 
-    let annual = 0;
-    const overrides = {};
-    if (mode === 'BUNDLE') {
-      const b = CATALOG.bundles[bundleSelect.value];
-      if (b) annual = parseFloat(b.price) * students;
-    } else {
-      form.querySelectorAll('.pb-mod-row').forEach(row => {
-        const cb = row.querySelector('input[type=checkbox]');
-        const pi = row.querySelector('input[type=number]');
-        row.classList.toggle('checked', cb.checked);
-        if (cb.checked) {
-          const code = pi.dataset.code;
-          const price = parseFloat(pi.value) || 0;
-          const catalogPrice = parseFloat(CATALOG.modules[code].price);
-          if (price !== catalogPrice) overrides[code] = price;
-          annual += price * students;
-        }
-      });
-    }
-    overridesEl.value = JSON.stringify(overrides);
+    // Toggle row highlight on checkboxes (purely visual; no price math per module).
+    form.querySelectorAll('.pb-mod-row').forEach(row => {
+      const cb = row.querySelector('input[type=checkbox]');
+      row.classList.toggle('checked', cb.checked);
+    });
 
+    const annual     = price * students;
     const oneTimeEff = waive ? 0 : oneTime;
     const subtotal   = annual + oneTimeEff;
     const gst        = subtotal * gstPct / 100;
@@ -355,11 +337,9 @@
     document.getElementById('pb-tot-grand').textContent  = '₹' + inrFmt(grand);
   }
 
-  // -------- Bind change listeners --------
   form.addEventListener('input', refreshTotals);
   form.addEventListener('change', refreshTotals);
 
-  // -------- Initial paint --------
   applyMode();
   applyBundle();
   refreshTotals();

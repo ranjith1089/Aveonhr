@@ -1,0 +1,11 @@
+<ul class="comp-list">
+  {% for c in implementation_components %}
+  <li class="comp-item">
+    <div class="comp-badge" style="background:{% cycle '#1565C0' '#2E7D32' '#E65100' %};">{{ forloop.counter }}</div>
+    <div>
+      <div class="comp-title">{{ c.title }}</div>
+      <div class="comp-desc">{{ c.desc }}</div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>

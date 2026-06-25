@@ -253,13 +253,12 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
     )
 
     pricing = compute_pricing(
-        modules=modules,
         bundle_code=bundle_code,
+        price_per_unit=cd["price_per_unit"],
         minimum_student_commitment=cd["minimum_student_commitment"],
         one_time_implementation_fee=cd["one_time_implementation_fee"],
         waive_one_time=cd.get("waive_one_time_fee", False),
         gst_percent=cd["gst_percent"],
-        per_module_overrides=cd.get("pricing_overrides") or {},
     )
 
     presentation = build_presentation(
@@ -268,6 +267,18 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
         client_name=cd["client_name"],
     )
 
+    from .proposal_catalog import (
+        BENEFITS,
+        CUSTOM_PRESENTATION,
+        FIVE_PILLARS,
+        IMPLEMENTATION_COMPONENTS,
+        PRESENTATIONS,
+        WHY_AVEON,
+    )
+    pres = PRESENTATIONS.get(bundle_code or "", CUSTOM_PRESENTATION)
+    exec_paragraphs = [
+        p.format(client=cd["client_name"]) for p in pres.get("executive_paragraphs", [])
+    ]
     return {
         "proposal_title": f"Aveon Proposal — {cd['client_name']}",
         "prepared_by": cd["prepared_by"],
@@ -279,9 +290,16 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
         "modules": modules,
         "bundle": BUNDLES.get(bundle_code) if bundle_code else None,
         "pricing": pricing,
-        "pricing_overrides": cd.get("pricing_overrides") or {},
         "hero": presentation["hero"],
         "hero_stats": presentation["hero_stats"],
+        "executive_title": pres.get("executive_title", "Executive Summary"),
+        "executive_paragraphs": exec_paragraphs,
+        "modules_section_title": pres.get("modules_section_title", f"{len(modules)} Integrated Modules"),
+        "modules_section_desc": pres.get("modules_section_desc", "Every capability included in your proposal."),
+        "five_pillars": FIVE_PILLARS,
+        "benefits": BENEFITS,
+        "implementation_components": IMPLEMENTATION_COMPONENTS,
+        "why_aveon": WHY_AVEON,
         "default_phases": DEFAULT_PHASES,
         "default_terms": DEFAULT_TERMS,
         "authorized_signatory_name": cd["authorized_signatory_name"],

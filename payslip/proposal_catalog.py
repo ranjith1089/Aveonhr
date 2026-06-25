@@ -656,6 +656,92 @@ DEFAULT_TERMS: list[str] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Narrative content for the proposal sections — verbatim style from the
+# canonical Aveon HTML proposals so the rendered output matches in format,
+# alignment, and tone.
+# ---------------------------------------------------------------------------
+FIVE_PILLARS: list[dict] = [
+    {"title": "Comprehensive Integration",
+     "desc": "All institutional functions in one unified platform — no more silos.",
+     "color": "#1565C0", "icon": "🔗"},
+    {"title": "Future-Ready Technology",
+     "desc": "Modern architecture built to scale with your institution's growth.",
+     "color": "#2E7D32", "icon": "🚀"},
+    {"title": "Compliance Built-In",
+     "desc": "Aligned with NAAC, NBA, NIRF, AICTE and UGC standards out of the box.",
+     "color": "#E65100", "icon": "✅"},
+    {"title": "User-Centric Design",
+     "desc": "Intuitive interfaces for management, staff, students and parents alike.",
+     "color": "#1565C0", "icon": "🎨"},
+    {"title": "Trusted Partnership",
+     "desc": "A decade of delivering ERP solutions for educational institutions.",
+     "color": "#2E7D32", "icon": "🤝"},
+]
+
+
+BENEFITS: list[dict] = [
+    {"title": "For Management",
+     "icon": "🏛️", "color": "#1565C0",
+     "items": [
+        "Instant access to actionable insights for strategic decision-making.",
+        "A unified platform that minimizes silos and maximizes efficiency.",
+     ]},
+    {"title": "For Educators & Staff",
+     "icon": "👨‍🏫", "color": "#2E7D32",
+     "items": [
+        "Reduced administrative burdens with more time for core activities.",
+        "Tools for better academic planning and student engagement.",
+     ]},
+    {"title": "For Students & Parents",
+     "icon": "🎓", "color": "#E65100",
+     "items": [
+        "Transparency in academic progress and fees — trust and collaboration.",
+        "Always-connected platforms to keep stakeholders informed and engaged.",
+     ]},
+]
+
+
+IMPLEMENTATION_COMPONENTS: list[dict] = [
+    {"title": "Requirement Analysis & Consultation",
+     "desc": "Detailed discussions with stakeholders to understand institutional workflows of all modules."},
+    {"title": "Software Customization",
+     "desc": "Tailoring modules to meet the unique needs of the institution (e.g., CBCS, OBE, fee structures, reports, etc.)."},
+    {"title": "Data Migration",
+     "desc": "Importing legacy data — student records, staff, library, inventory, asset management, vendor data, COE data, financial data. Complete cleansing and validation."},
+    {"title": "System Configuration",
+     "desc": "Role-based access for management, administrators, staff, students, parents. Defining workflows and automation rules across all modules."},
+    {"title": "Hosting and Deployment",
+     "desc": "Setting up the solution on on-premise server based on the client preference. Daily auto-backup configuration."},
+    {"title": "Integration Services",
+     "desc": "SMS, WhatsApp, email and payment gateway integration. Biometric/face-reader devices and smart cards for attendance. Third-party tool integrations."},
+    {"title": "User Training",
+     "desc": "Comprehensive training sessions for administrators, staff and faculty. Creation of user manuals and training guides."},
+    {"title": "Testing and Quality Assurance",
+     "desc": "Rigorous testing to ensure all modules work seamlessly. UAT to confirm readiness for launch."},
+    {"title": "Go-Live Support",
+     "desc": "On-site or remote support during the go-live phase. Addressing any immediate concerns or configurations."},
+    {"title": "Initial Report Customization",
+     "desc": "Development of essential reports as requested by the client (e.g., student performance, fee collection summaries). Free for the first year."},
+    {"title": "Mobile App Configuration",
+     "desc": "Initial setup of mobile applications for staff, students and parents."},
+    {"title": "Post-Implementation Support",
+     "desc": "Free support to address early-stage queries or issues after go-live."},
+]
+
+
+WHY_AVEON: list[dict] = [
+    {"title": "Proven Expertise",
+     "desc": "A decade of excellence in delivering tailored ERP solutions for educational institutions."},
+    {"title": "Client-Centric Approach",
+     "desc": "Personalized service to align with your institutional goals and workflow."},
+    {"title": "Scalable and Secure",
+     "desc": "Built to grow with your needs while ensuring data integrity and access control."},
+    {"title": "Unparalleled Support",
+     "desc": "A dedicated team for ongoing assistance, updates and continuous improvement."},
+]
+
+
 PRESENTATIONS: dict[str, dict] = {
     "CMS_FULL": {
         "kicker": "Complete CMS ERP",
@@ -667,6 +753,15 @@ PRESENTATIONS: dict[str, dict] = {
             {"value": "5-6", "label": "Weeks to Go-Live"},
             {"value": "90%", "label": "Manual Effort Saved"},
         ],
+        "executive_title": "Streamline Your Institution's Operations",
+        "executive_paragraphs": [
+            "Aveon Infotech proposes the implementation of our Complete CMS ERP at {client}, transforming the way your institution manages academic, administrative and financial operations.",
+            "The proposed solution covers the entire institutional lifecycle — admissions, academics, attendance, examinations, finance, HR & payroll, library, transport, alumni and analytics — in one unified platform.",
+            "Designed to reduce manual effort, improve accuracy, accelerate decision-making and provide real-time institutional intelligence.",
+        ],
+        "modules_section_title": "15 Integrated Modules",
+        "modules_section_desc": "A complete ecosystem covering every dimension of institutional management — from admissions to alumni.",
+        "commercial_line_label": "Complete CMS ERP Package — Per Student / Per Year",
     },
     "COE_FULL": {
         "kicker": "Complete COE Suite",
@@ -677,8 +772,18 @@ PRESENTATIONS: dict[str, dict] = {
         "stats_template": [
             {"value": "13+1", "label": "Modules + Free CO-PO Add-on"},
             {"value": "5-6", "label": "Weeks to Go-Live"},
-            {"value": "Free", "label": "CO-PO Mapping (₹75/student value)"},
+            {"value": "Free", "label": "CO-PO Mapping Add-on"},
         ],
+        "executive_title": "Redefining Examination Management",
+        "executive_paragraphs": [
+            "Aveon Infotech proposes the Aveon Controller of Examinations (COE) Automation System to streamline and digitise the complete examination lifecycle at {client}.",
+            "The proposed solution automates examination planning, student registration, hall ticket generation, valuation, result processing, revaluation, supplementary examinations, transcript generation and statutory reports — while ensuring compliance with university regulations and institutional academic policies.",
+            "The system is designed to reduce manual effort, improve accuracy, accelerate result publication and provide real-time examination analytics.",
+        ],
+        "modules_section_title": "14 Fully Integrated COE Modules",
+        "modules_section_desc": "End-to-end examination automation — every step from regulation setup to transcript generation, including a free CO–PO Mapping add-on.",
+        "commercial_line_label": "Annual Subscription Fee for Complete COE Module — Per Student Per Year",
+        "commercial_bonus_label": "🎁 CO–PO Mapping Module included FREE as add-on (worth ₹75 per student per year)",
     },
     "COE_CLASSIC": {
         "kicker": "COE Package",
@@ -688,8 +793,17 @@ PRESENTATIONS: dict[str, dict] = {
         "stats_template": [
             {"value": "13", "label": "COE Modules"},
             {"value": "5-6", "label": "Weeks to Go-Live"},
-            {"value": "₹250", "label": "Per Student / Year"},
+            {"value": "Annual", "label": "Per-Student Subscription"},
         ],
+        "executive_title": "Examination Automation, Made Simple",
+        "executive_paragraphs": [
+            "Aveon Infotech proposes the implementation of the Aveon Controller of Examinations (COE) Automation System at {client}, covering the complete examination lifecycle.",
+            "From regulation management and registration through hall tickets, valuation, results, revaluation and transcripts — every stage is automated, audited and accreditation-ready.",
+            "Designed to reduce administrative workload, accelerate result publication and improve transparency for students, parents and management.",
+        ],
+        "modules_section_title": "13 Integrated COE Modules",
+        "modules_section_desc": "Complete examination lifecycle automation aligned with university regulations.",
+        "commercial_line_label": "Complete COE Package — Per Student / Per Year",
     },
     "HR_PAYROLL_STANDALONE": {
         "kicker": "HR & Payroll Standalone",
@@ -701,6 +815,15 @@ PRESENTATIONS: dict[str, dict] = {
             {"value": "3-4", "label": "Weeks to Go-Live"},
             {"value": "100%", "label": "Statutory Compliance"},
         ],
+        "executive_title": "End-to-End HR & Payroll Automation",
+        "executive_paragraphs": [
+            "Aveon Infotech proposes a complete HR & Payroll automation solution for {client}, covering employee lifecycle, attendance, leave, payroll and statutory compliance — without requiring the full CMS ecosystem.",
+            "The system automates salary computation, statutory deductions (PF, ESI, PT, IT), Form-16 generation, biometric attendance integration and full payslip distribution.",
+            "Designed to be plug-and-play for institutions that need HR & Payroll automation today and may scale to full ERP later.",
+        ],
+        "modules_section_title": "HR & Payroll Workflows",
+        "modules_section_desc": "Employee lifecycle to payslip — fully automated with statutory compliance built in.",
+        "commercial_line_label": "HR & Payroll Subscription — Per Employee / Per Year",
     },
 }
 
@@ -793,73 +916,52 @@ def resolve_selection(
 
 def compute_pricing(
     *,
-    modules: list[Module],
     bundle_code: str | None,
+    price_per_unit: Decimal,
     minimum_student_commitment: int,
     one_time_implementation_fee: Decimal,
     waive_one_time: bool,
     gst_percent: Decimal,
-    per_module_overrides: dict[str, Decimal] | None = None,
 ) -> dict:
     """
-    Returns a dict with line items, subtotals, GST, and grand total.
-    Bundle pricing is applied when `bundle_code` is set; otherwise each
-    module's price (possibly overridden in the form) is summed.
+    Single-price model — the sales team negotiates one per-student/per-employee
+    rate (e.g., ₹250, ₹300, ₹500) for the bundle they're proposing. No per-module
+    breakdown is shown; the proposal lists the modules as features only.
+
+    Returns the two commercial rows that the originals show:
+        1. Annual subscription line  (price × commitment)
+        2. One-time setup fee        (struck-through if waived)
     """
-    overrides = per_module_overrides or {}
     students = max(int(minimum_student_commitment or 0), 0)
+    price = Decimal(price_per_unit or 0)
+    annual = price * students
 
-    line_items: list[dict] = []
-
-    if bundle_code and bundle_code in BUNDLES:
-        bundle = BUNDLES[bundle_code]
-        per_student = Decimal(bundle["bundle_price_per_student"])
-        annual = per_student * students
-        line_items.append({
-            "label": bundle["name"],
-            "qty_label": f"{students:,} students × ₹{per_student}",
-            "amount": annual,
-            "kind": "annual",
-        })
-        savings = (Decimal(bundle["standalone_total"]) - per_student) * students
-    else:
-        per_student_total = Decimal("0")
-        for mod in modules:
-            code = mod["code"]
-            price = Decimal(overrides.get(code, mod["default_price_per_student"]))
-            per_student_total += price
-            line_items.append({
-                "label": mod["name"],
-                "qty_label": f"₹{price} / student",
-                "amount": price * students,
-                "kind": "annual",
-            })
-        savings = Decimal("0")
-
-    annual_subtotal = sum((li["amount"] for li in line_items), Decimal("0"))
+    pres = PRESENTATIONS.get(bundle_code or "", CUSTOM_PRESENTATION)
+    annual_line = {
+        "label": pres.get("commercial_line_label") or "Annual Subscription — Per Unit / Per Year",
+        "bonus": pres.get("commercial_bonus_label"),
+        "amount": annual,
+        "per_unit": price,
+    }
 
     impl_fee = Decimal(one_time_implementation_fee or 0)
     impl_line = {
-        "label": "Server setup, installation, implementation, data migration, "
-                 "data cleansing & ERP configuration (one-time)",
-        "qty_label": "Per institution",
+        "label": ("Server setup, installation, implementation, data migration, "
+                  "data cleansing & ERP configuration — Per Institution (One-time)"),
         "amount": Decimal("0") if waive_one_time else impl_fee,
         "original_amount": impl_fee,
         "waived": waive_one_time,
-        "kind": "one_time",
     }
 
-    subtotal = annual_subtotal + impl_line["amount"]
+    subtotal = annual_line["amount"] + impl_line["amount"]
     gst = (subtotal * Decimal(gst_percent or 0) / Decimal("100"))
     grand_total = subtotal + gst
 
     return {
-        "line_items": line_items,
+        "annual": annual_line,
         "implementation": impl_line,
-        "annual_subtotal": annual_subtotal,
         "subtotal": subtotal,
         "gst_percent": Decimal(gst_percent or 0),
         "gst_amount": gst,
         "grand_total": grand_total,
-        "savings_vs_standalone": savings,
     }

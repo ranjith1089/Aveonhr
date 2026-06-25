@@ -1,22 +1,15 @@
 {% load proposal_extras %}
-<div class="mod-g">
+<div class="feat-g">
   {% for mod in modules %}
-  <div class="mod-c" style="border-color:{{ mod.color }}33;background:{{ mod.color }}08;">
-    <div class="mod-accent" style="background:{{ mod.color }};"></div>
-    <div class="mod-icon" style="border-color:{{ mod.color }};color:{{ mod.color }};">{{ mod.icon }}</div>
-    <div style="flex:1;">
-      <div class="mod-num" style="color:{{ mod.color }};">MODULE {{ forloop.counter|stringformat:"02d" }}</div>
-      <div class="mod-title">
-        {{ mod.name }}
-        {% if mod.tag %}<span class="mod-tag">{{ mod.tag }}</span>{% endif %}
-      </div>
-      <div class="mod-desc">{{ mod.short_desc }}</div>
-      {% if mod.sub_features %}
-      <ul class="mod-subs">
-        {% for feat in mod.sub_features %}<li>{{ feat }}</li>{% endfor %}
-      </ul>
-      {% endif %}
+  <div class="feat-c" style="border-color:{{ mod.color }}33;background:{{ mod.color }}08;">
+    <div class="feat-top" style="background:{{ mod.color }};"></div>
+    <div class="feat-num" style="color:{{ mod.color }};">MODULE {{ forloop.counter|stringformat:"02d" }}</div>
+    <span class="feat-icon">{{ mod.icon }}</span>
+    <div class="feat-title">
+      {{ mod.name }}
+      {% if mod.tag %}<span class="mod-tag">{{ mod.tag }}</span>{% endif %}
     </div>
+    <div class="feat-desc">{{ mod.short_desc }}</div>
   </div>
   {% endfor %}
 </div>

@@ -1,0 +1,18 @@
+<div class="ben-g">
+  {% for b in benefits %}
+  <div class="ben-c" style="border-color:{{ b.color }};">
+    <div class="ben-hdr" style="background:linear-gradient(135deg,{{ b.color }},{{ b.color }}CC);">
+      <span style="font-size:20px;">{{ b.icon }}</span>
+      <span class="ben-hdr-title">{{ b.title }}</span>
+    </div>
+    <div class="ben-body">
+      {% for item in b.items %}
+      <div class="ben-row">
+        <span style="color:{{ b.color }};font-weight:900;">✓</span>
+        <span>{{ item }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>

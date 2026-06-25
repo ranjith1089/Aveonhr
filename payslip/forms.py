@@ -1,11 +1,10 @@
-import json
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django import forms
 from django.core.exceptions import ValidationError
 
-from .proposal_catalog import BUNDLES, MODULES, bundle_choices, module_choices
+from .proposal_catalog import BUNDLES, bundle_choices, module_choices
 
 EXECUTABLE_EXTENSIONS = {
     ".exe",
@@ -365,16 +364,20 @@ class ProposalQuotationForm(forms.Form):
         widget=forms.CheckboxSelectMultiple,
         required=False,
     )
-    # Hidden JSON: {"CMS_HR_PAYROLL": "85.00", ...} — per-module price overrides.
-    pricing_overrides = forms.CharField(
-        widget=forms.HiddenInput,
-        required=False,
-        initial="{}",
-    )
 
     # --- Commercial inputs -------------------------------------------------
+    # Single negotiated price — the sales team decides the per-student / per-employee
+    # rate per customer (₹250, ₹300, ₹500, etc.). No per-module breakdown is shown
+    # in the rendered proposal.
+    price_per_unit = forms.DecimalField(
+        label="Negotiated Price (INR per student/employee per year)",
+        max_digits=12,
+        decimal_places=2,
+        initial=500,
+        min_value=0,
+    )
     minimum_student_commitment = forms.IntegerField(
-        label="Minimum Student Commitment",
+        label="Minimum Commitment (students / employees)",
         min_value=1,
         initial=1000,
     )
@@ -427,28 +430,6 @@ class ProposalQuotationForm(forms.Form):
         if ext not in IMAGE_EXTENSIONS:
             raise ValidationError("Client logo must be a PNG or JPG image.")
         return file
-
-    def clean_pricing_overrides(self) -> dict[str, Decimal]:
-        raw = (self.cleaned_data.get("pricing_overrides") or "").strip() or "{}"
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise ValidationError(f"Pricing overrides must be valid JSON: {exc}") from exc
-        if not isinstance(data, dict):
-            raise ValidationError("Pricing overrides must be a JSON object.")
-
-        cleaned: dict[str, Decimal] = {}
-        for code, value in data.items():
-            if code not in MODULES:
-                raise ValidationError(f"Unknown module code in pricing overrides: {code}")
-            try:
-                price = Decimal(str(value))
-            except (InvalidOperation, TypeError) as exc:
-                raise ValidationError(f"Invalid price for {code}: {value}") from exc
-            if price < 0:
-                raise ValidationError(f"Price for {code} cannot be negative.")
-            cleaned[code] = price
-        return cleaned
 
     def clean(self):
         cleaned = super().clean()

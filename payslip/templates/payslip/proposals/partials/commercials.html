@@ -6,55 +6,54 @@
     <span style="text-align:right;">Price (Rs.)</span>
   </div>
 
-  {% for li in pricing.line_items %}
   <div class="comm-row">
-    <div class="comm-n">{{ forloop.counter }}</div>
+    <div class="comm-n">1</div>
     <div>
-      <div class="comm-d">{{ li.label }}</div>
-      <div class="comm-d-sub">{{ li.qty_label }}</div>
+      <div class="comm-d">{{ pricing.annual.label }}</div>
+      {% if pricing.annual.bonus %}
+      <div class="comm-bonus">{{ pricing.annual.bonus }}</div>
+      {% endif %}
     </div>
     <div class="comm-amt-wrap">
-      <div class="comm-amt">₹{{ li.amount|inr}}</div>
-      <div class="comm-unit">per year</div>
+      <div class="comm-amt">₹{{ pricing.annual.per_unit|inr }}</div>
+      <div class="comm-unit">per student / year</div>
     </div>
   </div>
-  {% endfor %}
 
   {% with impl=pricing.implementation %}
   <div class="comm-row">
-    <div class="comm-n">{{ pricing.line_items|length|add:1 }}</div>
+    <div class="comm-n">2</div>
     <div>
       <div class="comm-d">{{ impl.label }}</div>
-      <div class="comm-d-sub">{{ impl.qty_label }} (One-time)</div>
     </div>
     <div class="comm-amt-wrap">
       {% if impl.waived %}
-      <div class="comm-amt waived">₹{{ impl.original_amount|inr}}</div>
+      <div class="comm-amt waived">₹{{ impl.original_amount|inr }}</div>
       <div class="comm-tag">✓ Currently Waived Off</div>
       {% else %}
-      <div class="comm-amt">₹{{ impl.amount|inr}}</div>
+      <div class="comm-amt">₹{{ impl.amount|inr }}</div>
       <div class="comm-unit">one-time</div>
       {% endif %}
     </div>
   </div>
   {% endwith %}
+</div>
 
-  <div class="comm-totals">
-    <div class="ct-row">
-      <span>Annual Subscription Subtotal</span>
-      <span>₹{{ pricing.annual_subtotal|inr}}</span>
-    </div>
-    <div class="ct-row">
-      <span>One-Time Implementation (after waiver)</span>
-      <span>₹{{ pricing.implementation.amount|inr}}</span>
-    </div>
-    <div class="ct-row">
-      <span>GST @ {{ pricing.gst_percent|floatformat:0 }}%</span>
-      <span>₹{{ pricing.gst_amount|inr}}</span>
-    </div>
-    <div class="ct-row grand">
-      <span>Grand Total (Year 1)</span>
-      <span>₹{{ pricing.grand_total|inr}}</span>
-    </div>
+<div class="comm-totals">
+  <div class="ct-row">
+    <span>Annual subscription ({{ minimum_student_commitment|inr }} × ₹{{ pricing.annual.per_unit|inr }})</span>
+    <span>₹{{ pricing.annual.amount|inr }}</span>
+  </div>
+  <div class="ct-row">
+    <span>One-time implementation (after waiver)</span>
+    <span>₹{{ pricing.implementation.amount|inr }}</span>
+  </div>
+  <div class="ct-row">
+    <span>GST @ {{ pricing.gst_percent|floatformat:0 }}%</span>
+    <span>₹{{ pricing.gst_amount|inr }}</span>
+  </div>
+  <div class="ct-row grand">
+    <span>Grand Total (Year 1)</span>
+    <span>₹{{ pricing.grand_total|inr }}</span>
   </div>
 </div>
