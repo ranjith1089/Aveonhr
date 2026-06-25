@@ -1,0 +1,17 @@
+{% load proposal_extras %}
+<div class="addressee-wrap">
+  <div>
+    <div class="addressee-to">Addressed To</div>
+    <div class="addressee-salutation">{{ to_address }}</div>
+    <div class="addressee-body">
+      <strong style="display:block;color:#1A1A2E;">{{ client_name }}</strong>
+      {% for line in client_address_lines %}{{ line }}{% if not forloop.last %}<br>{% endif %}{% endfor %}
+    </div>
+  </div>
+  <div class="addressee-meta">
+    <div class="addressee-meta-row">Prepared For</div>
+    <div class="addressee-meta-val">{{ client_name }}</div>
+    <div class="addressee-meta-row" style="margin-top:14px;">Min. Student Commitment</div>
+    <div class="addressee-meta-val">{{ minimum_student_commitment|inr }} students</div>
+  </div>
+</div>

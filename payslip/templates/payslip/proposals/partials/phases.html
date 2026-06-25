@@ -1,0 +1,15 @@
+{% with phases=phases|default:default_phases %}
+{% for phase in phases %}
+<div class="tl-row">
+  <div class="tl-left">
+    <div class="tl-circle" style="background:{{ phase.color }};">{{ forloop.counter }}</div>
+    {% if not forloop.last %}<div class="tl-line" style="background:{{ phase.color }}44;"></div>{% endif %}
+  </div>
+  <div class="tl-body">
+    <div class="tl-phase" style="color:{{ phase.color }};">Phase {{ forloop.counter|stringformat:"02d" }} · {{ phase.duration }}</div>
+    <div class="tl-title">{{ phase.title }}</div>
+    <div class="tl-desc">{{ phase.desc }}</div>
+  </div>
+</div>
+{% endfor %}
+{% endwith %}

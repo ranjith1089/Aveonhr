@@ -1,0 +1,9 @@
+{% load proposal_extras %}
+<div class="sig">
+  <p>For {{ prepared_by }}</p>
+  <p class="sig-name">{{ authorized_signatory_name }}</p>
+  <p class="sig-title">{{ authorized_signatory_designation }}</p>
+  {% if jurisdiction %}
+  <p style="font-size:11px;color:#94A3B8;margin-top:16px;">Jurisdiction: {{ jurisdiction }}</p>
+  {% endif %}
+</div>

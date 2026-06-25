@@ -1,7 +1,11 @@
+import json
 from datetime import date
+from decimal import Decimal, InvalidOperation
 
 from django import forms
 from django.core.exceptions import ValidationError
+
+from .proposal_catalog import BUNDLES, MODULES, bundle_choices, module_choices
 
 EXECUTABLE_EXTENSIONS = {
     ".exe",
@@ -295,17 +299,42 @@ class TravelExpenseForm(forms.Form):
 
 
 class ProposalQuotationForm(forms.Form):
-    INSTITUTION_TYPES = [
-        ("AUTONOMOUS", "AUTONOMOUS"),
-        ("AFFILIATED", "AFFILIATED"),
-        ("ARTS & SCIENCE", "ARTS & SCIENCE"),
-        ("ENGINEERING", "ENGINEERING"),
-        ("SCHOOL", "SCHOOL"),
+    """
+    Module-wise proposal builder.
+
+    Two selection modes:
+        BUNDLE — pick one of the pre-built packages from `BUNDLES`.
+        CUSTOM — pick any combination of modules from `MODULES`.
+
+    Pricing per module can be overridden via the hidden `pricing_overrides`
+    field (JSON: {module_code: price_per_student}). The form populates this
+    from inline inputs in the template's "Custom" mode.
+    """
+
+    SELECTION_MODES = [
+        ("BUNDLE", "Pre-built Bundle"),
+        ("CUSTOM", "Pick Individual Modules"),
     ]
 
-    client_name = forms.CharField(label="Client", max_length=200)
-    client_location = forms.CharField(label="Client Location", max_length=200)
-    institution_type = forms.ChoiceField(label="Institution Type", choices=INSTITUTION_TYPES)
+    # --- Addressee block (drives the proposal header) ---------------------
+    to_address = forms.CharField(
+        label="To (Salutation Line)",
+        max_length=200,
+        initial="The Principal",
+    )
+    client_name = forms.CharField(
+        label="Client / Institution Name",
+        max_length=200,
+    )
+    client_address = forms.CharField(
+        label="Client Address",
+        widget=forms.Textarea(attrs={
+            "rows": 4,
+            "placeholder": "Adhiparasakthi Engineering College,\nMelmaruvathur – 603319,\nChengalpet District, Tamil Nadu",
+        }),
+        help_text="One line per address line. Will be rendered as-is in the proposal header.",
+    )
+
     proposal_date = forms.DateField(
         label="Proposal Date",
         initial=date.today,
@@ -317,12 +346,33 @@ class ProposalQuotationForm(forms.Form):
         initial="Aveon Infotech Private Limited",
     )
 
-    per_student_annual_license = forms.DecimalField(
-        label="Per Student Annual SaaS License (INR)",
-        max_digits=12,
-        decimal_places=2,
-        initial=850,
+    # --- Selection: bundle vs custom --------------------------------------
+    selection_mode = forms.ChoiceField(
+        label="Selection Mode",
+        choices=SELECTION_MODES,
+        initial="BUNDLE",
+        widget=forms.RadioSelect,
     )
+    bundle = forms.ChoiceField(
+        label="Bundle",
+        choices=bundle_choices(),
+        required=False,
+        initial="CMS_FULL",
+    )
+    selected_modules = forms.MultipleChoiceField(
+        label="Modules",
+        choices=module_choices(),
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+    )
+    # Hidden JSON: {"CMS_HR_PAYROLL": "85.00", ...} — per-module price overrides.
+    pricing_overrides = forms.CharField(
+        widget=forms.HiddenInput,
+        required=False,
+        initial="{}",
+    )
+
+    # --- Commercial inputs -------------------------------------------------
     minimum_student_commitment = forms.IntegerField(
         label="Minimum Student Commitment",
         min_value=1,
@@ -332,7 +382,12 @@ class ProposalQuotationForm(forms.Form):
         label="One-Time Implementation Fee (INR)",
         max_digits=12,
         decimal_places=2,
-        initial=350000,
+        initial=500000,
+    )
+    waive_one_time_fee = forms.BooleanField(
+        label="Show one-time fee as waived",
+        required=False,
+        initial=True,
     )
     gst_percent = forms.DecimalField(
         label="GST (%)",
@@ -341,6 +396,7 @@ class ProposalQuotationForm(forms.Form):
         initial=18,
     )
 
+    # --- Signature block ---------------------------------------------------
     authorized_signatory_name = forms.CharField(
         label="Authorized Signatory Name",
         max_length=200,
@@ -359,6 +415,7 @@ class ProposalQuotationForm(forms.Form):
     )
     client_logo = forms.ImageField(label="Client Logo (Optional)", required=False)
 
+    # ----------------------------------------------------------------------
     def clean_client_logo(self):
         file = self.cleaned_data.get("client_logo")
         if not file:
@@ -371,20 +428,61 @@ class ProposalQuotationForm(forms.Form):
             raise ValidationError("Client logo must be a PNG or JPG image.")
         return file
 
+    def clean_pricing_overrides(self) -> dict[str, Decimal]:
+        raw = (self.cleaned_data.get("pricing_overrides") or "").strip() or "{}"
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValidationError(f"Pricing overrides must be valid JSON: {exc}") from exc
+        if not isinstance(data, dict):
+            raise ValidationError("Pricing overrides must be a JSON object.")
+
+        cleaned: dict[str, Decimal] = {}
+        for code, value in data.items():
+            if code not in MODULES:
+                raise ValidationError(f"Unknown module code in pricing overrides: {code}")
+            try:
+                price = Decimal(str(value))
+            except (InvalidOperation, TypeError) as exc:
+                raise ValidationError(f"Invalid price for {code}: {value}") from exc
+            if price < 0:
+                raise ValidationError(f"Price for {code} cannot be negative.")
+            cleaned[code] = price
+        return cleaned
+
     def clean(self):
         cleaned = super().clean()
 
-        def positive(field: str, label: str):
+        mode = cleaned.get("selection_mode")
+        bundle_code = cleaned.get("bundle")
+        modules = cleaned.get("selected_modules") or []
+
+        if mode == "BUNDLE":
+            if not bundle_code:
+                self.add_error("bundle", "Choose a bundle, or switch to Custom mode.")
+            elif bundle_code not in BUNDLES:
+                self.add_error("bundle", "Unknown bundle.")
+            # In BUNDLE mode, individual selections are ignored — clear them so
+            # the view doesn't have to second-guess.
+            cleaned["selected_modules"] = []
+        elif mode == "CUSTOM":
+            if not modules:
+                self.add_error(
+                    "selected_modules",
+                    "Pick at least one module, or switch to Bundle mode.",
+                )
+            cleaned["bundle"] = ""
+
+        def non_negative(field: str, label: str):
             val = cleaned.get(field)
             if val is None:
                 return
             try:
-                if float(val) <= 0:
-                    self.add_error(field, f"{label} must be greater than 0.")
-            except Exception:
+                if Decimal(val) < 0:
+                    self.add_error(field, f"{label} cannot be negative.")
+            except (InvalidOperation, TypeError):
                 self.add_error(field, f"{label} is invalid.")
 
-        positive("per_student_annual_license", "Per Student Annual SaaS License")
-        positive("one_time_implementation_fee", "One-Time Implementation Fee")
-        positive("gst_percent", "GST (%)")
+        non_negative("one_time_implementation_fee", "One-Time Implementation Fee")
+        non_negative("gst_percent", "GST (%)")
         return cleaned

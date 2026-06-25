@@ -1,96 +1,369 @@
-<!DOCTYPE html>
+{% load static proposal_extras %}<!DOCTYPE html>
 <html lang="en">
-  <head>
-    {% load static %}
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Proposal Quotation Generator</title>
-    <link rel="stylesheet" href="{% static 'payslip/styles.css' %}" />
-  </head>
-  <body>
-    <div class="container">
-      <a href="/" class="back-button">← Back to Home</a>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Proposal Builder — Aveon</title>
+<link rel="stylesheet" href="{% static 'payslip/styles.css' %}" />
+<style>
+  .pb-section { margin-top: 20px; padding-top: 18px; border-top: 1px solid #E5E7EB; }
+  .pb-section:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+  .pb-section h3 {
+    font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: #475569; margin: 0 0 12px; font-weight: 700;
+  }
+  .pb-help { color: #64748B; font-size: 12.5px; margin: 4px 0 12px; }
 
-      <header class="card" style="margin-bottom: 16px;">
-        <h1>📄 Proposal Quotation Generator</h1>
-        <p>Create a complete, professional, ready-to-send Aveon CMS ERP proposal in plain text format.</p>
-      </header>
+  .pb-mode { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .pb-mode label {
+    flex: 1; min-width: 220px;
+    border: 2px solid #E2E8F0; border-radius: 10px;
+    padding: 14px 18px; cursor: pointer;
+    background: #fff;
+    transition: all 0.15s;
+  }
+  .pb-mode input[type=radio] { margin-right: 8px; }
+  .pb-mode label:has(input:checked) {
+    border-color: #1565C0; background: #EEF4FF;
+    box-shadow: 0 0 0 3px rgba(21,101,192,0.08);
+  }
+  .pb-mode strong { display: block; font-size: 14px; color: #1A1A2E; }
+  .pb-mode em { font-style: normal; font-size: 12px; color: #64748B; }
 
-      <section class="card">
-        <form method="post" enctype="multipart/form-data">
-          {% csrf_token %}
-          <div class="form-grid">
-            <p>
-              <label for="id_client_name">{{ form.client_name.label }}:</label>
-              {{ form.client_name }}
-            </p>
-            <p>
-              <label for="id_client_location">{{ form.client_location.label }}:</label>
-              {{ form.client_location }}
-            </p>
-            <p>
-              <label for="id_institution_type">{{ form.institution_type.label }}:</label>
-              {{ form.institution_type }}
-            </p>
-            <p>
-              <label for="id_proposal_date">{{ form.proposal_date.label }}:</label>
-              {{ form.proposal_date }}
-            </p>
-            <p>
-              <label for="id_prepared_by">{{ form.prepared_by.label }}:</label>
-              {{ form.prepared_by }}
-            </p>
+  .pb-category {
+    margin-top: 14px; border: 1px solid #E5E7EB; border-radius: 10px;
+    overflow: hidden; background: #fff;
+  }
+  .pb-category-title {
+    background: #F8FAFC; padding: 10px 16px;
+    font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: #1A1A2E; border-bottom: 1px solid #E5E7EB;
+  }
+  .pb-mod-row {
+    display: grid; grid-template-columns: 28px 1fr 130px;
+    gap: 12px; padding: 10px 16px; align-items: center;
+    border-top: 1px solid #F1F5F9;
+  }
+  .pb-mod-row:first-of-type { border-top: none; }
+  .pb-mod-row.checked { background: #F0F9FF; }
+  .pb-mod-name { font-size: 13.5px; color: #1A1A2E; }
+  .pb-mod-name .icon { margin-right: 6px; }
+  .pb-mod-name .desc { display: block; font-size: 11.5px; color: #64748B; margin-top: 2px; }
+  .pb-mod-name .tag {
+    display: inline-block; background: #FEF3C7; color: #92400E;
+    border-radius: 8px; padding: 1px 7px; font-size: 9.5px;
+    font-weight: 800; letter-spacing: 1px; margin-left: 6px;
+  }
+  .pb-price { display: flex; align-items: center; gap: 4px; }
+  .pb-price input {
+    width: 80px; padding: 4px 8px; font-size: 12.5px;
+    border: 1px solid #CBD5E1; border-radius: 4px;
+  }
+  .pb-price small { font-size: 11px; color: #64748B; }
 
-            <p>
-              <label for="id_per_student_annual_license">{{ form.per_student_annual_license.label }}:</label>
-              {{ form.per_student_annual_license }}
-            </p>
-            <p>
-              <label for="id_minimum_student_commitment">{{ form.minimum_student_commitment.label }}:</label>
-              {{ form.minimum_student_commitment }}
-            </p>
-            <p>
-              <label for="id_one_time_implementation_fee">{{ form.one_time_implementation_fee.label }}:</label>
-              {{ form.one_time_implementation_fee }}
-            </p>
-            <p>
-              <label for="id_gst_percent">{{ form.gst_percent.label }}:</label>
-              {{ form.gst_percent }}
-            </p>
+  .pb-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  }
+  .pb-grid p { margin: 0; }
+  .pb-grid p.full { grid-column: 1 / -1; }
+  .pb-grid label { display: block; font-size: 12.5px; font-weight: 600; color: #334155; margin-bottom: 4px; }
+  .pb-grid input[type=text], .pb-grid input[type=number], .pb-grid input[type=date],
+  .pb-grid select, .pb-grid textarea {
+    width: 100%; padding: 8px 10px; font-size: 13px;
+    border: 1px solid #CBD5E1; border-radius: 6px; background: #fff;
+  }
 
-            <p>
-              <label for="id_authorized_signatory_name">{{ form.authorized_signatory_name.label }}:</label>
-              {{ form.authorized_signatory_name }}
-            </p>
-            <p>
-              <label for="id_authorized_signatory_designation">{{ form.authorized_signatory_designation.label }}:</label>
-              {{ form.authorized_signatory_designation }}
-            </p>
-            <p>
-              <label for="id_jurisdiction">{{ form.jurisdiction.label }}:</label>
-              {{ form.jurisdiction }}
-            </p>
+  .pb-total {
+    margin-top: 16px;
+    background: linear-gradient(135deg, #1565C0, #2E7D32);
+    color: #fff; border-radius: 12px;
+    padding: 18px 22px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;
+  }
+  .pb-total-cell { text-align: center; }
+  .pb-total-lbl { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; opacity: 0.85; }
+  .pb-total-val { font-size: 22px; font-weight: 900; margin-top: 4px; color: #FFD54F; }
 
-            <p>
-              <label for="id_client_logo">{{ form.client_logo.label }}:</label>
-              {{ form.client_logo }}
-            </p>
+  .pb-result {
+    margin-top: 18px; padding: 18px;
+    background: #ECFDF5; border: 2px solid #10B981; border-radius: 12px;
+  }
+  .pb-result h3 { margin: 0 0 8px; color: #065F46; font-size: 14px; }
+  .pb-result a { margin-right: 10px; }
+
+  .pb-errors {
+    background: #FEF2F2; border-left: 4px solid #DC2626;
+    padding: 12px 14px; border-radius: 6px; margin-bottom: 16px;
+  }
+  .pb-errors ul { margin: 0; padding-left: 18px; }
+  .pb-errors li { font-size: 13px; color: #991B1B; }
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/" class="back-button">← Back to Home</a>
+
+  <header class="card" style="margin-bottom: 16px;">
+    <h1>📄 Proposal Builder</h1>
+    <p>Pick a bundle or build a custom stack. Live pricing, ready-to-share preview.</p>
+  </header>
+
+  {% if preview_url %}
+  <section class="card pb-result">
+    <h3>✓ Proposal generated for {{ form.cleaned_data.client_name }}</h3>
+    <a href="{{ preview_url }}" target="_blank" class="primary">Open Preview</a>
+    <a href="{{ download_url }}" class="secondary">{{ download_label }}</a>
+  </section>
+  {% endif %}
+
+  {% if form.errors %}
+  <div class="card pb-errors">
+    <strong>Please fix the following:</strong>
+    <ul>
+      {% for field, errs in form.errors.items %}
+        {% for err in errs %}<li><b>{{ field }}:</b> {{ err }}</li>{% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <section class="card">
+    <form method="post" enctype="multipart/form-data" id="pb-form">
+      {% csrf_token %}
+
+      <!-- =============== Addressee =============== -->
+      <div class="pb-section">
+        <h3>Addressee</h3>
+        <div class="pb-grid">
+          <p><label>To (Salutation)</label>{{ form.to_address }}</p>
+          <p><label>Client / Institution Name</label>{{ form.client_name }}</p>
+          <p class="full"><label>Client Address</label>{{ form.client_address }}<br>
+            <small class="pb-help">One line per address line — rendered as-is in the proposal header.</small>
+          </p>
+          <p><label>Proposal Date</label>{{ form.proposal_date }}</p>
+          <p><label>Prepared By</label>{{ form.prepared_by }}</p>
+        </div>
+      </div>
+
+      <!-- =============== Selection mode =============== -->
+      <div class="pb-section">
+        <h3>What's in this proposal?</h3>
+        <div class="pb-mode">
+          <label>
+            <input type="radio" name="selection_mode" value="BUNDLE"
+              {% if form.selection_mode.value == 'BUNDLE' or not form.selection_mode.value %}checked{% endif %}>
+            <strong>Pre-built Bundle</strong>
+            <em>Pick one — Complete CMS, COE, HR & Payroll, etc.</em>
+          </label>
+          <label>
+            <input type="radio" name="selection_mode" value="CUSTOM"
+              {% if form.selection_mode.value == 'CUSTOM' %}checked{% endif %}>
+            <strong>Custom Stack</strong>
+            <em>Pick individual modules, set your own prices.</em>
+          </label>
+        </div>
+
+        <!-- Bundle dropdown -->
+        <div id="pb-bundle-block">
+          <label style="font-size: 12.5px; font-weight: 600; color: #334155;">Bundle</label>
+          {{ form.bundle }}
+          <p id="pb-bundle-tagline" class="pb-help"></p>
+        </div>
+
+        <!-- Custom modules -->
+        <div id="pb-custom-block" style="display: none;">
+          <p class="pb-help">Tick the modules you want. Edit per-student price inline.</p>
+          {{ form.selected_modules.errors }}
+          <div id="pb-categories"></div>
+        </div>
+
+        {{ form.pricing_overrides }}
+      </div>
+
+      <!-- =============== Commercials =============== -->
+      <div class="pb-section">
+        <h3>Commercials</h3>
+        <div class="pb-grid">
+          <p><label>Minimum Student Commitment</label>{{ form.minimum_student_commitment }}</p>
+          <p><label>One-Time Implementation Fee (INR)</label>{{ form.one_time_implementation_fee }}</p>
+          <p><label>GST (%)</label>{{ form.gst_percent }}</p>
+          <p style="display: flex; align-items: center; gap: 8px; padding-top: 22px;">
+            {{ form.waive_one_time_fee }}<label style="margin: 0;">Show one-time fee as waived</label>
+          </p>
+        </div>
+      </div>
+
+      <!-- =============== Live total =============== -->
+      <div class="pb-total">
+        <div class="pb-total-cell">
+          <div class="pb-total-lbl">Annual Subscription</div>
+          <div class="pb-total-val" id="pb-tot-annual">₹0</div>
+        </div>
+        <div class="pb-total-cell">
+          <div class="pb-total-lbl">+ One-Time + GST</div>
+          <div class="pb-total-val" id="pb-tot-extras">₹0</div>
+        </div>
+        <div class="pb-total-cell">
+          <div class="pb-total-lbl">Grand Total (Year 1)</div>
+          <div class="pb-total-val" id="pb-tot-grand">₹0</div>
+        </div>
+      </div>
+
+      <!-- =============== Signature =============== -->
+      <div class="pb-section">
+        <h3>Signature</h3>
+        <div class="pb-grid">
+          <p><label>Authorized Signatory Name</label>{{ form.authorized_signatory_name }}</p>
+          <p><label>Designation</label>{{ form.authorized_signatory_designation }}</p>
+          <p><label>Jurisdiction</label>{{ form.jurisdiction }}</p>
+          <p><label>Client Logo (Optional)</label>{{ form.client_logo }}</p>
+        </div>
+      </div>
+
+      <div class="proposal-actions" style="margin-top: 18px;">
+        <button type="submit" class="primary">Generate Proposal</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<script id="pb-catalog" type="application/json">{{ catalog_json|safe }}</script>
+<script>
+(function () {
+  const CATALOG  = JSON.parse(document.getElementById('pb-catalog').textContent);
+  const form     = document.getElementById('pb-form');
+  const modeRadios   = form.querySelectorAll('input[name=selection_mode]');
+  const bundleBlock  = document.getElementById('pb-bundle-block');
+  const customBlock  = document.getElementById('pb-custom-block');
+  const bundleSelect = form.querySelector('select[name=bundle]');
+  const taglineEl    = document.getElementById('pb-bundle-tagline');
+  const categoriesEl = document.getElementById('pb-categories');
+  const overridesEl  = form.querySelector('[name=pricing_overrides]');
+
+  // Server-rendered initial state — read these BEFORE drawing the module grid
+  // so we can re-check / re-fill prices after a validation re-render.
+  let initialSelected = [];
+  form.querySelectorAll('input[name=selected_modules]:checked').forEach(c => initialSelected.push(c.value));
+  let initialOverrides = {};
+  try { initialOverrides = JSON.parse(overridesEl.value || '{}'); } catch (e) {}
+
+  // -------- Build category-grouped module grid (replaces the default checkbox list) --------
+  function buildModuleGrid() {
+    // Discard Django's default rendering — we draw our own.
+    categoriesEl.innerHTML = '';
+    const byCat = {};
+    for (const [code, mod] of Object.entries(CATALOG.modules)) {
+      (byCat[mod.category] = byCat[mod.category] || []).push([code, mod]);
+    }
+    for (const [catCode, catLabel] of Object.entries(CATALOG.categories)) {
+      const list = byCat[catCode];
+      if (!list || !list.length) continue;
+      const wrap = document.createElement('div');
+      wrap.className = 'pb-category';
+      wrap.innerHTML = `<div class="pb-category-title">${catLabel}</div>`;
+      for (const [code, mod] of list) {
+        const checked = initialSelected.includes(code) ? 'checked' : '';
+        const price   = initialOverrides[code] != null ? initialOverrides[code] : mod.price;
+        const tagHtml = mod.tag ? `<span class="tag">${mod.tag}</span>` : '';
+        const row = document.createElement('div');
+        row.className = 'pb-mod-row' + (checked ? ' checked' : '');
+        row.innerHTML = `
+          <input type="checkbox" name="selected_modules" value="${code}" ${checked}>
+          <div class="pb-mod-name">
+            <span class="icon">${mod.icon}</span><strong>${mod.name}</strong>${tagHtml}
+            <span class="desc">${mod.short_desc}</span>
           </div>
-          <div class="proposal-actions">
-            <button type="submit" class="primary" name="action" value="generate">Generate Proposal</button>
-            <button type="submit" class="secondary" name="action" value="download">Download .txt</button>
-            <button type="submit" class="secondary" name="action" value="download_pdf">Download PDF</button>
-          </div>
-        </form>
-      </section>
+          <div class="pb-price">
+            <small>₹</small>
+            <input type="number" data-code="${code}" value="${price}" min="0" step="1">
+            <small>/stu</small>
+          </div>`;
+        wrap.appendChild(row);
+      }
+      categoriesEl.appendChild(wrap);
+    }
+  }
+  buildModuleGrid();
 
-      {% if proposal_text %}
-      <section class="card" style="margin-top: 16px;">
-        <h2>Generated Proposal (Plain Text)</h2>
-        <p>Copy the full text below (or use <b>Download PDF</b> for an A4 formatted proposal with logo).</p>
-        <textarea rows="38" readonly style="width: 100%; font-family: monospace; white-space: pre;">{{ proposal_text }}</textarea>
-      </section>
-      {% endif %}
-    </div>
-  </body>
+  // -------- Mode toggle --------
+  function applyMode() {
+    const mode = form.querySelector('input[name=selection_mode]:checked').value;
+    bundleBlock.style.display = mode === 'BUNDLE' ? '' : 'none';
+    customBlock.style.display = mode === 'CUSTOM' ? '' : 'none';
+    refreshTotals();
+  }
+  modeRadios.forEach(r => r.addEventListener('change', applyMode));
+
+  // -------- Bundle change → tagline --------
+  function applyBundle() {
+    const code = bundleSelect.value;
+    const b = CATALOG.bundles[code];
+    taglineEl.textContent = b ? `${b.tagline}  •  Bundle ₹${b.price}/student (standalone ₹${b.standalone_total}).` : '';
+    refreshTotals();
+  }
+  bundleSelect.addEventListener('change', applyBundle);
+
+  // -------- Recompute pricing_overrides JSON + live total --------
+  function inrFmt(n) {
+    n = Math.round(n);
+    const sign = n < 0 ? '-' : '';
+    let s = String(Math.abs(n));
+    if (s.length <= 3) return sign + s;
+    const last3 = s.slice(-3);
+    let rest = s.slice(0, -3);
+    const parts = [];
+    while (rest.length > 2) { parts.unshift(rest.slice(-2)); rest = rest.slice(0, -2); }
+    if (rest) parts.unshift(rest);
+    return sign + parts.join(',') + ',' + last3;
+  }
+
+  function refreshTotals() {
+    const mode = form.querySelector('input[name=selection_mode]:checked').value;
+    const students = parseFloat(form.querySelector('[name=minimum_student_commitment]').value) || 0;
+    const oneTime  = parseFloat(form.querySelector('[name=one_time_implementation_fee]').value) || 0;
+    const waive    = form.querySelector('[name=waive_one_time_fee]').checked;
+    const gstPct   = parseFloat(form.querySelector('[name=gst_percent]').value) || 0;
+
+    let annual = 0;
+    const overrides = {};
+    if (mode === 'BUNDLE') {
+      const b = CATALOG.bundles[bundleSelect.value];
+      if (b) annual = parseFloat(b.price) * students;
+    } else {
+      form.querySelectorAll('.pb-mod-row').forEach(row => {
+        const cb = row.querySelector('input[type=checkbox]');
+        const pi = row.querySelector('input[type=number]');
+        row.classList.toggle('checked', cb.checked);
+        if (cb.checked) {
+          const code = pi.dataset.code;
+          const price = parseFloat(pi.value) || 0;
+          const catalogPrice = parseFloat(CATALOG.modules[code].price);
+          if (price !== catalogPrice) overrides[code] = price;
+          annual += price * students;
+        }
+      });
+    }
+    overridesEl.value = JSON.stringify(overrides);
+
+    const oneTimeEff = waive ? 0 : oneTime;
+    const subtotal   = annual + oneTimeEff;
+    const gst        = subtotal * gstPct / 100;
+    const grand      = subtotal + gst;
+
+    document.getElementById('pb-tot-annual').textContent = '₹' + inrFmt(annual);
+    document.getElementById('pb-tot-extras').textContent = '₹' + inrFmt(oneTimeEff + gst);
+    document.getElementById('pb-tot-grand').textContent  = '₹' + inrFmt(grand);
+  }
+
+  // -------- Bind change listeners --------
+  form.addEventListener('input', refreshTotals);
+  form.addEventListener('change', refreshTotals);
+
+  // -------- Initial paint --------
+  applyMode();
+  applyBundle();
+  refreshTotals();
+})();
+</script>
+</body>
 </html>

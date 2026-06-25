@@ -1,0 +1,28 @@
+{% load proposal_extras %}
+<div class="stack-wrap">
+  <div class="stack">
+    {% for mod in modules %}
+    <div class="stack-row" style="background:{{ mod.color }};">
+      <div class="left">
+        <span class="icon">{{ mod.icon }}</span>
+        <span class="name">{{ mod.name }}</span>
+        {% if mod.tag %}<span class="mod-tag">{{ mod.tag }}</span>{% endif %}
+      </div>
+      <div class="price">
+        {% with override=pricing_overrides|default_if_none:'' %}
+          {% if mod.default_price_per_student == 0 %}
+            Included
+          {% else %}
+            ₹{{ mod.default_price_per_student|floatformat:0 }} / student
+          {% endif %}
+        {% endwith %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="stack-total">
+    <div class="stack-total-lbl">{{ minimum_student_commitment|inr }} students × per-year subscription</div>
+    <div class="stack-total-val">₹{{ pricing.annual_subtotal|inr }}</div>
+  </div>
+</div>

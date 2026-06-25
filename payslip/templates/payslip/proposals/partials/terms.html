@@ -1,0 +1,5 @@
+<ul class="tnc-list">
+  {% for term in terms|default:default_terms %}
+  <li>{{ term }}</li>
+  {% endfor %}
+</ul>

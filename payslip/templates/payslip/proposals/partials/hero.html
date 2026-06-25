@@ -1,0 +1,28 @@
+{% load proposal_extras %}
+<div class="hero">
+  <div class="hero-bar">
+    <div>
+      <div class="hero-company">{{ prepared_by }}</div>
+      <div class="hero-tagline">{{ company_tagline|default:"Built for Education. Powered by Innovation." }}</div>
+    </div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.75);text-align:right;font-family:Arial,sans-serif;">
+      Proposal Date<br>
+      <strong style="color:#fff;font-size:13px;">{{ proposal_date|date:"d M Y" }}</strong>
+    </div>
+  </div>
+
+  <div class="hero-body">
+    <div class="hero-kicker">Proposal &nbsp;•&nbsp; {{ hero.kicker }}</div>
+    <h1>{{ hero.title|safe }}</h1>
+    <p class="hero-sub">{{ hero.subtitle }}</p>
+
+    <div class="hero-stats" style="grid-template-columns:repeat({{ hero_stats|length }}, 1fr);">
+      {% for stat in hero_stats %}
+      <div class="h-stat">
+        <div class="h-stat-val">{{ stat.value }}</div>
+        <div class="h-stat-lbl">{{ stat.label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
