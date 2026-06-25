@@ -1,406 +1,551 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="en">
-  <head>
-    {% load static %}
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Offer Letter Generator</title>
-    <link rel="stylesheet" href="{% static 'payslip/styles.css' %}" />
-  </head>
-  <body>
-    <div class="container">
-      <a href="/" class="back-button">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        Back to Home
-      </a>
-      <!-- Wizard Header -->
-      <div class="wizard-header">
-        <h1>🧾 Offer Letter Generator</h1>
-        <p class="wizard-subtitle">Create professional offer letters in minutes</p>
-        
-        <!-- Progress Steps -->
-        <div class="progress-steps">
-          <div class="step active" id="step-indicator-1">
-            <span class="step-number">①</span>
-            <span class="step-label">Select Type</span>
-          </div>
-          <div class="step-arrow">→</div>
-          <div class="step" id="step-indicator-2">
-            <span class="step-number">②</span>
-            <span class="step-label">Details</span>
-          </div>
-          <div class="step-arrow">→</div>
-          <div class="step" id="step-indicator-3">
-            <span class="step-number">③</span>
-            <span class="step-label">Preview</span>
-          </div>
-          <div class="step-arrow">→</div>
-          <div class="step" id="step-indicator-4">
-            <span class="step-number">④</span>
-            <span class="step-label">Download</span>
-          </div>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Offer Letter Builder — Aveon</title>
+<link rel="stylesheet" href="{% static 'payslip/styles.css' %}" />
+<style>
+  /* Section / grid primitives reused from the Proposal Builder pattern. */
+  .pb-section { margin-top: 20px; padding-top: 18px; border-top: 1px solid #E5E7EB; }
+  .pb-section:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+  .pb-section[hidden] { display: none; }
+  .pb-section h3 {
+    font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: #475569; margin: 0 0 12px; font-weight: 700;
+  }
+  .pb-help { color: #64748B; font-size: 12.5px; margin: 4px 0 12px; }
+
+  .pb-mode { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .pb-mode label {
+    flex: 1; min-width: 220px;
+    border: 2px solid #E2E8F0; border-radius: 10px;
+    padding: 14px 18px; cursor: pointer;
+    background: #fff;
+    transition: all 0.15s;
+  }
+  .pb-mode input[type=radio] { margin-right: 8px; }
+  .pb-mode label:has(input:checked) {
+    border-color: #1565C0; background: #EEF4FF;
+    box-shadow: 0 0 0 3px rgba(21,101,192,0.08);
+  }
+  .pb-mode strong { display: block; font-size: 14px; color: #1A1A2E; }
+  .pb-mode em { font-style: normal; font-size: 12px; color: #64748B; margin-top: 2px; display: block; }
+
+  .pb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pb-grid p { margin: 0; }
+  .pb-grid p.full { grid-column: 1 / -1; }
+  .pb-grid label { display: block; font-size: 12.5px; font-weight: 600; color: #334155; margin-bottom: 4px; }
+  .pb-grid input[type=text], .pb-grid input[type=number], .pb-grid input[type=date],
+  .pb-grid select, .pb-grid textarea {
+    width: 100%; padding: 8px 10px; font-size: 13px;
+    border: 1px solid #CBD5E1; border-radius: 6px; background: #fff;
+  }
+  .pb-field-error { display: block; color: #B91C1C; font-size: 12px; margin-top: 4px; }
+  .pb-computed {
+    display: inline-block; margin-top: 6px;
+    background: #F8FAFC; border: 1px dashed #94A3B8; border-radius: 6px;
+    padding: 4px 10px; font-size: 12.5px; color: #475569;
+  }
+  .pb-grid input.auto-filled { background: #EFF6FF; border-color: #93C5FD; }
+  .pb-suggest {
+    display: block; margin-top: 6px; font-size: 12px; color: #475569;
+  }
+  .pb-suggest a { color: #1565C0; cursor: pointer; font-weight: 600; }
+
+  .pb-summary {
+    margin: 14px 0 0;
+    background: linear-gradient(135deg, #FFFBEB, #FEF3C7);
+    border: 2px solid #F59E0B; border-radius: 10px;
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .pb-summary-label {
+    font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
+    text-transform: uppercase; color: #92400E; margin-right: 6px;
+  }
+  .pb-summary-val {
+    font-size: 15px; font-weight: 700; color: #78350F;
+  }
+  .pb-summary-sep { color: #B45309; font-size: 16px; font-weight: 700; margin: 0 4px; }
+  .pb-summary-empty { font-size: 13px; color: #92400E; font-style: italic; }
+
+  .pb-result {
+    margin-top: 18px; padding: 18px;
+    background: #ECFDF5; border: 2px solid #10B981; border-radius: 12px;
+  }
+  .pb-result h3 { margin: 0 0 8px; color: #065F46; font-size: 14px; }
+  .pb-result a { margin-right: 10px; }
+
+  .pb-errors {
+    background: #FEF2F2; border-left: 4px solid #DC2626;
+    padding: 12px 14px; border-radius: 6px; margin-bottom: 16px;
+  }
+  .pb-errors ul { margin: 0; padding-left: 18px; }
+  .pb-errors li { font-size: 13px; color: #991B1B; }
+
+  .pb-draft-pill {
+    position: fixed; top: 16px; right: 16px;
+    background: #1565C0; color: #fff;
+    padding: 8px 14px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    opacity: 0; transform: translateY(-8px);
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none; z-index: 1000;
+  }
+  .pb-draft-pill.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/" class="back-button">← Back to Home</a>
+
+  <header class="card" style="margin-bottom: 16px;">
+    <h1>📄 Offer Letter Builder</h1>
+    <p>Internship, Appointment, or Employment Offer — pick a type, fill the fields, get a polished PDF.</p>
+  </header>
+
+  {% if preview_url %}
+  <section class="card pb-result">
+    <h3>✓ Offer letter generated</h3>
+    <a href="{{ preview_url }}" target="_blank" class="primary">Open Preview</a>
+    <a href="{{ download_url }}" class="secondary">{{ download_label }}</a>
+  </section>
+  {% endif %}
+
+  {% if form.errors %}
+  <div class="card pb-errors">
+    <strong>Please fix the following:</strong>
+    <ul>
+      {% for field, errs in form.errors.items %}
+        {% for err in errs %}<li><b>{{ field }}:</b> {{ err }}</li>{% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <section class="card">
+    <form method="post" id="ol-form" novalidate>
+      {% csrf_token %}
+
+      <!-- =========================================================
+           DOCUMENT TYPE — radio cards
+           ========================================================= -->
+      <div class="pb-section">
+        <h3>Document Type</h3>
+        <p class="pb-help">Each type uses a different template and produces a different PDF.</p>
+        <div class="pb-mode">
+          {% for value, label in form.offer_type.field.choices %}
+            {% if value %}
+            <label>
+              <input type="radio" name="offer_type" value="{{ value }}"
+                {% if form.offer_type.value == value %}checked{% endif %}>
+              <strong>
+                {% if value == 'internship' %}🎓 Internship Offer Letter
+                {% elif value == 'appointment' %}📜 Appointment Order
+                {% elif value == 'employment_offer' %}💼 Offer Letter (Employment)
+                {% else %}{{ label }}{% endif %}
+              </strong>
+              <em>
+                {% if value == 'internship' %}For students joining for a fixed-duration internship.
+                {% elif value == 'appointment' %}For confirmed hires — sent after acceptance.
+                {% elif value == 'employment_offer' %}Pre-joining offer with full compensation breakdown.
+                {% endif %}
+              </em>
+            </label>
+            {% endif %}
+          {% endfor %}
+        </div>
+
+        <!-- Live summary banner — JS-driven -->
+        <div class="pb-summary" id="ol-summary">
+          <span class="pb-summary-empty" id="ol-summary-empty">
+            Fill in the form below to see a live summary.
+          </span>
+          <span id="ol-summary-active" hidden>
+            <span class="pb-summary-label" id="ol-summary-label">Candidate</span>
+            <span class="pb-summary-val" id="ol-summary-name">—</span>
+            <span class="pb-summary-sep">›</span>
+            <span class="pb-summary-val" id="ol-summary-role">—</span>
+            <span class="pb-summary-sep">›</span>
+            <span class="pb-summary-val" id="ol-summary-date">—</span>
+          </span>
         </div>
       </div>
 
-      <form method="post" id="offerLetterForm">
-        {% csrf_token %}
-        
-        <!-- Step 1: Select Offer Type -->
-        <section class="card wizard-card" id="step-1-card">
-          <div class="wizard-card-header">
-            <h2>Select Offer Letter Type</h2>
-            <p class="step-counter">Step 1 of 4</p>
-          </div>
-          
-          <div class="wizard-card-body">
-            <label for="id_offer_type" style="font-size: 15px; font-weight: 600; color: #736CA2; display: block; margin-bottom: 8px;">
-              Offer Letter Type
-            </label>
-            {{ form.offer_type }}
-            
-            <p class="wizard-help-text">
-              💡 This helps us apply the correct template.
-            </p>
-          </div>
-          
-          <div class="wizard-card-footer">
-            <button type="button" class="primary wizard-continue" id="continue-btn" disabled>
-              Continue →
-            </button>
-          </div>
-        </section>
+      <!-- =========================================================
+           INTERNSHIP
+           ========================================================= -->
+      <section class="pb-section" data-offer-type="internship" hidden>
+        <h3>Personal</h3>
+        <div class="pb-grid">
+          <p><label>Name</label>{{ form.name }}{{ form.name.errors }}</p>
+          <p><label>Roll Number</label>{{ form.roll_number }}{{ form.roll_number.errors }}</p>
+          <p class="full"><label>Course</label>{{ form.course }}{{ form.course.errors }}</p>
+        </div>
 
-        <!-- Step 2: Input Fields (Hidden initially) -->
-        <section class="card wizard-card" id="step-2-card" style="display: none;">
-          <div class="wizard-card-header">
-            <h2 id="selected-type-title">Fill Details</h2>
-            <p class="step-counter">Step 2 of 4</p>
-          </div>
-          
-          <div class="wizard-card-body">
-            <div class="form-grid">
-            <!-- Internship/Offer Letter Fields -->
-            <div id="internship-fields" class="letter-fields">
-              <p>
-                <label for="id_name">{{ form.name.label }}:</label>
-                {{ form.name }}
-              </p>
-              <p>
-                <label for="id_roll_number">{{ form.roll_number.label }}:</label>
-                {{ form.roll_number }}
-              </p>
-              <p>
-                <label for="id_course">{{ form.course.label }}:</label>
-                {{ form.course }}
-              </p>
-              <p>
-                <label for="id_college_name">{{ form.college_name.label }}:</label>
-                {{ form.college_name }}
-              </p>
-              <p>
-                <label for="id_college_address">{{ form.college_address.label }}:</label>
-                {{ form.college_address }}
-              </p>
-              <p>
-                <label for="id_internship_role">{{ form.internship_role.label }}:</label>
-                {{ form.internship_role }}
-              </p>
-              <p>
-                <label for="id_start_date">{{ form.start_date.label }}:</label>
-                {{ form.start_date }}
-              </p>
-            </div>
+        <h3 style="margin-top: 22px;">College</h3>
+        <div class="pb-grid">
+          <p class="full"><label>College Name</label>{{ form.college_name }}{{ form.college_name.errors }}</p>
+          <p class="full"><label>College Address</label>{{ form.college_address }}{{ form.college_address.errors }}</p>
+        </div>
 
-            <!-- Appointment Order Fields -->
-            <div id="appointment-fields" class="letter-fields" style="display: none;">
-              <p>
-                <label for="id_serial_no">{{ form.serial_no.label }}:</label>
-                {{ form.serial_no }}
-              </p>
-              <p>
-                <label for="id_employee_name">{{ form.employee_name.label }}:</label>
-                {{ form.employee_name }}
-              </p>
-              <p>
-                <label for="id_present_address1">{{ form.present_address1.label }}:</label>
-                {{ form.present_address1 }}
-              </p>
-              <p>
-                <label for="id_present_address2">{{ form.present_address2.label }}:</label>
-                {{ form.present_address2 }}
-              </p>
-              <p>
-                <label for="id_present_address3">{{ form.present_address3.label }}:</label>
-                {{ form.present_address3 }}
-              </p>
-              <p>
-                <label for="id_present_address_city">{{ form.present_address_city.label }}:</label>
-                {{ form.present_address_city }}
-              </p>
-              <p>
-                <label for="id_present_address_state">{{ form.present_address_state.label }}:</label>
-                {{ form.present_address_state }}
-              </p>
-              <p>
-                <label for="id_present_address_pin">{{ form.present_address_pin.label }}:</label>
-                {{ form.present_address_pin }}
-              </p>
-              <p>
-                <label for="id_designation">{{ form.designation.label }}:</label>
-                {{ form.designation }}
-              </p>
-              <p>
-                <label for="id_join_date">{{ form.join_date.label }}:</label>
-                {{ form.join_date }}
-              </p>
-              <p>
-                <label for="id_probation_period">{{ form.probation_period.label }}:</label>
-                {{ form.probation_period }}
-              </p>
-              <p>
-                <label for="id_ctc">{{ form.ctc.label }}:</label>
-                {{ form.ctc }}
-              </p>
-              <p>
-                <label for="id_company_name">{{ form.company_name.label }}:</label>
-                {{ form.company_name }}
-              </p>
-              <p>
-                <label for="id_signatory">{{ form.signatory.label }}:</label>
-                {{ form.signatory }}
-              </p>
-              <p>
-                <label for="id_signatory_designation">{{ form.signatory_designation.label }}:</label>
-                {{ form.signatory_designation }}
-              </p>
-            </div>
-
-            <!-- Employment Offer Letter Fields -->
-            <div id="employment-offer-fields" class="letter-fields" style="display: none;">
-              <p>
-                <label for="id_candidate_name">{{ form.candidate_name.label }}:</label>
-                {{ form.candidate_name }}
-              </p>
-              <p>
-                <label for="id_position">{{ form.position.label }}:</label>
-                {{ form.position }}
-              </p>
-              <p>
-                <label for="id_annual_ctc">{{ form.annual_ctc.label }}:</label>
-                {{ form.annual_ctc }}
-              </p>
-              <p>
-                <label for="id_ctc_in_words">{{ form.ctc_in_words.label }}:</label>
-                {{ form.ctc_in_words }}
-              </p>
-              <p>
-                <label for="id_joining_date">{{ form.joining_date.label }}:</label>
-                {{ form.joining_date }}
-              </p>
-              <p>
-                <label for="id_employer_name">{{ form.employer_name.label }}:</label>
-                {{ form.employer_name }}
-              </p>
-              <p>
-                <label for="id_employer_designation">{{ form.employer_designation.label }}:</label>
-                {{ form.employer_designation }}
-              </p>
-              <h3>Compensation Breakdown</h3>
-              <p>
-                <label for="id_basic_monthly">{{ form.basic_monthly.label }}:</label>
-                {{ form.basic_monthly }}
-              </p>
-              <p>
-                <label for="id_basic_annual">{{ form.basic_annual.label }}:</label>
-                {{ form.basic_annual }}
-              </p>
-              <p>
-                <label for="id_da_monthly">{{ form.da_monthly.label }}:</label>
-                {{ form.da_monthly }}
-              </p>
-              <p>
-                <label for="id_da_annual">{{ form.da_annual.label }}:</label>
-                {{ form.da_annual }}
-              </p>
-              <p>
-                <label for="id_hra_monthly">{{ form.hra_monthly.label }}:</label>
-                {{ form.hra_monthly }}
-              </p>
-              <p>
-                <label for="id_hra_annual">{{ form.hra_annual.label }}:</label>
-                {{ form.hra_annual }}
-              </p>
-              <p>
-                <label for="id_ta_monthly">{{ form.ta_monthly.label }}:</label>
-                {{ form.ta_monthly }}
-              </p>
-              <p>
-                <label for="id_ta_annual">{{ form.ta_annual.label }}:</label>
-                {{ form.ta_annual }}
-              </p>
-              <p>
-                <label for="id_food_allowance_monthly">{{ form.food_allowance_monthly.label }}:</label>
-                {{ form.food_allowance_monthly }}
-              </p>
-              <p>
-                <label for="id_food_allowance_annual">{{ form.food_allowance_annual.label }}:</label>
-                {{ form.food_allowance_annual }}
-              </p>
-              <p>
-                <label for="id_pf_employee_monthly">{{ form.pf_employee_monthly.label }}:</label>
-                {{ form.pf_employee_monthly }}
-              </p>
-              <p>
-                <label for="id_pf_employee_annual">{{ form.pf_employee_annual.label }}:</label>
-                {{ form.pf_employee_annual }}
-              </p>
-              <p>
-                <label for="id_pf_employer_monthly">{{ form.pf_employer_monthly.label }}:</label>
-                {{ form.pf_employer_monthly }}
-              </p>
-              <p>
-                <label for="id_pf_employer_annual">{{ form.pf_employer_annual.label }}:</label>
-                {{ form.pf_employer_annual }}
-              </p>
-            </div>
-            </div>
-          </div>
-          
-          <div class="wizard-card-footer">
-            <button type="button" class="secondary wizard-back" id="back-btn">
-              ← Back
-            </button>
-            <button type="submit" class="primary">
-              Generate Letter →
-            </button>
-          </div>
-        </section>
-      </form>
-
-      <script>
-        // Wizard Navigation
-        const offerTypeField = document.getElementById('id_offer_type');
-        const continueBtn = document.getElementById('continue-btn');
-        const backBtn = document.getElementById('back-btn');
-        const step1Card = document.getElementById('step-1-card');
-        const step2Card = document.getElementById('step-2-card');
-        const selectedTypeTitle = document.getElementById('selected-type-title');
-        const internshipFields = document.getElementById('internship-fields');
-        const appointmentFields = document.getElementById('appointment-fields');
-        const employmentOfferFields = document.getElementById('employment-offer-fields');
-
-        // Enable/disable continue button based on selection
-        offerTypeField.addEventListener('change', function() {
-          if (offerTypeField.value !== '') {
-            continueBtn.disabled = false;
-            continueBtn.style.opacity = '1';
-            continueBtn.style.cursor = 'pointer';
-          } else {
-            continueBtn.disabled = true;
-            continueBtn.style.opacity = '0.5';
-            continueBtn.style.cursor = 'not-allowed';
-          }
-        });
-
-        // Continue to Step 2
-        continueBtn.addEventListener('click', function() {
-          const selectedType = offerTypeField.value;
-          
-          if (selectedType === '') return;
-          
-          // Hide all field groups first
-          internshipFields.style.display = 'none';
-          appointmentFields.style.display = 'none';
-          employmentOfferFields.style.display = 'none';
-          
-          // Show relevant fields based on selection
-          if (selectedType === 'appointment') {
-            appointmentFields.style.display = 'block';
-            selectedTypeTitle.textContent = 'Appointment Order Details';
-          } else if (selectedType === 'employment_offer') {
-            employmentOfferFields.style.display = 'block';
-            selectedTypeTitle.textContent = 'Offer Letter Details';
-          } else if (selectedType === 'internship') {
-            internshipFields.style.display = 'block';
-            selectedTypeTitle.textContent = 'Internship Offer Letter Details';
-          }
-          
-          // Move to Step 2
-          step1Card.style.display = 'none';
-          step2Card.style.display = 'block';
-          
-          // Update step indicators
-          document.getElementById('step-indicator-1').classList.remove('active');
-          document.getElementById('step-indicator-1').classList.add('completed');
-          document.getElementById('step-indicator-2').classList.add('active');
-          
-          // Scroll to top
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-
-        // Back to Step 1
-        backBtn.addEventListener('click', function() {
-          step2Card.style.display = 'none';
-          step1Card.style.display = 'block';
-          
-          // Update step indicators
-          document.getElementById('step-indicator-2').classList.remove('active');
-          document.getElementById('step-indicator-1').classList.remove('completed');
-          document.getElementById('step-indicator-1').classList.add('active');
-          
-          // Scroll to top
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-      </script>
-
-      {% if data %}
-      <section class="card">
-        <div class="form-footer">
-          <a class="primary" href="{{ download_url }}" download="{{ download_filename }}">
-            {{ download_label }}
-          </a>
-          <a class="file-meta" href="{{ preview_url }}" target="_blank" rel="noopener noreferrer">
-            Open preview in new tab
-          </a>
+        <h3 style="margin-top: 22px;">Role & Duration</h3>
+        <div class="pb-grid">
+          <p class="full"><label>Internship Role</label>{{ form.internship_role }}{{ form.internship_role.errors }}</p>
+          <p><label>Start Date</label>{{ form.start_date }}{{ form.start_date.errors }}</p>
+          <p>
+            <label>Internship Duration (months)</label>
+            {{ form.duration_months }}
+            {{ form.duration_months.errors }}
+            <span class="pb-computed" id="ol-end-date" aria-live="polite">Internship ends on: —</span>
+          </p>
         </div>
       </section>
 
-      <section class="card">
-        <div id="preview-error" class="error" style="display: none;"></div>
-        <iframe
-          id="preview-frame"
-          title="Offer Letter PDF"
-          style="width: 100%; height: 720px; border: 1px solid #e5e7eb; border-radius: 12px;"
-        ></iframe>
+      <!-- =========================================================
+           APPOINTMENT ORDER
+           ========================================================= -->
+      <section class="pb-section" data-offer-type="appointment" hidden>
+        <h3>Reference</h3>
+        <div class="pb-grid">
+          <p><label>Ref No</label>{{ form.serial_no }}{{ form.serial_no.errors }}</p>
+          <p><label>Joining Date</label>{{ form.join_date }}{{ form.join_date.errors }}</p>
+        </div>
+
+        <h3 style="margin-top: 22px;">Employee</h3>
+        <div class="pb-grid">
+          <p><label>Employee Name</label>{{ form.employee_name }}{{ form.employee_name.errors }}</p>
+          <p><label>Designation</label>{{ form.designation }}{{ form.designation.errors }}</p>
+        </div>
+
+        <h3 style="margin-top: 22px;">Address</h3>
+        <div class="pb-grid">
+          <p class="full"><label>Address Line 1</label>{{ form.present_address1 }}{{ form.present_address1.errors }}</p>
+          <p class="full"><label>Address Line 2</label>{{ form.present_address2 }}{{ form.present_address2.errors }}</p>
+          <p class="full"><label>Address Line 3</label>{{ form.present_address3 }}{{ form.present_address3.errors }}</p>
+          <p><label>City</label>{{ form.present_address_city }}{{ form.present_address_city.errors }}</p>
+          <p><label>State</label>{{ form.present_address_state }}{{ form.present_address_state.errors }}</p>
+          <p><label>PIN Code</label>{{ form.present_address_pin }}{{ form.present_address_pin.errors }}</p>
+        </div>
+
+        <h3 style="margin-top: 22px;">Terms</h3>
+        <div class="pb-grid">
+          <p>
+            <label>Probation Period (days)</label>
+            {{ form.probation_period }}
+            {{ form.probation_period.errors }}
+            <span class="pb-computed" id="ol-confirm-date" aria-live="polite">Confirmation on: —</span>
+          </p>
+          <p><label>CTC (in words)</label>{{ form.ctc }}{{ form.ctc.errors }}</p>
+        </div>
+
+        <h3 style="margin-top: 22px;">Company</h3>
+        <div class="pb-grid">
+          <p><label>Company Name</label>{{ form.company_name }}{{ form.company_name.errors }}</p>
+          <p><label>Signatory Name</label>{{ form.signatory }}{{ form.signatory.errors }}</p>
+          <p class="full"><label>Signatory Designation</label>{{ form.signatory_designation }}{{ form.signatory_designation.errors }}</p>
+        </div>
       </section>
 
+      <!-- =========================================================
+           EMPLOYMENT OFFER
+           ========================================================= -->
+      <section class="pb-section" data-offer-type="employment_offer" hidden>
+        <h3>Candidate</h3>
+        <div class="pb-grid">
+          <p><label>Candidate Name</label>{{ form.candidate_name }}{{ form.candidate_name.errors }}</p>
+          <p><label>Position</label>{{ form.position }}{{ form.position.errors }}</p>
+          <p><label>Joining Date</label>{{ form.joining_date }}{{ form.joining_date.errors }}</p>
+        </div>
 
-      <script>
-        const previewUrl = "{{ preview_url }}";
-        const frame = document.getElementById("preview-frame");
-        const errorBox = document.getElementById("preview-error");
+        <h3 style="margin-top: 22px;">Compensation Breakdown</h3>
+        <p class="pb-help">Enter monthly figures — annuals auto-fill as 12× monthly. Override the annual manually if needed.</p>
+        <div class="pb-grid" id="ol-comp-grid">
+          <p><label>Basic (Monthly)</label>{{ form.basic_monthly }}</p>
+          <p><label>Basic (Annual)</label>{{ form.basic_annual }}</p>
+          <p><label>DA (Monthly)</label>{{ form.da_monthly }}</p>
+          <p><label>DA (Annual)</label>{{ form.da_annual }}</p>
+          <p><label>HRA (Monthly)</label>{{ form.hra_monthly }}</p>
+          <p><label>HRA (Annual)</label>{{ form.hra_annual }}</p>
+          <p><label>TA (Monthly)</label>{{ form.ta_monthly }}</p>
+          <p><label>TA (Annual)</label>{{ form.ta_annual }}</p>
+          <p><label>Food Allowance (Monthly)</label>{{ form.food_allowance_monthly }}</p>
+          <p><label>Food Allowance (Annual)</label>{{ form.food_allowance_annual }}</p>
+          <p><label>PF Employee (Monthly)</label>{{ form.pf_employee_monthly }}</p>
+          <p><label>PF Employee (Annual)</label>{{ form.pf_employee_annual }}</p>
+          <p><label>PF Employer (Monthly)</label>{{ form.pf_employer_monthly }}</p>
+          <p><label>PF Employer (Annual)</label>{{ form.pf_employer_annual }}</p>
+        </div>
 
-        fetch(previewUrl)
-          .then(async (response) => {
-            if (!response.ok) {
-              const text = await response.text();
-              throw new Error(`Preview failed: ${response.status} ${text}`);
-            }
-            return response.blob();
-          })
-          .then((blob) => {
-            const objectUrl = URL.createObjectURL(blob);
-            frame.src = objectUrl;
-          })
-          .catch((error) => {
-            errorBox.textContent = error.message;
-            errorBox.style.display = "block";
-          });
-      </script>
-      {% endif %}
-    </div>
-  </body>
+        <h3 style="margin-top: 22px;">CTC</h3>
+        <div class="pb-grid">
+          <p>
+            <label>Annual CTC (Rs.)</label>
+            {{ form.annual_ctc }}
+            {{ form.annual_ctc.errors }}
+            <span class="pb-suggest" id="ol-ctc-suggest" hidden>
+              Suggested annual CTC based on breakdown: <strong id="ol-ctc-suggest-val">—</strong>
+              <a id="ol-ctc-apply">Apply</a>
+            </span>
+          </p>
+          <p><label>CTC in Words</label>{{ form.ctc_in_words }}{{ form.ctc_in_words.errors }}</p>
+        </div>
+
+        <h3 style="margin-top: 22px;">Employer</h3>
+        <div class="pb-grid">
+          <p><label>Employer Name</label>{{ form.employer_name }}{{ form.employer_name.errors }}</p>
+          <p><label>Employer Designation</label>{{ form.employer_designation }}{{ form.employer_designation.errors }}</p>
+        </div>
+      </section>
+
+      <div class="proposal-actions" style="margin-top: 20px;">
+        <button type="submit" class="primary">Generate Offer Letter</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div class="pb-draft-pill" id="ol-draft-pill">Draft restored</div>
+
+<script>
+(function () {
+  const form = document.getElementById('ol-form');
+  const summaryEmpty = document.getElementById('ol-summary-empty');
+  const summaryActive = document.getElementById('ol-summary-active');
+  const summaryLabel = document.getElementById('ol-summary-label');
+  const summaryName = document.getElementById('ol-summary-name');
+  const summaryRole = document.getElementById('ol-summary-role');
+  const summaryDate = document.getElementById('ol-summary-date');
+
+  // Per-doc-type field mapping for the live summary banner.
+  const SUMMARY_FIELDS = {
+    internship:       { label: 'Intern',    name: 'name',           role: 'internship_role', date: 'start_date'   },
+    appointment:      { label: 'Employee',  name: 'employee_name',  role: 'designation',     date: 'join_date'    },
+    employment_offer: { label: 'Candidate', name: 'candidate_name', role: 'position',        date: 'joining_date' },
+  };
+
+  function activeType() {
+    const r = form.querySelector('input[name=offer_type]:checked');
+    return r ? r.value : '';
+  }
+
+  function applySectionVisibility() {
+    const t = activeType();
+    form.querySelectorAll('section[data-offer-type]').forEach(s => {
+      s.hidden = (s.dataset.offerType !== t);
+    });
+    refreshSummary();
+  }
+
+  // ---------- Live Summary banner ----------
+  function fmtDate(s) {
+    if (!s) return '';
+    const d = new Date(s + 'T00:00:00');
+    if (isNaN(d)) return s;
+    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    return `${m}. ${d.getDate()}, ${d.getFullYear()}`;
+  }
+  function refreshSummary() {
+    const t = activeType();
+    const cfg = SUMMARY_FIELDS[t];
+    if (!cfg) {
+      summaryEmpty.hidden = false;
+      summaryActive.hidden = true;
+      return;
+    }
+    const nameVal = (form.querySelector(`[name=${cfg.name}]`) || {}).value || '';
+    const roleVal = (form.querySelector(`[name=${cfg.role}]`) || {}).value || '';
+    const dateVal = (form.querySelector(`[name=${cfg.date}]`) || {}).value || '';
+    summaryLabel.textContent = cfg.label;
+    summaryName.textContent = nameVal || '—';
+    summaryRole.textContent = roleVal || '—';
+    summaryDate.textContent = fmtDate(dateVal) || '—';
+    summaryEmpty.hidden = true;
+    summaryActive.hidden = false;
+  }
+
+  // ---------- Internship: end date ----------
+  // Clamping month-add (matches the Python helper) — handles 31-Jan + 1 mo -> Feb 28.
+  function addMonths(d, n) {
+    const day = d.getDate();
+    const dest = new Date(d.getFullYear(), d.getMonth() + n + 1, 0); // last day of dest month
+    return new Date(dest.getFullYear(), dest.getMonth(), Math.min(day, dest.getDate()));
+  }
+  function refreshEndDate() {
+    const el = document.getElementById('ol-end-date');
+    if (!el) return;
+    const startVal = (form.querySelector('[name=start_date]') || {}).value;
+    const monthsVal = parseInt((form.querySelector('[name=duration_months]') || {}).value, 10);
+    if (!startVal || !monthsVal || monthsVal < 1) {
+      el.textContent = 'Internship ends on: —';
+      return;
+    }
+    const start = new Date(startVal + 'T00:00:00');
+    if (isNaN(start)) { el.textContent = 'Internship ends on: —'; return; }
+    const end = addMonths(start, monthsVal);
+    const word = monthsVal === 1 ? 'month' : 'months';
+    el.textContent = `Internship ends on: ${fmtDate(end.toISOString().slice(0,10))} (${monthsVal} ${word})`;
+  }
+
+  // ---------- Appointment: confirmation date ----------
+  function refreshConfirmDate() {
+    const el = document.getElementById('ol-confirm-date');
+    if (!el) return;
+    const joinVal = (form.querySelector('[name=join_date]') || {}).value;
+    const probVal = (form.querySelector('[name=probation_period]') || {}).value;
+    const days = parseInt(probVal, 10);
+    if (!joinVal || !Number.isFinite(days) || days < 1) {
+      el.textContent = 'Confirmation on: —';
+      return;
+    }
+    const join = new Date(joinVal + 'T00:00:00');
+    if (isNaN(join)) { el.textContent = 'Confirmation on: —'; return; }
+    const conf = new Date(join.getTime() + days * 86400000);
+    el.textContent = `Confirmation on: ${fmtDate(conf.toISOString().slice(0,10))} (${days} days from joining)`;
+  }
+
+  // ---------- Employment: auto-fill annuals from monthlies ----------
+  const COMP_PAIRS = [
+    ['basic_monthly','basic_annual'],
+    ['da_monthly','da_annual'],
+    ['hra_monthly','hra_annual'],
+    ['ta_monthly','ta_annual'],
+    ['food_allowance_monthly','food_allowance_annual'],
+    ['pf_employee_monthly','pf_employee_annual'],
+    ['pf_employer_monthly','pf_employer_annual'],
+  ];
+  function autoFillAnnuals(changedName) {
+    for (const [mName, aName] of COMP_PAIRS) {
+      if (changedName && changedName !== mName) continue;
+      const mInp = form.querySelector(`[name=${mName}]`);
+      const aInp = form.querySelector(`[name=${aName}]`);
+      if (!mInp || !aInp) continue;
+      const mVal = parseFloat(mInp.value);
+      if (!Number.isFinite(mVal)) continue;
+      // Auto-fill only if annual is empty OR was previously auto-filled.
+      if (!aInp.value || aInp.dataset.autoFilled === '1') {
+        aInp.dataset.programmatic = '1';
+        aInp.value = (mVal * 12).toFixed(2);
+        aInp.dataset.autoFilled = '1';
+        aInp.classList.add('auto-filled');
+        delete aInp.dataset.programmatic;
+      }
+    }
+    refreshCtcSuggest();
+  }
+  function refreshCtcSuggest() {
+    const wrap = document.getElementById('ol-ctc-suggest');
+    const val  = document.getElementById('ol-ctc-suggest-val');
+    if (!wrap || !val) return;
+    let sum = 0;
+    for (const [, aName] of COMP_PAIRS) {
+      const inp = form.querySelector(`[name=${aName}]`);
+      const v = parseFloat(inp && inp.value);
+      if (Number.isFinite(v)) sum += v;
+    }
+    if (sum <= 0) { wrap.hidden = true; return; }
+    val.textContent = '₹' + sum.toLocaleString('en-IN');
+    wrap.hidden = false;
+  }
+  const applyLink = document.getElementById('ol-ctc-apply');
+  if (applyLink) applyLink.addEventListener('click', e => {
+    e.preventDefault();
+    const sumText = document.getElementById('ol-ctc-suggest-val').textContent || '';
+    const num = parseFloat(sumText.replace(/[^\d.]/g, ''));
+    if (!Number.isFinite(num)) return;
+    const ctcInp = form.querySelector('[name=annual_ctc]');
+    if (ctcInp) ctcInp.value = num.toFixed(2);
+  });
+
+  // Clear auto-filled state when user manually edits an annual field.
+  for (const [, aName] of COMP_PAIRS) {
+    const aInp = form.querySelector(`[name=${aName}]`);
+    if (aInp) aInp.addEventListener('input', () => {
+      if (aInp.dataset.programmatic === '1') return;
+      aInp.dataset.autoFilled = '';
+      aInp.classList.remove('auto-filled');
+    });
+  }
+
+  // ---------- Master input/change listener ----------
+  form.addEventListener('input', e => {
+    refreshSummary();
+    refreshEndDate();
+    refreshConfirmDate();
+    if (e.target && /_monthly$/.test(e.target.name || '')) {
+      autoFillAnnuals(e.target.name);
+    } else if (e.target && /_annual$/.test(e.target.name || '')) {
+      refreshCtcSuggest();
+    }
+    scheduleDraftSave();
+  });
+  form.querySelectorAll('input[name=offer_type]').forEach(r => {
+    r.addEventListener('change', () => { applySectionVisibility(); scheduleDraftSave(); });
+  });
+
+  // ---------- localStorage draft save / restore ----------
+  const DRAFT_KEY = 'offerLetterDraft.v1';
+  const HAS_PREVIEW = {% if preview_url %}true{% else %}false{% endif %};
+  let saveTimer = null;
+  function scheduleDraftSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveDraft, 400);
+  }
+  function saveDraft() {
+    const data = {};
+    form.querySelectorAll('input, select, textarea').forEach(el => {
+      if (!el.name || el.type === 'hidden' || el.type === 'submit') return;
+      if (el.type === 'radio') {
+        if (el.checked) data[el.name] = el.value;
+      } else if (el.type === 'checkbox') {
+        data[el.name] = el.checked;
+      } else {
+        data[el.name] = el.value;
+      }
+    });
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+  function restoreDraft() {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) {}
+    if (!data || typeof data !== 'object') return false;
+    let restored = false;
+    for (const [name, value] of Object.entries(data)) {
+      const els = form.querySelectorAll(`[name="${name}"]`);
+      els.forEach(el => {
+        if (el.type === 'radio') {
+          el.checked = (el.value === value);
+        } else if (el.type === 'checkbox') {
+          el.checked = !!value;
+        } else if (el.value !== value) {
+          el.value = value;
+        }
+        if (value) restored = true;
+      });
+    }
+    return restored;
+  }
+  function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} }
+  function showDraftPill() {
+    const pill = document.getElementById('ol-draft-pill');
+    pill.classList.add('show');
+    setTimeout(() => pill.classList.remove('show'), 2000);
+  }
+
+  // ---------- Initial paint ----------
+  // Restore draft only when we're not viewing a post-submit success page;
+  // a successful submit clears the draft below.
+  if (!HAS_PREVIEW && restoreDraft()) showDraftPill();
+  if (HAS_PREVIEW) clearDraft();
+
+  applySectionVisibility();
+  refreshEndDate();
+  refreshConfirmDate();
+  refreshCtcSuggest();
+  refreshSummary();
+})();
+</script>
+</body>
 </html>
-

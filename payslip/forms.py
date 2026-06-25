@@ -107,7 +107,16 @@ class OfferLetterForm(forms.Form):
     start_date = forms.DateField(
         label="Start Date", widget=forms.DateInput(attrs={"type": "date"}), required=False
     )
-    
+    duration_months = forms.IntegerField(
+        label="Internship Duration (months)",
+        min_value=1,
+        initial=3,
+        required=False,
+        widget=forms.NumberInput(
+            attrs={"min": 1, "max": 24, "step": 1, "placeholder": "e.g. 3"}
+        ),
+    )
+
     # Appointment Order fields
     serial_no = forms.CharField(label="Ref No", max_length=100, required=False)
     employee_name = forms.CharField(label="Employee Name", max_length=200, required=False)
@@ -153,6 +162,36 @@ class OfferLetterForm(forms.Form):
     pf_employee_annual = forms.DecimalField(label="PF Employee (Annual)", max_digits=12, decimal_places=2, required=False)
     pf_employer_monthly = forms.DecimalField(label="PF Employer (Monthly)", max_digits=12, decimal_places=2, required=False)
     pf_employer_annual = forms.DecimalField(label="PF Employer (Annual)", max_digits=12, decimal_places=2, required=False)
+
+    # ---------------------------------------------------------------------
+    # Per-doc-type minimum validation. All fields above are required=False so
+    # the form remains a single class for three documents — but we want clear
+    # errors instead of silently producing a blank PDF when key inputs are
+    # missing. clean() enforces the minimum-viable set per offer_type.
+    # ---------------------------------------------------------------------
+    MIN_REQUIRED: dict[str, list[str]] = {
+        "internship": ["name", "internship_role", "start_date", "duration_months"],
+        "appointment": ["employee_name", "designation", "join_date", "company_name"],
+        "employment_offer": ["candidate_name", "position", "joining_date", "annual_ctc"],
+    }
+
+    def clean(self):
+        cleaned = super().clean()
+        offer_type = cleaned.get("offer_type") or ""
+        if not offer_type:
+            return cleaned
+
+        type_label = dict(self.OFFER_TYPES).get(offer_type, offer_type)
+        for field_name in self.MIN_REQUIRED.get(offer_type, []):
+            value = cleaned.get(field_name)
+            # Treat empty strings and None as missing; 0 is a legitimate value
+            # for Decimal fields so explicitly check for None / "".
+            if value in (None, ""):
+                self.add_error(
+                    field_name,
+                    f"This field is required for {type_label}.",
+                )
+        return cleaned
 
 
 class ExperienceCertificateForm(forms.Form):

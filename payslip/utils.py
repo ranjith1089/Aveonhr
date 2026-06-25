@@ -542,6 +542,19 @@ def build_zip(file_pairs: Iterable[tuple[str, bytes]]) -> bytes:
     return buffer.getvalue()
 
 
+def _add_months_clamped(d: "date", months: int) -> "date":
+    """Add `months` to date `d`, clamping day-of-month so 31-Jan + 1 month
+    becomes 28/29-Feb instead of overflowing. Pure stdlib — no dateutil."""
+    from calendar import monthrange
+    from datetime import date as _date
+
+    total = d.month - 1 + months
+    new_year = d.year + total // 12
+    new_month = total % 12 + 1
+    last_day = monthrange(new_year, new_month)[1]
+    return _date(new_year, new_month, min(d.day, last_day))
+
+
 def build_offer_letter_pdf(data: dict) -> bytes:
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -572,10 +585,22 @@ def build_offer_letter_pdf(data: dict) -> bytes:
     college_address = str(data.get("college_address", "")).strip()
     role = str(data.get("internship_role", "")).strip()
     start_date = data.get("start_date")
+    duration_months = data.get("duration_months")
+    try:
+        duration_months = int(duration_months) if duration_months not in (None, "") else None
+    except (TypeError, ValueError):
+        duration_months = None
+
     if start_date:
         start_date_label = start_date.strftime("%b. %d, %Y").replace(" 0", " ")
     else:
         start_date_label = "-"
+
+    end_date = None
+    end_date_label = "-"
+    if start_date and duration_months and duration_months > 0:
+        end_date = _add_months_clamped(start_date, duration_months)
+        end_date_label = end_date.strftime("%b. %d, %Y").replace(" 0", " ")
 
     story.append(Paragraph(offer_title, styles["Title"]))
     story.append(Spacer(1, 8))
@@ -585,14 +610,51 @@ def build_offer_letter_pdf(data: dict) -> bytes:
     story.append(Paragraph(college_name, letter_style))
     story.append(Paragraph(college_address.replace("\n", "<br />"), letter_style))
     story.append(Spacer(1, 12))
+
+    # Internship Details mini-table — at-a-glance summary of the offer.
+    # Rows with empty values are skipped so the table degrades gracefully.
+    detail_rows = [
+        ("Name", name),
+        ("Role", role),
+        ("Start Date", start_date_label if start_date else ""),
+    ]
+    if duration_months:
+        month_word = "month" if duration_months == 1 else "months"
+        detail_rows.append(("Duration", f"{duration_months} {month_word}"))
+        if end_date:
+            detail_rows.append(("End Date", end_date_label))
+    detail_rows = [(lbl, val) for lbl, val in detail_rows if val]
+    if detail_rows:
+        details_table = Table(detail_rows, colWidths=[40 * mm, 120 * mm])
+        details_table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E2E8F0")),
+            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F8FAFC")),
+            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 11),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(details_table)
+        story.append(Spacer(1, 14))
+
     story.append(Paragraph(f"Dear {name},", letter_style))
-    story.append(
-        Paragraph(
+    if duration_months and end_date:
+        month_word = "month" if duration_months == 1 else "months"
+        body_sentence = (
             "We are pleased to offer you an internship at our company Aveon Infotech Private Limited "
-            f"as an {role}. Your internship starts on {start_date_label}.",
-            letter_style,
+            f"as an {role} for a period of {duration_months} {month_word}, starting on "
+            f"{start_date_label} and ending on {end_date_label}."
         )
-    )
+    else:
+        body_sentence = (
+            "We are pleased to offer you an internship at our company Aveon Infotech Private Limited "
+            f"as an {role}. Your internship starts on {start_date_label}."
+        )
+    story.append(Paragraph(body_sentence, letter_style))
     story.append(
         Paragraph(
             "The terms and conditions of your Internship with the Company are set forth below:",
@@ -866,21 +928,24 @@ def build_employment_offer_pdf(data: dict) -> bytes:
     story.append(Paragraph("<b>ANNUAL COMPENSATION STRUCTURE: (All components are in Rs.)</b>", letter_style))
     story.append(Spacer(1, 8))
 
-    # Compensation table
-    basic_monthly = float(data.get("basic_monthly", 0))
-    basic_annual = float(data.get("basic_annual", 0))
-    da_monthly = float(data.get("da_monthly", 0))
-    da_annual = float(data.get("da_annual", 0))
-    hra_monthly = float(data.get("hra_monthly", 0))
-    hra_annual = float(data.get("hra_annual", 0))
-    ta_monthly = float(data.get("ta_monthly", 0))
-    ta_annual = float(data.get("ta_annual", 0))
-    food_monthly = float(data.get("food_allowance_monthly", 0))
-    food_annual = float(data.get("food_allowance_annual", 0))
-    pf_emp_monthly = float(data.get("pf_employee_monthly", 0))
-    pf_emp_annual = float(data.get("pf_employee_annual", 0))
-    pf_empr_monthly = float(data.get("pf_employer_monthly", 0))
-    pf_empr_annual = float(data.get("pf_employer_annual", 0))
+    # Compensation table — `or 0` guards against None from blank optional DecimalFields.
+    def _f(key: str) -> float:
+        return float(data.get(key) or 0)
+
+    basic_monthly = _f("basic_monthly")
+    basic_annual = _f("basic_annual")
+    da_monthly = _f("da_monthly")
+    da_annual = _f("da_annual")
+    hra_monthly = _f("hra_monthly")
+    hra_annual = _f("hra_annual")
+    ta_monthly = _f("ta_monthly")
+    ta_annual = _f("ta_annual")
+    food_monthly = _f("food_allowance_monthly")
+    food_annual = _f("food_allowance_annual")
+    pf_emp_monthly = _f("pf_employee_monthly")
+    pf_emp_annual = _f("pf_employee_annual")
+    pf_empr_monthly = _f("pf_employer_monthly")
+    pf_empr_annual = _f("pf_employer_annual")
 
     total_monthly = basic_monthly + da_monthly + hra_monthly + ta_monthly + food_monthly
     total_annual = basic_annual + da_annual + hra_annual + ta_annual + food_annual
