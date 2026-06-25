@@ -556,28 +556,27 @@ def _add_months_clamped(d: "date", months: int) -> "date":
 
 
 def build_offer_letter_pdf(data: dict) -> bytes:
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=20 * mm,
-        leftMargin=20 * mm,
-        topMargin=20 * mm,
-        bottomMargin=20 * mm,
+    from .pdf_styles import (
+        BRAND_DIVIDER,
+        BRAND_BG_TINT,
+        FONT_BOLD,
+        SPACE_LG,
+        SPACE_MD,
+        SPACE_SM,
+        build_letterhead,
+        build_signature_block,
+        build_with_footer,
+        format_date,
+        get_styles,
+        make_doc,
     )
-    styles = getSampleStyleSheet()
-    letter_style = ParagraphStyle(
-        "letter_style",
-        parent=styles["Normal"],
-        fontSize=12,
-        leading=16,
-        alignment=TA_JUSTIFY,
-    )
-    story: list = []
 
-    offer_title = str(
-        data.get("offer_type_label") or data.get("offer_type") or "Offer Letter"
-    ).upper()
+    buffer = BytesIO()
+    doc = make_doc(buffer)
+    s = get_styles()
+    story: list = []
+    story.extend(build_letterhead())
+
     name = str(data.get("name", "")).strip()
     roll_number = str(data.get("roll_number", "")).strip()
     course = str(data.get("course", "")).strip()
@@ -591,28 +590,32 @@ def build_offer_letter_pdf(data: dict) -> bytes:
     except (TypeError, ValueError):
         duration_months = None
 
-    if start_date:
-        start_date_label = start_date.strftime("%b. %d, %Y").replace(" 0", " ")
-    else:
-        start_date_label = "-"
-
+    start_date_label = format_date(start_date, fallback="-")
     end_date = None
     end_date_label = "-"
     if start_date and duration_months and duration_months > 0:
         end_date = _add_months_clamped(start_date, duration_months)
-        end_date_label = end_date.strftime("%b. %d, %Y").replace(" 0", " ")
+        end_date_label = format_date(end_date)
 
-    story.append(Paragraph(offer_title, styles["Title"]))
-    story.append(Spacer(1, 8))
-    story.append(Paragraph(name, letter_style))
-    story.append(Paragraph(f"Roll No- {roll_number}", letter_style))
-    story.append(Paragraph(course, letter_style))
-    story.append(Paragraph(college_name, letter_style))
-    story.append(Paragraph(college_address.replace("\n", "<br />"), letter_style))
-    story.append(Spacer(1, 12))
+    # Title + date on a single line: title centered, date right-aligned below
+    story.append(Paragraph("INTERNSHIP OFFER LETTER", s["title"]))
+    story.append(Paragraph(f"Issued on {format_date(date.today())}", s["subtitle"]))
 
-    # Internship Details mini-table — at-a-glance summary of the offer.
-    # Rows with empty values are skipped so the table degrades gracefully.
+    # Recipient address block — left-aligned, compact
+    recipient_lines = [name]
+    if roll_number:
+        recipient_lines.append(f"Roll No: {roll_number}")
+    if course:
+        recipient_lines.append(course)
+    if college_name:
+        recipient_lines.append(college_name)
+    if college_address:
+        recipient_lines.append(college_address.replace("\n", "<br/>"))
+    for line in recipient_lines:
+        story.append(Paragraph(line, s["body_left"]))
+    story.append(Spacer(1, SPACE_MD))
+
+    # Internship Details mini-table — at-a-glance summary
     detail_rows = [
         ("Name", name),
         ("Role", role),
@@ -627,86 +630,82 @@ def build_offer_letter_pdf(data: dict) -> bytes:
     if detail_rows:
         details_table = Table(detail_rows, colWidths=[40 * mm, 120 * mm])
         details_table.setStyle(TableStyle([
-            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ("BOX", (0, 0), (-1, -1), 0.5, BRAND_DIVIDER),
             ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E2E8F0")),
-            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#F8FAFC")),
-            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-            ("FONTSIZE", (0, 0), (-1, -1), 11),
+            ("BACKGROUND", (0, 0), (0, -1), BRAND_BG_TINT),
+            ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
+            ("FONTSIZE", (0, 0), (-1, -1), 10.5),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
         ]))
         story.append(details_table)
-        story.append(Spacer(1, 14))
+        story.append(Spacer(1, SPACE_MD))
 
-    story.append(Paragraph(f"Dear {name},", letter_style))
+    story.append(Paragraph(f"Dear {name},", s["body_left"]))
+    story.append(Spacer(1, SPACE_SM))
     if duration_months and end_date:
         month_word = "month" if duration_months == 1 else "months"
         body_sentence = (
             "We are pleased to offer you an internship at our company Aveon Infotech Private Limited "
-            f"as an {role} for a period of {duration_months} {month_word}, starting on "
-            f"{start_date_label} and ending on {end_date_label}."
+            f"as an <b>{role}</b> for a period of <b>{duration_months} {month_word}</b>, starting on "
+            f"<b>{start_date_label}</b> and ending on <b>{end_date_label}</b>."
         )
     else:
         body_sentence = (
             "We are pleased to offer you an internship at our company Aveon Infotech Private Limited "
-            f"as an {role}. Your internship starts on {start_date_label}."
+            f"as an <b>{role}</b>. Your internship starts on <b>{start_date_label}</b>."
         )
-    story.append(Paragraph(body_sentence, letter_style))
-    story.append(
-        Paragraph(
-            "The terms and conditions of your Internship with the Company are set forth below:",
-            letter_style,
-        )
-    )
-    story.append(
-        Paragraph(
-            "Subject to your acceptance of the terms and conditions contained herein, your project "
-            "and responsibilities during the Term will be determined by the supervisor assigned to "
-            "you for the duration of the Internship.",
-            letter_style,
-        )
-    )
-    story.append(
-        Paragraph(
-            "The Internship cannot be construed as an employment offer with Aveon Infotech Private Limited.",
-            letter_style,
-        )
-    )
-    story.append(Spacer(1, 24))
-    story.append(Paragraph("Sincerely,", letter_style))
-    story.append(Paragraph("Ranjith Kumar", letter_style))
-    story.append(Paragraph("General Manager", letter_style))
+    story.append(Paragraph(body_sentence, s["body"]))
+    story.append(Paragraph(
+        "The terms and conditions of your Internship with the Company are set forth below:",
+        s["body"],
+    ))
+    story.append(Paragraph(
+        "Subject to your acceptance of the terms and conditions contained herein, your project "
+        "and responsibilities during the Term will be determined by the supervisor assigned to "
+        "you for the duration of the Internship.",
+        s["body"],
+    ))
+    story.append(Paragraph(
+        "The Internship cannot be construed as an employment offer with Aveon Infotech Private Limited.",
+        s["body"],
+    ))
 
-    doc.build(story)
+    story.extend(build_signature_block(
+        closing="Sincerely,",
+        company="Aveon Infotech Private Limited",
+        name="Ranjith Kumar",
+        designation="General Manager",
+    ))
+
+    build_with_footer(doc, story)
     return buffer.getvalue()
 
 
 def build_appointment_order_pdf(data: dict) -> bytes:
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=20 * mm,
-        leftMargin=20 * mm,
-        topMargin=20 * mm,
-        bottomMargin=20 * mm,
+    from .pdf_styles import (
+        SPACE_MD,
+        SPACE_SM,
+        SPACE_XS,
+        build_letterhead,
+        build_signature_block,
+        build_with_footer,
+        format_date,
+        get_styles,
+        make_doc,
     )
-    styles = getSampleStyleSheet()
-    letter_style = ParagraphStyle(
-        "letter_style",
-        parent=styles["Normal"],
-        fontSize=12,
-        leading=16,
-        alignment=TA_JUSTIFY,
-    )
-    story: list = []
 
-    # Header information
+    buffer = BytesIO()
+    doc = make_doc(buffer)
+    s = get_styles()
+    story: list = []
+    story.extend(build_letterhead())
+
+    # Inputs
     today = date.today()
-    date_str = today.strftime("%b. %d, %Y").replace(" 0", " ")
     serial_no = str(data.get("serial_no", "")).strip()
     employee_name = str(data.get("employee_name", "")).strip()
     addr1 = str(data.get("present_address1", "")).strip()
@@ -716,53 +715,53 @@ def build_appointment_order_pdf(data: dict) -> bytes:
     state = str(data.get("present_address_state", "")).strip()
     pin_code = str(data.get("present_address_pin", "")).strip()
     designation = str(data.get("designation", "")).strip()
-    join_date = data.get("join_date")
-    if join_date:
-        join_date_str = join_date.strftime("%b. %d, %Y").replace(" 0", " ")
-    else:
-        join_date_str = "-"
+    join_date_str = format_date(data.get("join_date"), fallback="-")
     probation_period = str(data.get("probation_period", "")).strip()
     ctc = str(data.get("ctc", "")).strip()
     company_name = str(data.get("company_name", "")).strip()
     signatory = str(data.get("signatory", "")).strip()
     signatory_designation = str(data.get("signatory_designation", "")).strip()
 
-    # Date and Ref No
-    story.append(Paragraph(f"Date: {date_str}", styles["Normal"]))
-    story.append(Paragraph(f"Ref No: {serial_no}", styles["Normal"]))
-    story.append(Spacer(1, 12))
+    # Date + Ref No row — two-column for a more professional header
+    meta_row = Table(
+        [[Paragraph(f"<b>Date:</b> {format_date(today)}", s["small"]),
+          Paragraph(f"<b>Ref No:</b> {serial_no or '—'}", s["small_right"])]],
+        colWidths=[None, None],
+    )
+    meta_row.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(meta_row)
+    story.append(Spacer(1, SPACE_MD))
 
-    # Address
-    story.append(Paragraph(employee_name, styles["Normal"]))
-    if addr1:
-        story.append(Paragraph(addr1, styles["Normal"]))
-    if addr2:
-        story.append(Paragraph(addr2, styles["Normal"]))
-    if addr3:
-        story.append(Paragraph(addr3, styles["Normal"]))
+    # Recipient address
+    story.append(Paragraph(employee_name, s["body_left"]))
+    for line in [addr1, addr2, addr3]:
+        if line:
+            story.append(Paragraph(line, s["body_left"]))
     if city or state or pin_code:
-        city_state_pin = f"{city}, {state} {pin_code}".strip(", ")
-        story.append(Paragraph(city_state_pin, styles["Normal"]))
-    story.append(Spacer(1, 12))
+        story.append(Paragraph(f"{city}, {state} {pin_code}".strip(", "), s["body_left"]))
+    story.append(Spacer(1, SPACE_MD))
 
     # Title
-    story.append(Paragraph("Appointment Order", styles["Title"]))
-    story.append(Spacer(1, 12))
+    story.append(Paragraph("APPOINTMENT ORDER", s["title"]))
+    story.append(Spacer(1, SPACE_SM))
 
     # Body
-    story.append(Paragraph(f"Dear {employee_name},", letter_style))
-    story.append(Spacer(1, 6))
-    
+    story.append(Paragraph(f"Dear {employee_name},", s["body_left"]))
+    story.append(Spacer(1, SPACE_XS))
     story.append(Paragraph(
-        f"We are pleased to appoint you as {designation} with effect from {join_date_str}.",
-        letter_style,
+        f"We are pleased to appoint you as <b>{designation}</b> with effect from <b>{join_date_str}</b>.",
+        s["body"],
     ))
     story.append(Paragraph(
         "Your employment in our organization shall be governed by the following terms and conditions. "
         "The terms and conditions may be amended from time to time at the discretion of the Management.",
-        letter_style,
+        s["body"],
     ))
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, SPACE_SM))
 
     # Terms and conditions
     terms = [
@@ -785,148 +784,146 @@ def build_appointment_order_pdf(data: dict) -> bytes:
     ]
     
     for i, term in enumerate(terms, 1):
-        story.append(Paragraph(f"{i}. {term}", letter_style))
-        story.append(Spacer(1, 4))
+        story.append(Paragraph(f"<b>{i}.</b> {term}", s["body"]))
+        story.append(Spacer(1, SPACE_XS))
 
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, SPACE_SM))
     story.append(Paragraph(
         f"{company_name} welcomes you and offers delightful employment to work and hope that the association will be mutually beneficial and meaningful.",
-        letter_style,
+        s["body"],
     ))
-    story.append(Spacer(1, 12))
 
-    story.append(Paragraph("With best wishes,", letter_style))
-    story.append(Paragraph(f"For {company_name},", letter_style))
-    story.append(Spacer(1, 24))
-    story.append(Paragraph(signatory, letter_style))
-    story.append(Paragraph(signatory_designation, letter_style))
-    story.append(Spacer(1, 24))
+    story.extend(build_signature_block(
+        closing="With best wishes,",
+        company=company_name,
+        name=signatory,
+        designation=signatory_designation,
+    ))
+    story.append(Spacer(1, SPACE_MD))
 
+    # Acceptance block — visually separated
+    story.append(Paragraph(
+        "<b>ACCEPTANCE</b>",
+        s["h2"],
+    ))
     story.append(Paragraph(
         "I hereby accept the terms and conditions of the employment mentioned in this order.",
-        letter_style,
+        s["body"],
     ))
-    story.append(Spacer(1, 8))
-    story.append(Paragraph("Name of Employee:", styles["Normal"]))
-    story.append(Paragraph("Signature:", styles["Normal"]))
-    story.append(Paragraph("Date:", styles["Normal"]))
+    story.append(Spacer(1, SPACE_SM))
+    acceptance_table = Table(
+        [["Name of Employee:", ""],
+         ["Signature:", ""],
+         ["Date:", ""]],
+        colWidths=[45 * mm, None],
+    )
+    acceptance_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10.5),
+        ("LINEBELOW", (1, 0), (1, -1), 0.4, colors.HexColor("#94A3B8")),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+    ]))
+    story.append(acceptance_table)
 
-    doc.build(story)
+    build_with_footer(doc, story)
     return buffer.getvalue()
 
 
 def build_employment_offer_pdf(data: dict) -> bytes:
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=20 * mm,
-        leftMargin=20 * mm,
-        topMargin=20 * mm,
-        bottomMargin=20 * mm,
+    from .pdf_styles import (
+        BRAND_BG_TINT,
+        BRAND_DIVIDER,
+        BRAND_PRIMARY,
+        FONT_BOLD,
+        SPACE_LG,
+        SPACE_MD,
+        SPACE_SM,
+        SPACE_XS,
+        build_letterhead,
+        build_signature_block,
+        build_with_footer,
+        format_date,
+        get_styles,
+        make_doc,
     )
-    styles = getSampleStyleSheet()
-    letter_style = ParagraphStyle(
-        "letter_style",
-        parent=styles["Normal"],
-        fontSize=12,
-        leading=16,
-        alignment=TA_JUSTIFY,
-    )
-    story: list = []
 
-    # Extract data
+    buffer = BytesIO()
+    doc = make_doc(buffer)
+    s = get_styles()
+    story: list = []
+    story.extend(build_letterhead())
+
     candidate_name = str(data.get("candidate_name", "")).strip()
     position = str(data.get("position", "")).strip()
-    annual_ctc = data.get("annual_ctc", 0)
+    annual_ctc = float(data.get("annual_ctc") or 0)
     ctc_in_words = str(data.get("ctc_in_words", "")).strip()
-    joining_date = data.get("joining_date")
-    if joining_date:
-        joining_date_str = joining_date.strftime("%dth of %b %Y").replace(" 0", " ")
-    else:
-        joining_date_str = "-"
+    joining_date_str = format_date(data.get("joining_date"), fallback="-")
     employer_name = str(data.get("employer_name", "")).strip()
     employer_designation = str(data.get("employer_designation", "")).strip()
 
-    # Title
-    story.append(Paragraph("OFFER LETTER", styles["Title"]))
-    story.append(Spacer(1, 12))
+    story.append(Paragraph("OFFER LETTER", s["title"]))
+    story.append(Paragraph(f"Issued on {format_date(date.today())}", s["subtitle"]))
 
-    # Body
-    story.append(Paragraph(f"Dear {candidate_name},", letter_style))
-    story.append(Spacer(1, 8))
+    story.append(Paragraph(f"Dear {candidate_name},", s["body_left"]))
+    story.append(Spacer(1, SPACE_SM))
 
     story.append(Paragraph(
-        f"We are pleased to extend this offer of employment for the position of {position} at "
-        "iResponsive Offshore Development Center Private Limited. Our company is committed to providing "
+        f"We are pleased to extend this offer of employment for the position of <b>{position}</b> at "
+        "<b>Aveon Infotech Private Limited</b>. Our company is committed to providing "
         "the best possible work environment for our employees, and we believe that you have the skills, "
         "experience, and dedication needed to be a valuable member of our team.",
-        letter_style,
+        s["body"],
     ))
-    story.append(Spacer(1, 8))
-
-    story.append(Paragraph("You are offered employment on the following terms:", letter_style))
-    story.append(Spacer(1, 8))
-
+    story.append(Paragraph("You are offered employment on the following terms:", s["body"]))
     story.append(Paragraph(
         f"The total base pay (i.e., annual fixed compensation) all-inclusive at your position will be "
-        f"Rs. {annual_ctc:,.2f}/- ({ctc_in_words}). The Annual fixed compensation and Annual variable pay "
-        "will be subject to deduction of tax at source, in accordance with Income Tax Act, 1961 and all "
+        f"<b>Rs. {annual_ctc:,.2f}/-</b> ({ctc_in_words}). The Annual fixed compensation and Annual variable pay "
+        "will be subject to deduction of tax at source, in accordance with the Income Tax Act, 1961 and all "
         "other central and state legislation applicable to your base location.",
-        letter_style,
+        s["body"],
     ))
-    story.append(Spacer(1, 8))
-
     story.append(Paragraph(
         "You shall not, during the period of your employment with the Company or at any time thereafter, "
         "use, divulge or disclose, either directly or indirectly to any person, firm or body corporate any "
         "knowledge, information or documents which you may acquire, process or have access to in the course "
         "of your employment, concerning the business and affairs of the Company.",
-        letter_style,
+        s["body"],
     ))
-    story.append(Spacer(1, 8))
-
     story.append(Paragraph(
         "During your employment you will observe all the rules and regulations of the Company.",
-        letter_style,
+        s["body"],
     ))
-    story.append(Spacer(1, 8))
-
     story.append(Paragraph(
         "The Company also reserves the right to rescind, revoke, amend or withdraw this Offer Letter or "
         "any of the terms outlined herein without assigning any reason.",
-        letter_style,
+        s["body"],
     ))
-    story.append(Spacer(1, 8))
-
     story.append(Paragraph(
         f"We trust that you will find the above in order. Please feel free to contact the undersigned for "
         f"any clarifications/questions that you may have. To confirm your acceptance of this Offer Letter, "
         f"please sign at the bottom of this page, scan and email us the duplicate copy duly signed, and your "
-        f"joining date will be the {joining_date_str}.",
-        letter_style,
+        f"joining date will be <b>{joining_date_str}</b>.",
+        s["body"],
     ))
-    story.append(Spacer(1, 8))
-
     story.append(Paragraph(
         "We are very excited to welcome you to our team and look forward to your contribution to the growth of our company.",
-        letter_style,
+        s["body"],
     ))
-    story.append(Spacer(1, 16))
 
-    story.append(Paragraph("Regards,", letter_style))
-    story.append(Spacer(1, 24))
-    story.append(Paragraph(employer_name, letter_style))
-    story.append(Paragraph(employer_designation, letter_style))
-    story.append(Spacer(1, 16))
+    story.extend(build_signature_block(
+        closing="Regards,",
+        name=employer_name,
+        designation=employer_designation,
+    ))
+    story.append(Spacer(1, SPACE_LG))
 
     # Annexure I
-    story.append(Paragraph("<b>Annexure I</b>", styles["Heading2"]))
-    story.append(Spacer(1, 8))
-    story.append(Paragraph(f"Employee Name: {candidate_name}", letter_style))
-    story.append(Spacer(1, 8))
-    story.append(Paragraph("<b>ANNUAL COMPENSATION STRUCTURE: (All components are in Rs.)</b>", letter_style))
-    story.append(Spacer(1, 8))
+    story.append(Paragraph("ANNEXURE I — Annual Compensation Structure", s["h2"]))
+    story.append(Paragraph(f"<b>Employee Name:</b> {candidate_name}", s["body_left"]))
+    story.append(Spacer(1, SPACE_SM))
+    story.append(Paragraph("All components are in Rupees (Rs.).", s["small"]))
+    story.append(Spacer(1, SPACE_XS))
 
     # Compensation table — `or 0` guards against None from blank optional DecimalFields.
     def _f(key: str) -> float:
@@ -965,101 +962,113 @@ def build_employment_offer_pdf(data: dict) -> bytes:
     ]
 
     comp_table = Table(comp_data, colWidths=[70 * mm, 50 * mm, 50 * mm])
-    comp_table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f2f2f2")),
-                ("BOX", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
-                ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ]
-        )
-    )
+    comp_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), BRAND_PRIMARY),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, -1), 10.5),
+        ("BOX", (0, 0), (-1, -1), 0.5, BRAND_DIVIDER),
+        ("INNERGRID", (0, 0), (-1, -1), 0.25, BRAND_DIVIDER),
+        ("ALIGN", (1, 1), (-1, -1), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        # Highlight totals row (index 6) and net salary row (index 8)
+        ("BACKGROUND", (0, 6), (-1, 6), BRAND_BG_TINT),
+        ("FONTNAME", (0, 6), (-1, 6), FONT_BOLD),
+        ("BACKGROUND", (0, 8), (-1, 8), BRAND_BG_TINT),
+        ("FONTNAME", (0, 8), (-1, 8), FONT_BOLD),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
     story.append(comp_table)
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, SPACE_MD))
 
     # Benefits
-    story.append(Paragraph("<b>Benefits</b>", letter_style))
+    story.append(Paragraph("<b>Benefits</b>", s["body_left"]))
+    story.append(Spacer(1, SPACE_XS))
     benefits_data = [
         ["PF (Employer Contribution)", f"{pf_empr_monthly:,.2f}", f"{pf_empr_annual:,.2f}"],
     ]
     benefits_table = Table(benefits_data, colWidths=[70 * mm, 50 * mm, 50 * mm])
-    benefits_table.setStyle(
-        TableStyle(
-            [
-                ("BOX", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
-                ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-            ]
-        )
-    )
+    benefits_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.5, BRAND_DIVIDER),
+        ("INNERGRID", (0, 0), (-1, -1), 0.25, BRAND_DIVIDER),
+        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10.5),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
     story.append(benefits_table)
-    story.append(Spacer(1, 12))
+    story.append(Spacer(1, SPACE_MD))
 
     story.append(Paragraph(
         "On receipt of this letter, please send us your confirmation as a token of your acceptance within 2 days. "
         "We look forward to working with you and we are confident you will be able to make a significant contribution "
         "to the growth and success of the organization.",
-        letter_style,
+        s["body"],
     ))
-    story.append(Spacer(1, 16))
 
-    story.append(Paragraph("Sincerely,", letter_style))
-    story.append(Spacer(1, 24))
-    story.append(Paragraph(employer_name, letter_style))
-    story.append(Paragraph(employer_designation, letter_style))
-    story.append(Spacer(1, 16))
+    story.extend(build_signature_block(
+        closing="Sincerely,",
+        name=employer_name,
+        designation=employer_designation,
+    ))
+    story.append(Spacer(1, SPACE_LG))
 
-    # Acknowledgement
-    story.append(Paragraph("<b>ACKNOWLEDGEMENT</b>", styles["Heading2"]))
-    story.append(Spacer(1, 8))
+    # Acknowledgement — proper form table with underlines for ink
+    story.append(Paragraph("ACKNOWLEDGEMENT", s["h2"]))
     story.append(Paragraph(
         "I have read and understood the terms and conditions stated above and hereby signify my acceptance of the same.",
-        letter_style,
+        s["body"],
     ))
-    story.append(Spacer(1, 16))
-    story.append(Paragraph("Signature…………………………………………… Date…………………", letter_style))
+    story.append(Spacer(1, SPACE_SM))
+    ack_table = Table(
+        [["Signature:", "", "Date:", ""]],
+        colWidths=[28 * mm, None, 22 * mm, 40 * mm],
+    )
+    ack_table.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (0, 0), FONT_BOLD),
+        ("FONTNAME", (2, 0), (2, 0), FONT_BOLD),
+        ("FONTSIZE", (0, 0), (-1, -1), 10.5),
+        ("LINEBELOW", (1, 0), (1, 0), 0.4, colors.HexColor("#94A3B8")),
+        ("LINEBELOW", (3, 0), (3, 0), 0.4, colors.HexColor("#94A3B8")),
+        ("TOPPADDING", (0, 0), (-1, -1), 14),
+    ]))
+    story.append(ack_table)
 
-    doc.build(story)
+    build_with_footer(doc, story)
     return buffer.getvalue()
 
 
 def build_experience_certificate_pdf(data: dict) -> bytes:
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=20 * mm,
-        leftMargin=20 * mm,
-        topMargin=55 * mm,
-        bottomMargin=20 * mm,
+    from .pdf_styles import (
+        BRAND_BG_TINT,
+        BRAND_DIVIDER,
+        FONT_BOLD,
+        SPACE_MD,
+        SPACE_SM,
+        build_letterhead,
+        build_signature_block,
+        build_with_footer,
+        format_date,
+        get_styles,
+        make_doc,
     )
-    styles = getSampleStyleSheet()
-    letter_style = ParagraphStyle(
-        "letter_style",
-        parent=styles["Normal"],
-        fontSize=12,
-        leading=16,
-        alignment=TA_JUSTIFY,
-    )
-    center_style = ParagraphStyle(
-        "center_style",
-        parent=styles["Normal"],
-        fontSize=12,
-        alignment=1,  # Center alignment
-    )
-    story: list = []
 
-    # Extract data
-    certificate_type = str(data.get("certificate_type", "employee")).strip() or "employee"
+    buffer = BytesIO()
+    doc = make_doc(buffer)
+    s = get_styles()
+    story: list = []
+    story.extend(build_letterhead())
+
+    # Inputs
+    certificate_type = (str(data.get("certificate_type") or "employee").strip() or "employee")
     title = str(data.get("title", "")).strip()
     employee_name = str(data.get("employee_name_exp", "")).strip()
     employee_no = str(data.get("employee_no", "")).strip()
     company_name = str(data.get("company_name_exp", "")).strip()
-    join_date = data.get("join_date_exp")
-    leaving_date = data.get("leaving_date")
-    gender = str(data.get("gender", "male")).strip()
+    join_date_str = format_date(data.get("join_date_exp"), fallback="—")
+    leaving_date_str = format_date(data.get("leaving_date"), fallback="—")
+    gender = str(data.get("gender") or "male").strip().lower()
     designation = str(data.get("designation_exp", "")).strip()
     signatory = str(data.get("signatory_exp", "")).strip()
     signatory_designation = str(data.get("signatory_designation_exp", "")).strip()
@@ -1068,123 +1077,125 @@ def build_experience_certificate_pdf(data: dict) -> bytes:
     internship_domain = str(data.get("internship_domain", "")).strip()
     internship_company = str(data.get("internship_company", "")).strip()
     internship_location = str(data.get("internship_location", "")).strip()
-    internship_start_date = data.get("internship_start_date")
-    internship_end_date = data.get("internship_end_date")
-
-    # Format dates
-    today = date.today()
-    date_str = today.strftime("%b. %d, %Y").replace(" 0", " ")
-    
-    if join_date:
-        join_date_str = join_date.strftime("%b. %d, %Y").replace(" 0", " ")
-    else:
-        join_date_str = "-"
-    
-    if leaving_date:
-        leaving_date_str = leaving_date.strftime("%b. %d, %Y").replace(" 0", " ")
-    else:
-        leaving_date_str = "-"
+    internship_start_str = format_date(data.get("internship_start_date"), fallback="—")
+    internship_end_str = format_date(data.get("internship_end_date"), fallback="—")
 
     # Gender-based pronouns
-    if gender.lower() == "male":
-        his_her = "his"
-        him_her = "him"
-        he_she = "he"
+    if gender == "male":
+        his_her, him_her, he_she = "his", "him", "he"
     else:
-        his_her = "her"
-        him_her = "her"
-        he_she = "she"
+        his_her, him_her, he_she = "her", "her", "she"
 
-    # Date
-    story.append(Paragraph(f"Date: {date_str}", styles["Normal"]))
-    story.append(Spacer(1, 16))
+    # Date row — right-aligned, professional
+    story.append(Paragraph(f"<b>Date:</b> {format_date(date.today())}", s["small_right"]))
+    story.append(Spacer(1, SPACE_MD))
 
     if certificate_type == "internship":
-        # Format internship dates
-        if internship_start_date:
-            internship_start_str = internship_start_date.strftime("%b. %d, %Y").replace(" 0", " ")
-        else:
-            internship_start_str = "-"
-        if internship_end_date:
-            internship_end_str = internship_end_date.strftime("%b. %d, %Y").replace(" 0", " ")
-        else:
-            internship_end_str = "-"
+        story.append(Paragraph("INTERNSHIP EXPERIENCE CERTIFICATE", s["title"]))
+        story.append(Paragraph("To Whomsoever It May Concern", s["subtitle"]))
 
-        story.append(Paragraph("Internship Experience Certificate", styles["Title"]))
-        story.append(Spacer(1, 12))
-        story.append(Paragraph("<b>TO WHOMSOEVER IT MAY CONCERN</b>", center_style))
-        story.append(Spacer(1, 16))
+        # Internship details mini-table — at-a-glance facts
+        detail_rows = [
+            ("Name", intern_name),
+            ("Domain", internship_domain),
+            ("Organization", internship_company),
+            ("Location", internship_location),
+            ("Period", f"{internship_start_str} to {internship_end_str}"),
+        ]
+        detail_rows = [(lbl, val) for lbl, val in detail_rows if val and val != "—"]
+        if detail_rows:
+            details_table = Table(detail_rows, colWidths=[40 * mm, 120 * mm])
+            details_table.setStyle(TableStyle([
+                ("BOX", (0, 0), (-1, -1), 0.5, BRAND_DIVIDER),
+                ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E2E8F0")),
+                ("BACKGROUND", (0, 0), (0, -1), BRAND_BG_TINT),
+                ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
+                ("FONTSIZE", (0, 0), (-1, -1), 10.5),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]))
+            story.append(details_table)
+            story.append(Spacer(1, SPACE_MD))
 
-        story.append(
-            Paragraph(
-                f"This is to certify that {intern_name} has done {his_her} internship in "
-                f"{internship_domain} at our firm {internship_company} - {internship_location}, "
-                f"from {internship_start_str} to {internship_end_str}.",
-                letter_style,
-            )
-        )
-        story.append(Spacer(1, 16))
-        story.append(
-            Paragraph(
-                f"During {his_her} internship, {intern_name} demonstrated {his_her} skills with self–motivation to learn "
-                f"new skills. {his_her.capitalize()} performance exceeded our expectations, and {he_she} was able to "
-                f"complete the internship on time.",
-                letter_style,
-            )
-        )
-        story.append(Spacer(1, 16))
-        story.append(Paragraph(f"We wish {him_her} all the best in {his_her} future endeavors.", letter_style))
-        story.append(Spacer(1, 24))
+        story.append(Paragraph(
+            f"This is to certify that <b>{intern_name}</b> has completed {his_her} internship "
+            f"in <b>{internship_domain}</b> at our firm <b>{internship_company}</b>"
+            + (f", {internship_location}" if internship_location else "")
+            + f", from <b>{internship_start_str}</b> to <b>{internship_end_str}</b>.",
+            s["body"],
+        ))
+        story.append(Paragraph(
+            f"During {his_her} internship, {intern_name} demonstrated strong technical skills with self-motivation to learn. "
+            f"{his_her.capitalize()} performance exceeded our expectations, and {he_she} was able to complete the internship "
+            f"successfully and on time.",
+            s["body"],
+        ))
+        story.append(Paragraph(
+            f"We wish {him_her} all the best in {his_her} future endeavors.",
+            s["body"],
+        ))
     else:
-        # Employee experience letter
-        story.append(Paragraph("Experience Letter", styles["Title"]))
-        story.append(Spacer(1, 12))
+        story.append(Paragraph("EXPERIENCE LETTER", s["title"]))
+        story.append(Paragraph("To Whomsoever It May Concern", s["subtitle"]))
 
-        story.append(Paragraph("<b>TO WHOMSOEVER IT MAY CONCERN</b>", center_style))
-        story.append(Spacer(1, 16))
+        # Employment details mini-table
+        full_name = f"{title} {employee_name}".strip()
+        detail_rows = [
+            ("Name", full_name),
+            ("Employee ID", employee_no),
+            ("Designation", designation),
+            ("Organization", company_name),
+            ("Tenure", f"{join_date_str} to {leaving_date_str}"),
+        ]
+        detail_rows = [(lbl, val) for lbl, val in detail_rows if val and val != "—"]
+        if detail_rows:
+            details_table = Table(detail_rows, colWidths=[40 * mm, 120 * mm])
+            details_table.setStyle(TableStyle([
+                ("BOX", (0, 0), (-1, -1), 0.5, BRAND_DIVIDER),
+                ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E2E8F0")),
+                ("BACKGROUND", (0, 0), (0, -1), BRAND_BG_TINT),
+                ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
+                ("FONTSIZE", (0, 0), (-1, -1), 10.5),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ]))
+            story.append(details_table)
+            story.append(Spacer(1, SPACE_MD))
 
-        story.append(
-            Paragraph(
-                f"This is to certify that {title} {employee_name} bearing employee ID {employee_no} has worked with "
-                f"{company_name} and left our organization on {leaving_date_str}.",
-                letter_style,
-            )
-        )
-        story.append(Spacer(1, 8))
+        story.append(Paragraph(
+            f"This is to certify that <b>{full_name}</b> bearing employee ID <b>{employee_no}</b> "
+            f"has worked with <b>{company_name}</b> and left our organization on <b>{leaving_date_str}</b>.",
+            s["body"],
+        ))
+        story.append(Paragraph(
+            f"During {his_her} work tenure, {employee_name} remained dedicated and loyal to {his_her} work "
+            f"and responsibilities with our company. The designation of {employee_name} at the time of leaving "
+            f"the organization was <b>{designation}</b>.",
+            s["body"],
+        ))
+        story.append(Paragraph(
+            f"The employee's performance was outstanding, and we appreciate the services rendered to our "
+            f"organization. We wish {him_her} all the best for {his_her} future endeavors.",
+            s["body"],
+        ))
+        story.append(Paragraph(
+            "Please feel free to be in touch with us for any additional information.",
+            s["body"],
+        ))
 
-        story.append(Paragraph(f"<b>Duration:</b> {join_date_str} to {leaving_date_str}", letter_style))
-        story.append(Spacer(1, 8))
+    story.extend(build_signature_block(
+        closing="Authorized Signatory,",
+        name=signatory,
+        designation=signatory_designation,
+    ))
 
-        story.append(
-            Paragraph(
-                f"During {his_her} work tenure, {employee_name} has remained dedicated and loyal to {his_her} work and "
-                f"responsibilities with our company. The designation of {employee_name} at the time of leaving the "
-                f"organization was {designation}.",
-                letter_style,
-            )
-        )
-        story.append(Spacer(1, 8))
-
-        story.append(
-            Paragraph(
-                f"The employee's performance was outstanding, and we appreciate the services rendered to our organization. "
-                f"We wish {him_her} all the best for {his_her} future endeavors.",
-                letter_style,
-            )
-        )
-        story.append(Spacer(1, 8))
-
-        story.append(Paragraph("Please feel free to be in touch with us for any additional information.", letter_style))
-        story.append(Spacer(1, 24))
-
-    # Signature
-    story.append(Paragraph("Authorized Signatory,", letter_style))
-    story.append(Spacer(1, 36))
-    story.append(Paragraph(signatory, letter_style))
-    story.append(Spacer(1, 6))
-    story.append(Paragraph(signatory_designation, letter_style))
-
-    doc.build(story)
+    build_with_footer(doc, story)
     return buffer.getvalue()
 
 

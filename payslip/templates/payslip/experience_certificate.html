@@ -1,219 +1,412 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="en">
-  <head>
-    {% load static %}
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Experience Certificate Generator</title>
-    <link rel="stylesheet" href="{% static 'payslip/styles.css' %}" />
-  </head>
-  <body>
-    <div class="container">
-      <a href="/" class="back-button">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        Back to Home
-      </a>
-      <header class="header">
-        <div>
-          <p class="eyebrow">Experience Certificate</p>
-          <h1>Generator</h1>
-          <p class="subtext">Fill the details to generate experience certificate.</p>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Experience Certificate Builder — Aveon</title>
+<link rel="stylesheet" href="{% static 'payslip/styles.css' %}" />
+<style>
+  /* Section / grid primitives shared with the Offer Letter & Proposal Builder. */
+  .pb-section { margin-top: 20px; padding-top: 18px; border-top: 1px solid #E5E7EB; }
+  .pb-section:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+  .pb-section[hidden] { display: none; }
+  .pb-section h3 {
+    font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: #475569; margin: 0 0 12px; font-weight: 700;
+  }
+  .pb-help { color: #64748B; font-size: 12.5px; margin: 4px 0 12px; }
+
+  .pb-mode { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .pb-mode label {
+    flex: 1; min-width: 240px;
+    border: 2px solid #E2E8F0; border-radius: 10px;
+    padding: 14px 18px; cursor: pointer;
+    background: #fff;
+    transition: all 0.15s;
+  }
+  .pb-mode input[type=radio] { margin-right: 8px; }
+  .pb-mode label:has(input:checked) {
+    border-color: #1565C0; background: #EEF4FF;
+    box-shadow: 0 0 0 3px rgba(21,101,192,0.08);
+  }
+  .pb-mode strong { display: block; font-size: 14px; color: #1A1A2E; }
+  .pb-mode em { font-style: normal; font-size: 12px; color: #64748B; margin-top: 2px; display: block; }
+
+  .pb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pb-grid p { margin: 0; }
+  .pb-grid p.full { grid-column: 1 / -1; }
+  .pb-grid label { display: block; font-size: 12.5px; font-weight: 600; color: #334155; margin-bottom: 4px; }
+  .pb-grid input[type=text], .pb-grid input[type=number], .pb-grid input[type=date],
+  .pb-grid select, .pb-grid textarea {
+    width: 100%; padding: 8px 10px; font-size: 13px;
+    border: 1px solid #CBD5E1; border-radius: 6px; background: #fff;
+  }
+  .pb-field-error { display: block; color: #B91C1C; font-size: 12px; margin-top: 4px; }
+  .pb-computed {
+    display: inline-block; margin-top: 6px;
+    background: #F8FAFC; border: 1px dashed #94A3B8; border-radius: 6px;
+    padding: 4px 10px; font-size: 12.5px; color: #475569;
+  }
+
+  .pb-summary {
+    margin: 14px 0 0;
+    background: linear-gradient(135deg, #FFFBEB, #FEF3C7);
+    border: 2px solid #F59E0B; border-radius: 10px;
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .pb-summary-label {
+    font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
+    text-transform: uppercase; color: #92400E; margin-right: 6px;
+  }
+  .pb-summary-val { font-size: 15px; font-weight: 700; color: #78350F; }
+  .pb-summary-sep { color: #B45309; font-size: 16px; font-weight: 700; margin: 0 4px; }
+  .pb-summary-empty { font-size: 13px; color: #92400E; font-style: italic; }
+
+  .pb-result {
+    margin-top: 18px; padding: 18px;
+    background: #ECFDF5; border: 2px solid #10B981; border-radius: 12px;
+  }
+  .pb-result h3 { margin: 0 0 8px; color: #065F46; font-size: 14px; }
+  .pb-result a { margin-right: 10px; }
+
+  .pb-errors {
+    background: #FEF2F2; border-left: 4px solid #DC2626;
+    padding: 12px 14px; border-radius: 6px; margin-bottom: 16px;
+  }
+  .pb-errors ul { margin: 0; padding-left: 18px; }
+  .pb-errors li { font-size: 13px; color: #991B1B; }
+
+  .pb-draft-pill {
+    position: fixed; top: 16px; right: 16px;
+    background: #1565C0; color: #fff;
+    padding: 8px 14px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    opacity: 0; transform: translateY(-8px);
+    transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none; z-index: 1000;
+  }
+  .pb-draft-pill.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+<div class="container">
+  <a href="/" class="back-button">← Back to Home</a>
+
+  <header class="card" style="margin-bottom: 16px;">
+    <h1>📜 Experience Certificate Builder</h1>
+    <p>Issue a polished, world-class experience or internship certificate in seconds.</p>
+  </header>
+
+  {% if preview_url %}
+  <section class="card pb-result">
+    <h3>✓ Certificate generated</h3>
+    <a href="{{ preview_url }}" target="_blank" class="primary">Open Preview</a>
+    <a href="{{ download_url }}" class="secondary">{{ download_label }}</a>
+  </section>
+  {% endif %}
+
+  {% if form.errors %}
+  <div class="card pb-errors">
+    <strong>Please fix the following:</strong>
+    <ul>
+      {% for field, errs in form.errors.items %}
+        {% for err in errs %}<li><b>{{ field }}:</b> {{ err }}</li>{% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <section class="card">
+    <form method="post" id="ec-form" novalidate>
+      {% csrf_token %}
+
+      <!-- =========================================================
+           CERTIFICATE TYPE — radio cards
+           ========================================================= -->
+      <div class="pb-section">
+        <h3>Certificate Type</h3>
+        <p class="pb-help">Each type uses a different template and tone.</p>
+        <div class="pb-mode">
+          {% for value, label in form.certificate_type.field.choices %}
+            {% if value %}
+            <label>
+              <input type="radio" name="certificate_type" value="{{ value }}"
+                {% if form.certificate_type.value == value %}checked{% endif %}>
+              <strong>
+                {% if value == 'employee' %}💼 Employee Experience Letter
+                {% elif value == 'internship' %}🎓 Internship Experience Certificate
+                {% else %}{{ label }}{% endif %}
+              </strong>
+              <em>
+                {% if value == 'employee' %}For staff who have left the organization.
+                {% elif value == 'internship' %}For interns who've completed their tenure.
+                {% endif %}
+              </em>
+            </label>
+            {% endif %}
+          {% endfor %}
         </div>
-      </header>
 
-      <section class="card">
-        <form method="post" id="experienceForm">
-          {% csrf_token %}
-          <div class="form-grid">
-            <p>
-              <label for="id_certificate_type">{{ form.certificate_type.label }}:</label>
-              {{ form.certificate_type }}
-            </p>
+        <!-- Live summary banner -->
+        <div class="pb-summary" id="ec-summary">
+          <span class="pb-summary-empty" id="ec-summary-empty">
+            Fill in the form below to see a live summary.
+          </span>
+          <span id="ec-summary-active" hidden>
+            <span class="pb-summary-label" id="ec-summary-label">Person</span>
+            <span class="pb-summary-val" id="ec-summary-name">—</span>
+            <span class="pb-summary-sep">›</span>
+            <span class="pb-summary-val" id="ec-summary-role">—</span>
+            <span class="pb-summary-sep">›</span>
+            <span class="pb-summary-val" id="ec-summary-date">—</span>
+          </span>
+        </div>
+      </div>
 
-            <div id="employee-fields">
-              <p>
-                <label for="id_title">{{ form.title.label }}:</label>
-                {{ form.title }}
-              </p>
-              <p>
-                <label for="id_employee_name_exp">{{ form.employee_name_exp.label }}:</label>
-                {{ form.employee_name_exp }}
-              </p>
-              <p>
-                <label for="id_employee_no">{{ form.employee_no.label }}:</label>
-                {{ form.employee_no }}
-              </p>
-              <p>
-                <label for="id_company_name_exp">{{ form.company_name_exp.label }}:</label>
-                {{ form.company_name_exp }}
-              </p>
-              <p>
-                <label for="id_join_date_exp">{{ form.join_date_exp.label }}:</label>
-                {{ form.join_date_exp }}
-              </p>
-              <p>
-                <label for="id_leaving_date">{{ form.leaving_date.label }}:</label>
-                {{ form.leaving_date }}
-              </p>
-              <p>
-                <label for="id_designation_exp">{{ form.designation_exp.label }}:</label>
-                {{ form.designation_exp }}
-              </p>
-            </div>
+      <!-- =========================================================
+           SHARED — gender (drives pronouns in body)
+           ========================================================= -->
+      <div class="pb-section">
+        <h3>Pronouns</h3>
+        <p class="pb-help">The certificate body uses he/his/him or she/her based on gender.</p>
+        <div class="pb-grid">
+          <p><label>Gender</label>{{ form.gender }}{{ form.gender.errors }}</p>
+        </div>
+      </div>
 
-            <div id="internship-fields">
-              <p>
-                <label for="id_intern_name">{{ form.intern_name.label }}:</label>
-                {{ form.intern_name }}
-              </p>
-              <p>
-                <label for="id_internship_domain">{{ form.internship_domain.label }}:</label>
-                {{ form.internship_domain }}
-              </p>
-              <p>
-                <label for="id_internship_company">{{ form.internship_company.label }}:</label>
-                {{ form.internship_company }}
-              </p>
-              <p>
-                <label for="id_internship_location">{{ form.internship_location.label }}:</label>
-                {{ form.internship_location }}
-              </p>
-              <p>
-                <label for="id_internship_start_date">{{ form.internship_start_date.label }}:</label>
-                {{ form.internship_start_date }}
-              </p>
-              <p>
-                <label for="id_internship_end_date">{{ form.internship_end_date.label }}:</label>
-                {{ form.internship_end_date }}
-              </p>
-            </div>
+      <!-- =========================================================
+           EMPLOYEE
+           ========================================================= -->
+      <section class="pb-section" data-cert-type="employee" hidden>
+        <h3>Employee Details</h3>
+        <div class="pb-grid">
+          <p><label>Title</label>{{ form.title }}{{ form.title.errors }}</p>
+          <p><label>Employee Name</label>{{ form.employee_name_exp }}{{ form.employee_name_exp.errors }}</p>
+          <p><label>Employee ID</label>{{ form.employee_no }}{{ form.employee_no.errors }}</p>
+          <p><label>Designation</label>{{ form.designation_exp }}{{ form.designation_exp.errors }}</p>
+          <p class="full"><label>Company Name</label>{{ form.company_name_exp }}{{ form.company_name_exp.errors }}</p>
+        </div>
 
-            <!-- Shared fields are moved into the correct order by JS -->
-            <div id="shared-fields" style="display:none;">
-              <p id="wrap_id_gender">
-                <label for="id_gender">{{ form.gender.label }}:</label>
-                {{ form.gender }}
-              </p>
-              <p id="wrap_id_signatory_exp">
-                <label for="id_signatory_exp">{{ form.signatory_exp.label }}:</label>
-                {{ form.signatory_exp }}
-              </p>
-              <p id="wrap_id_signatory_designation_exp">
-                <label for="id_signatory_designation_exp">{{ form.signatory_designation_exp.label }}:</label>
-                {{ form.signatory_designation_exp }}
-              </p>
-            </div>
-          </div>
-          <div class="form-footer">
-            <div class="file-meta">Choose certificate type, then fill required fields.</div>
-            <button type="submit" class="primary">Generate Certificate</button>
-          </div>
-        </form>
-      </section>
-
-      <script>
-        (function () {
-          const typeSelect = document.getElementById("certificate_type");
-          if (!typeSelect) return;
-
-          const employeeFields = document.getElementById("employee-fields");
-          const internshipFields = document.getElementById("internship-fields");
-          const sharedFields = document.getElementById("shared-fields");
-
-          const wrapGender = document.getElementById("wrap_id_gender");
-          const wrapSignatory = document.getElementById("wrap_id_signatory_exp");
-          const wrapSignatoryDesig = document.getElementById("wrap_id_signatory_designation_exp");
-
-          const internshipDomainInput = document.getElementById("id_internship_domain");
-          const internshipEndInput = document.getElementById("id_internship_end_date");
-          const employeeCompanyInput = document.getElementById("id_company_name_exp");
-
-          function update() {
-            const v = typeSelect.value;
-
-            if (employeeFields) employeeFields.style.display = v === "employee" ? "" : "none";
-            if (internshipFields) internshipFields.style.display = v === "internship" ? "" : "none";
-
-            const showShared = v === "employee" || v === "internship";
-            if (!showShared) {
-              if (sharedFields) sharedFields.style.display = "none";
-              return;
-            }
-            if (sharedFields) sharedFields.style.display = "none"; // keep hidden container hidden
-
-            // Move Gender + Signatory fields into the requested order.
-            // Internship order:
-            // 1 Intern Name, 2 Domain, 3 Gender, 4 Company, 5 Location, 6 Start, 7 End, 8 Signatory, 9 Signatory Designation
-            if (v === "internship" && internshipFields) {
-              const domainWrap = internshipDomainInput?.closest("p");
-              const endWrap = internshipEndInput?.closest("p");
-              if (domainWrap && wrapGender) domainWrap.insertAdjacentElement("afterend", wrapGender);
-              if (endWrap && wrapSignatory) endWrap.insertAdjacentElement("afterend", wrapSignatory);
-              if (wrapSignatory && wrapSignatoryDesig) wrapSignatory.insertAdjacentElement("afterend", wrapSignatoryDesig);
-            }
-
-            // Employee: keep Gender after Company and Signatory at the end.
-            if (v === "employee" && employeeFields) {
-              const companyWrap = employeeCompanyInput?.closest("p");
-              if (companyWrap && wrapGender) companyWrap.insertAdjacentElement("afterend", wrapGender);
-              if (wrapSignatory) employeeFields.appendChild(wrapSignatory);
-              if (wrapSignatoryDesig) employeeFields.appendChild(wrapSignatoryDesig);
-            }
-          }
-
-          // initial
-          update();
-          typeSelect.addEventListener("change", update);
-        })();
-      </script>
-
-      {% if data %}
-      <section class="card">
-        <div class="form-footer">
-          <a class="primary" href="{{ download_url }}" download="{{ download_filename }}">
-            {{ download_label }}
-          </a>
-          <a class="file-meta" href="{{ preview_url }}" target="_blank" rel="noopener noreferrer">
-            Open preview in new tab
-          </a>
+        <h3 style="margin-top: 22px;">Tenure</h3>
+        <div class="pb-grid">
+          <p><label>Joining Date</label>{{ form.join_date_exp }}{{ form.join_date_exp.errors }}</p>
+          <p>
+            <label>Leaving Date</label>
+            {{ form.leaving_date }}
+            {{ form.leaving_date.errors }}
+            <span class="pb-computed" id="ec-tenure" aria-live="polite">Tenure: —</span>
+          </p>
         </div>
       </section>
 
-      <section class="card">
-        <div id="preview-error" class="error" style="display: none;"></div>
-        <iframe
-          id="preview-frame"
-          title="Experience Certificate PDF"
-          style="width: 100%; height: 720px; border: 1px solid #e5e7eb; border-radius: 12px;"
-        ></iframe>
+      <!-- =========================================================
+           INTERNSHIP
+           ========================================================= -->
+      <section class="pb-section" data-cert-type="internship" hidden>
+        <h3>Intern Details</h3>
+        <div class="pb-grid">
+          <p><label>Intern Name</label>{{ form.intern_name }}{{ form.intern_name.errors }}</p>
+          <p><label>Domain</label>{{ form.internship_domain }}{{ form.internship_domain.errors }}</p>
+          <p><label>Organization</label>{{ form.internship_company }}{{ form.internship_company.errors }}</p>
+          <p><label>Location</label>{{ form.internship_location }}{{ form.internship_location.errors }}</p>
+        </div>
+
+        <h3 style="margin-top: 22px;">Period</h3>
+        <div class="pb-grid">
+          <p><label>Start Date</label>{{ form.internship_start_date }}{{ form.internship_start_date.errors }}</p>
+          <p>
+            <label>End Date</label>
+            {{ form.internship_end_date }}
+            {{ form.internship_end_date.errors }}
+            <span class="pb-computed" id="ec-intern-duration" aria-live="polite">Duration: —</span>
+          </p>
+        </div>
       </section>
 
-      <script>
-        const previewUrl = "{{ preview_url }}";
-        const frame = document.getElementById("preview-frame");
-        const errorBox = document.getElementById("preview-error");
+      <!-- =========================================================
+           SIGNATURE — shared
+           ========================================================= -->
+      <div class="pb-section">
+        <h3>Authorized Signatory</h3>
+        <div class="pb-grid">
+          <p><label>Signatory Name</label>{{ form.signatory_exp }}{{ form.signatory_exp.errors }}</p>
+          <p><label>Signatory Designation</label>{{ form.signatory_designation_exp }}{{ form.signatory_designation_exp.errors }}</p>
+        </div>
+      </div>
 
-        fetch(previewUrl)
-          .then(async (response) => {
-            if (!response.ok) {
-              const text = await response.text();
-              throw new Error(`Preview failed: ${response.status} ${text}`);
-            }
-            return response.blob();
-          })
-          .then((blob) => {
-            const objectUrl = URL.createObjectURL(blob);
-            frame.src = objectUrl;
-          })
-          .catch((error) => {
-            errorBox.textContent = error.message;
-            errorBox.style.display = "block";
-          });
-      </script>
-      {% endif %}
-    </div>
-  </body>
+      <div class="proposal-actions" style="margin-top: 20px;">
+        <button type="submit" class="primary">Generate Certificate</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div class="pb-draft-pill" id="ec-draft-pill">Draft restored</div>
+
+<script>
+(function () {
+  const form = document.getElementById('ec-form');
+  const summaryEmpty = document.getElementById('ec-summary-empty');
+  const summaryActive = document.getElementById('ec-summary-active');
+  const summaryLabel = document.getElementById('ec-summary-label');
+  const summaryName = document.getElementById('ec-summary-name');
+  const summaryRole = document.getElementById('ec-summary-role');
+  const summaryDate = document.getElementById('ec-summary-date');
+
+  const SUMMARY_FIELDS = {
+    employee:   { label: 'Employee', name: 'employee_name_exp', role: 'designation_exp',  date: 'leaving_date' },
+    internship: { label: 'Intern',   name: 'intern_name',       role: 'internship_domain', date: 'internship_end_date' },
+  };
+
+  function activeType() {
+    const r = form.querySelector('input[name=certificate_type]:checked');
+    return r ? r.value : '';
+  }
+
+  function applySectionVisibility() {
+    const t = activeType();
+    form.querySelectorAll('section[data-cert-type]').forEach(s => {
+      s.hidden = (s.dataset.certType !== t);
+    });
+    refreshSummary();
+  }
+
+  function fmtDate(s) {
+    if (!s) return '';
+    const d = new Date(s + 'T00:00:00');
+    if (isNaN(d)) return s;
+    const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    return `${m}. ${d.getDate()}, ${d.getFullYear()}`;
+  }
+
+  function refreshSummary() {
+    const t = activeType();
+    const cfg = SUMMARY_FIELDS[t];
+    if (!cfg) {
+      summaryEmpty.hidden = false;
+      summaryActive.hidden = true;
+      return;
+    }
+    const nameVal = (form.querySelector(`[name=${cfg.name}]`) || {}).value || '';
+    const roleVal = (form.querySelector(`[name=${cfg.role}]`) || {}).value || '';
+    const dateVal = (form.querySelector(`[name=${cfg.date}]`) || {}).value || '';
+    summaryLabel.textContent = cfg.label;
+    summaryName.textContent = nameVal || '—';
+    summaryRole.textContent = roleVal || '—';
+    summaryDate.textContent = fmtDate(dateVal) || '—';
+    summaryEmpty.hidden = true;
+    summaryActive.hidden = false;
+  }
+
+  // ---------- Employee tenure: join_date_exp -> leaving_date ----------
+  function diffYearsMonths(startStr, endStr) {
+    if (!startStr || !endStr) return null;
+    const s = new Date(startStr + 'T00:00:00');
+    const e = new Date(endStr + 'T00:00:00');
+    if (isNaN(s) || isNaN(e) || e < s) return null;
+    let years = e.getFullYear() - s.getFullYear();
+    let months = e.getMonth() - s.getMonth();
+    let days = e.getDate() - s.getDate();
+    if (days < 0) months -= 1;
+    if (months < 0) { years -= 1; months += 12; }
+    return { years, months };
+  }
+
+  function refreshTenure() {
+    const el = document.getElementById('ec-tenure');
+    if (!el) return;
+    const join = (form.querySelector('[name=join_date_exp]') || {}).value;
+    const leave = (form.querySelector('[name=leaving_date]') || {}).value;
+    const d = diffYearsMonths(join, leave);
+    if (!d) { el.textContent = 'Tenure: —'; return; }
+    const parts = [];
+    if (d.years) parts.push(`${d.years} year${d.years === 1 ? '' : 's'}`);
+    if (d.months) parts.push(`${d.months} month${d.months === 1 ? '' : 's'}`);
+    el.textContent = `Tenure: ${parts.join(', ') || 'less than a month'}`;
+  }
+
+  function refreshInternDuration() {
+    const el = document.getElementById('ec-intern-duration');
+    if (!el) return;
+    const start = (form.querySelector('[name=internship_start_date]') || {}).value;
+    const end = (form.querySelector('[name=internship_end_date]') || {}).value;
+    const d = diffYearsMonths(start, end);
+    if (!d) { el.textContent = 'Duration: —'; return; }
+    const parts = [];
+    if (d.years) parts.push(`${d.years} year${d.years === 1 ? '' : 's'}`);
+    if (d.months) parts.push(`${d.months} month${d.months === 1 ? '' : 's'}`);
+    el.textContent = `Duration: ${parts.join(', ') || 'less than a month'}`;
+  }
+
+  form.addEventListener('input', () => {
+    refreshSummary();
+    refreshTenure();
+    refreshInternDuration();
+    scheduleDraftSave();
+  });
+  form.querySelectorAll('input[name=certificate_type]').forEach(r => {
+    r.addEventListener('change', () => { applySectionVisibility(); scheduleDraftSave(); });
+  });
+
+  // ---------- localStorage draft save / restore ----------
+  const DRAFT_KEY = 'experienceCertDraft.v1';
+  const HAS_PREVIEW = {% if preview_url %}true{% else %}false{% endif %};
+  let saveTimer = null;
+  function scheduleDraftSave() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveDraft, 400);
+  }
+  function saveDraft() {
+    const data = {};
+    form.querySelectorAll('input, select, textarea').forEach(el => {
+      if (!el.name || el.type === 'hidden' || el.type === 'submit') return;
+      if (el.type === 'radio') {
+        if (el.checked) data[el.name] = el.value;
+      } else if (el.type === 'checkbox') {
+        data[el.name] = el.checked;
+      } else {
+        data[el.name] = el.value;
+      }
+    });
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+  function restoreDraft() {
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) {}
+    if (!data || typeof data !== 'object') return false;
+    let restored = false;
+    for (const [name, value] of Object.entries(data)) {
+      const els = form.querySelectorAll(`[name="${name}"]`);
+      els.forEach(el => {
+        if (el.type === 'radio') {
+          el.checked = (el.value === value);
+        } else if (el.type === 'checkbox') {
+          el.checked = !!value;
+        } else if (el.value !== value) {
+          el.value = value;
+        }
+        if (value) restored = true;
+      });
+    }
+    return restored;
+  }
+  function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} }
+  function showDraftPill() {
+    const pill = document.getElementById('ec-draft-pill');
+    pill.classList.add('show');
+    setTimeout(() => pill.classList.remove('show'), 2000);
+  }
+
+  if (!HAS_PREVIEW && restoreDraft()) showDraftPill();
+  if (HAS_PREVIEW) clearDraft();
+
+  applySectionVisibility();
+  refreshTenure();
+  refreshInternDuration();
+  refreshSummary();
+})();
+</script>
+</body>
 </html>
-
