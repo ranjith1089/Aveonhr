@@ -174,25 +174,33 @@ def experience_certificate(request: HttpRequest) -> HttpResponse:
     context["form"] = form
     context["data"] = form.cleaned_data
 
-    pdf_bytes = build_experience_certificate_pdf(form.cleaned_data)
-    cert_type = (form.cleaned_data.get("certificate_type") or "employee").strip() or "employee"
-    raw_name = ""
+    data = form.cleaned_data
+    # Two versions: full digital letterhead, and plain for pre-printed paper.
+    pdf_letterhead = build_experience_certificate_pdf(data, letterhead=True)
+    pdf_plain = build_experience_certificate_pdf(data, letterhead=False)
+
+    cert_type = (data.get("certificate_type") or "employee").strip() or "employee"
     if cert_type == "internship":
-        raw_name = str(form.cleaned_data.get("intern_name") or "").strip()
+        raw_name = str(data.get("intern_name") or "").strip()
         suffix = "internship_experience_certificate"
     else:
-        raw_name = str(form.cleaned_data.get("employee_name_exp") or "").strip()
+        raw_name = str(data.get("employee_name_exp") or "").strip()
         suffix = "experience_letter"
 
     safe_name = re.sub(r"[^a-zA-Z0-9]+", "_", raw_name).strip("_") or "experience_certificate"
-    filename = f"{safe_name}_{suffix}.pdf"
+    filename_lh = f"{safe_name}_{suffix}.pdf"
+    filename_plain = f"{safe_name}_{suffix}_plain.pdf"
 
-    preview_token = _save_content(pdf_bytes, "application/pdf", filename)
-    download_token = _save_content(pdf_bytes, "application/pdf", filename)
+    preview_token = _save_content(pdf_letterhead, "application/pdf", filename_lh)
+    download_lh = _save_content(pdf_letterhead, "application/pdf", filename_lh)
+    download_plain = _save_content(pdf_plain, "application/pdf", filename_plain)
+
     context["preview_url"] = reverse("preview_pdf", kwargs={"token": preview_token})
-    context["download_url"] = reverse("download_file", kwargs={"token": download_token})
+    context["download_url"] = reverse("download_file", kwargs={"token": download_lh})
+    context["download_plain_url"] = reverse("download_file", kwargs={"token": download_plain})
     context["download_label"] = "Download PDF"
-    context["download_filename"] = filename
+    context["download_filename"] = filename_lh
+    context["download_plain_name"] = filename_plain
     return render(request, "payslip/experience_certificate.html", context)
 
 

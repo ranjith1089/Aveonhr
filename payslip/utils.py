@@ -1039,13 +1039,9 @@ def build_employment_offer_pdf(data: dict) -> bytes:
     return buffer.getvalue()
 
 
-def build_experience_certificate_pdf(data: dict) -> bytes:
+def build_experience_certificate_pdf(data: dict, *, letterhead: bool = True) -> bytes:
     from .pdf_styles import (
-        BRAND_BG_TINT,
-        BRAND_DIVIDER,
-        FONT_BOLD,
         SPACE_MD,
-        SPACE_SM,
         build_letterhead,
         build_signature_block,
         build_with_footer,
@@ -1058,7 +1054,12 @@ def build_experience_certificate_pdf(data: dict) -> bytes:
     doc = make_doc(buffer)
     s = get_styles()
     story: list = []
-    story.extend(build_letterhead())
+    if letterhead:
+        story.extend(build_letterhead())
+    else:
+        # Plain export for pre-printed letterhead paper: leave blank clearance
+        # at the top so content sits below the physical letterhead band.
+        story.append(Spacer(1, 35 * mm))
 
     # Inputs
     certificate_type = (str(data.get("certificate_type") or "employee").strip() or "employee")
@@ -1094,32 +1095,6 @@ def build_experience_certificate_pdf(data: dict) -> bytes:
         story.append(Paragraph("INTERNSHIP EXPERIENCE CERTIFICATE", s["title"]))
         story.append(Paragraph("To Whomsoever It May Concern", s["subtitle"]))
 
-        # Internship details mini-table — at-a-glance facts
-        detail_rows = [
-            ("Name", intern_name),
-            ("Domain", internship_domain),
-            ("Organization", internship_company),
-            ("Location", internship_location),
-            ("Period", f"{internship_start_str} to {internship_end_str}"),
-        ]
-        detail_rows = [(lbl, val) for lbl, val in detail_rows if val and val != "—"]
-        if detail_rows:
-            details_table = Table(detail_rows, colWidths=[40 * mm, 120 * mm])
-            details_table.setStyle(TableStyle([
-                ("BOX", (0, 0), (-1, -1), 0.5, BRAND_DIVIDER),
-                ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E2E8F0")),
-                ("BACKGROUND", (0, 0), (0, -1), BRAND_BG_TINT),
-                ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
-                ("FONTSIZE", (0, 0), (-1, -1), 10.5),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 7),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-            ]))
-            story.append(details_table)
-            story.append(Spacer(1, SPACE_MD))
-
         story.append(Paragraph(
             f"This is to certify that <b>{intern_name}</b> has completed {his_her} internship "
             f"in <b>{internship_domain}</b> at our firm <b>{internship_company}</b>"
@@ -1141,32 +1116,7 @@ def build_experience_certificate_pdf(data: dict) -> bytes:
         story.append(Paragraph("EXPERIENCE LETTER", s["title"]))
         story.append(Paragraph("To Whomsoever It May Concern", s["subtitle"]))
 
-        # Employment details mini-table
         full_name = f"{title} {employee_name}".strip()
-        detail_rows = [
-            ("Name", full_name),
-            ("Employee ID", employee_no),
-            ("Designation", designation),
-            ("Organization", company_name),
-            ("Tenure", f"{join_date_str} to {leaving_date_str}"),
-        ]
-        detail_rows = [(lbl, val) for lbl, val in detail_rows if val and val != "—"]
-        if detail_rows:
-            details_table = Table(detail_rows, colWidths=[40 * mm, 120 * mm])
-            details_table.setStyle(TableStyle([
-                ("BOX", (0, 0), (-1, -1), 0.5, BRAND_DIVIDER),
-                ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E2E8F0")),
-                ("BACKGROUND", (0, 0), (0, -1), BRAND_BG_TINT),
-                ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
-                ("FONTSIZE", (0, 0), (-1, -1), 10.5),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 7),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-            ]))
-            story.append(details_table)
-            story.append(Spacer(1, SPACE_MD))
 
         story.append(Paragraph(
             f"This is to certify that <b>{full_name}</b> bearing employee ID <b>{employee_no}</b> "
@@ -1195,7 +1145,12 @@ def build_experience_certificate_pdf(data: dict) -> bytes:
         designation=signatory_designation,
     ))
 
-    build_with_footer(doc, story)
+    if letterhead:
+        # Keep the company footer line but drop the page number.
+        build_with_footer(doc, story, footer=True, show_page_number=False)
+    else:
+        # Plain export for pre-printed paper: no digital footer at all.
+        build_with_footer(doc, story, footer=False)
     return buffer.getvalue()
 
 

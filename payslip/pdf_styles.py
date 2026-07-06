@@ -298,24 +298,33 @@ def build_signature_block(
 # Footer — drawn directly on the canvas via SimpleDocTemplate callbacks.
 # Includes page number + generated-on date + company name.
 # ---------------------------------------------------------------------------
-def _draw_footer(canvas, doc) -> None:
-    canvas.saveState()
-    canvas.setFont(FONT_BODY, 8)
-    canvas.setFillColor(BRAND_MUTED)
-    page_width = PAGE_SIZE[0]
-    y = 12 * mm
+def _make_footer_drawer(show_page_number: bool = True):
+    """Return a footer-drawing callback. Page number is optional so a builder
+    can keep the company footer line while dropping the 'Page N' text."""
+    def _draw(canvas, doc) -> None:
+        canvas.saveState()
+        canvas.setFont(FONT_BODY, 8)
+        canvas.setFillColor(BRAND_MUTED)
+        page_width = PAGE_SIZE[0]
+        y = 12 * mm
 
-    # Left: company name
-    canvas.drawString(MARGIN_SIDE, y, COMPANY_NAME)
+        # Left: company name
+        canvas.drawString(MARGIN_SIDE, y, COMPANY_NAME)
 
-    # Center: thin divider above the footer text
-    canvas.setStrokeColor(BRAND_DIVIDER)
-    canvas.setLineWidth(0.5)
-    canvas.line(MARGIN_SIDE, y + 4 * mm, page_width - MARGIN_SIDE, y + 4 * mm)
+        # Center: thin divider above the footer text
+        canvas.setStrokeColor(BRAND_DIVIDER)
+        canvas.setLineWidth(0.5)
+        canvas.line(MARGIN_SIDE, y + 4 * mm, page_width - MARGIN_SIDE, y + 4 * mm)
 
-    # Right: page number
-    canvas.drawRightString(page_width - MARGIN_SIDE, y, f"Page {canvas.getPageNumber()}")
-    canvas.restoreState()
+        # Right: page number (optional)
+        if show_page_number:
+            canvas.drawRightString(page_width - MARGIN_SIDE, y, f"Page {canvas.getPageNumber()}")
+        canvas.restoreState()
+    return _draw
+
+
+# Backward-compatible default drawer (company footer line + page number).
+_draw_footer = _make_footer_drawer(True)
 
 
 def make_doc(buffer) -> SimpleDocTemplate:
@@ -332,6 +341,22 @@ def make_doc(buffer) -> SimpleDocTemplate:
     )
 
 
-def build_with_footer(doc: SimpleDocTemplate, story: list) -> None:
-    """Build the doc with the standard footer drawn on every page."""
-    doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
+def build_with_footer(
+    doc: SimpleDocTemplate,
+    story: list,
+    *,
+    footer: bool = True,
+    show_page_number: bool = True,
+) -> None:
+    """Build the doc, optionally drawing the standard footer on every page.
+
+    footer=False  -> no digital footer at all (e.g. plain export for
+                     pre-printed letterhead paper).
+    show_page_number=False -> keep the company footer line but drop 'Page N'.
+    Defaults preserve the original behaviour for all existing builders.
+    """
+    if not footer:
+        doc.build(story)
+        return
+    drawer = _make_footer_drawer(show_page_number)
+    doc.build(story, onFirstPage=drawer, onLaterPages=drawer)

@@ -103,7 +103,11 @@
   <section class="card pb-result">
     <h3>✓ Certificate generated</h3>
     <a href="{{ preview_url }}" target="_blank" class="primary">Open Preview</a>
-    <a href="{{ download_url }}" class="secondary">{{ download_label }}</a>
+    <a href="{{ download_url }}" class="secondary" download="{{ download_filename }}">Download with letterhead</a>
+    <a href="{{ download_plain_url }}" class="secondary" download="{{ download_plain_name }}">Download plain (pre-printed paper)</a>
+    <p class="pb-help" style="margin-top: 8px;">
+      Use “plain” when printing on paper that already has your company letterhead.
+    </p>
   </section>
   {% endif %}
 
