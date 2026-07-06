@@ -105,24 +105,30 @@ def offer_letter(request: HttpRequest) -> HttpResponse:
     pdf_data = dict(form.cleaned_data)
     pdf_data["offer_type_label"] = context["offer_type_label"]
     
-    # Generate PDF based on letter type
+    # Generate PDF based on letter type — two versions: full digital
+    # letterhead, and plain for pre-printed letterhead paper.
     offer_type = form.cleaned_data.get("offer_type")
     if offer_type == "appointment":
-        pdf_bytes = build_appointment_order_pdf(pdf_data)
-        filename = "appointment_order.pdf"
+        builder, base = build_appointment_order_pdf, "appointment_order"
     elif offer_type == "employment_offer":
-        pdf_bytes = build_employment_offer_pdf(pdf_data)
-        filename = "employment_offer.pdf"
+        builder, base = build_employment_offer_pdf, "employment_offer"
     else:
-        pdf_bytes = build_offer_letter_pdf(pdf_data)
-        filename = "offer_letter.pdf"
-    
-    preview_token = _save_content(pdf_bytes, "application/pdf", filename)
-    download_token = _save_content(pdf_bytes, "application/pdf", filename)
+        builder, base = build_offer_letter_pdf, "offer_letter"
+
+    pdf_letterhead = builder(pdf_data, letterhead=True)
+    pdf_plain = builder(pdf_data, letterhead=False)
+    filename_lh = f"{base}.pdf"
+    filename_plain = f"{base}_plain.pdf"
+
+    preview_token = _save_content(pdf_letterhead, "application/pdf", filename_lh)
+    download_lh = _save_content(pdf_letterhead, "application/pdf", filename_lh)
+    download_plain = _save_content(pdf_plain, "application/pdf", filename_plain)
     context["preview_url"] = reverse("preview_pdf", kwargs={"token": preview_token})
-    context["download_url"] = reverse("download_file", kwargs={"token": download_token})
+    context["download_url"] = reverse("download_file", kwargs={"token": download_lh})
+    context["download_plain_url"] = reverse("download_file", kwargs={"token": download_plain})
     context["download_label"] = "Download PDF"
-    context["download_filename"] = filename
+    context["download_filename"] = filename_lh
+    context["download_plain_name"] = filename_plain
     return render(request, "payslip/offer_letter.html", context)
 
 

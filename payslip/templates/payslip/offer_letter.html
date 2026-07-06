@@ -110,7 +110,11 @@
   <section class="card pb-result">
     <h3>✓ Offer letter generated</h3>
     <a href="{{ preview_url }}" target="_blank" class="primary">Open Preview</a>
-    <a href="{{ download_url }}" class="secondary">{{ download_label }}</a>
+    <a href="{{ download_url }}" class="secondary" download="{{ download_filename }}">Download with letterhead</a>
+    <a href="{{ download_plain_url }}" class="secondary" download="{{ download_plain_name }}">Download plain (pre-printed paper)</a>
+    <p class="pb-help" style="margin-top: 8px;">
+      Use “plain” when printing on paper that already has your company letterhead.
+    </p>
   </section>
   {% endif %}
 
@@ -201,6 +205,12 @@
             {{ form.duration_months.errors }}
             <span class="pb-computed" id="ol-end-date" aria-live="polite">Internship ends on: —</span>
           </p>
+        </div>
+
+        <h3 style="margin-top: 22px;">Signatory</h3>
+        <div class="pb-grid">
+          <p><label>Signatory Name</label>{{ form.intern_signatory }}{{ form.intern_signatory.errors }}</p>
+          <p><label>Signatory Designation</label>{{ form.intern_signatory_designation }}{{ form.intern_signatory_designation.errors }}</p>
         </div>
       </section>
 

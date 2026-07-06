@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Iterable
+from xml.sax.saxutils import escape as _xml_escape
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import pandas as pd
@@ -555,12 +556,8 @@ def _add_months_clamped(d: "date", months: int) -> "date":
     return _date(new_year, new_month, min(d.day, last_day))
 
 
-def build_offer_letter_pdf(data: dict) -> bytes:
+def build_offer_letter_pdf(data: dict, *, letterhead: bool = True) -> bytes:
     from .pdf_styles import (
-        BRAND_DIVIDER,
-        BRAND_BG_TINT,
-        FONT_BOLD,
-        SPACE_LG,
         SPACE_MD,
         SPACE_SM,
         build_letterhead,
@@ -575,14 +572,21 @@ def build_offer_letter_pdf(data: dict) -> bytes:
     doc = make_doc(buffer)
     s = get_styles()
     story: list = []
-    story.extend(build_letterhead())
+    if letterhead:
+        story.extend(build_letterhead())
+    else:
+        # Plain export for pre-printed letterhead paper: leave blank clearance
+        # at the top so content sits below the physical letterhead band.
+        story.append(Spacer(1, 35 * mm))
 
-    name = str(data.get("name", "")).strip()
-    roll_number = str(data.get("roll_number", "")).strip()
-    course = str(data.get("course", "")).strip()
-    college_name = str(data.get("college_name", "")).strip()
-    college_address = str(data.get("college_address", "")).strip()
-    role = str(data.get("internship_role", "")).strip()
+    # User-typed values are escaped so characters like '&' (e.g. "A&R College")
+    # render literally instead of being parsed as XML entities by ReportLab.
+    name = _xml_escape(str(data.get("name", "")).strip())
+    roll_number = _xml_escape(str(data.get("roll_number", "")).strip())
+    course = _xml_escape(str(data.get("course", "")).strip())
+    college_name = _xml_escape(str(data.get("college_name", "")).strip())
+    college_address = _xml_escape(str(data.get("college_address", "")).strip())
+    role = _xml_escape(str(data.get("internship_role", "")).strip())
     start_date = data.get("start_date")
     duration_months = data.get("duration_months")
     try:
@@ -615,35 +619,6 @@ def build_offer_letter_pdf(data: dict) -> bytes:
         story.append(Paragraph(line, s["body_left"]))
     story.append(Spacer(1, SPACE_MD))
 
-    # Internship Details mini-table — at-a-glance summary
-    detail_rows = [
-        ("Name", name),
-        ("Role", role),
-        ("Start Date", start_date_label if start_date else ""),
-    ]
-    if duration_months:
-        month_word = "month" if duration_months == 1 else "months"
-        detail_rows.append(("Duration", f"{duration_months} {month_word}"))
-        if end_date:
-            detail_rows.append(("End Date", end_date_label))
-    detail_rows = [(lbl, val) for lbl, val in detail_rows if val]
-    if detail_rows:
-        details_table = Table(detail_rows, colWidths=[40 * mm, 120 * mm])
-        details_table.setStyle(TableStyle([
-            ("BOX", (0, 0), (-1, -1), 0.5, BRAND_DIVIDER),
-            ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#E2E8F0")),
-            ("BACKGROUND", (0, 0), (0, -1), BRAND_BG_TINT),
-            ("FONTNAME", (0, 0), (0, -1), FONT_BOLD),
-            ("FONTSIZE", (0, 0), (-1, -1), 10.5),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 10),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-            ("TOPPADDING", (0, 0), (-1, -1), 7),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-        ]))
-        story.append(details_table)
-        story.append(Spacer(1, SPACE_MD))
-
     story.append(Paragraph(f"Dear {name},", s["body_left"]))
     story.append(Spacer(1, SPACE_SM))
     if duration_months and end_date:
@@ -674,18 +649,27 @@ def build_offer_letter_pdf(data: dict) -> bytes:
         s["body"],
     ))
 
+    # Signatory comes from the form; falls back to the long-standing defaults
+    # so older drafts (saved before the fields existed) still render.
+    signatory = _xml_escape(str(data.get("intern_signatory") or "").strip()) or "Ranjith Kumar"
+    signatory_designation = (
+        _xml_escape(str(data.get("intern_signatory_designation") or "").strip()) or "General Manager"
+    )
     story.extend(build_signature_block(
         closing="Sincerely,",
         company="Aveon Infotech Private Limited",
-        name="Ranjith Kumar",
-        designation="General Manager",
+        name=signatory,
+        designation=signatory_designation,
     ))
 
-    build_with_footer(doc, story)
+    if letterhead:
+        build_with_footer(doc, story, footer=True, show_page_number=False)
+    else:
+        build_with_footer(doc, story, footer=False)
     return buffer.getvalue()
 
 
-def build_appointment_order_pdf(data: dict) -> bytes:
+def build_appointment_order_pdf(data: dict, *, letterhead: bool = True) -> bytes:
     from .pdf_styles import (
         SPACE_MD,
         SPACE_SM,
@@ -702,7 +686,10 @@ def build_appointment_order_pdf(data: dict) -> bytes:
     doc = make_doc(buffer)
     s = get_styles()
     story: list = []
-    story.extend(build_letterhead())
+    if letterhead:
+        story.extend(build_letterhead())
+    else:
+        story.append(Spacer(1, 35 * mm))
 
     # Inputs
     today = date.today()
@@ -826,11 +813,14 @@ def build_appointment_order_pdf(data: dict) -> bytes:
     ]))
     story.append(acceptance_table)
 
-    build_with_footer(doc, story)
+    if letterhead:
+        build_with_footer(doc, story, footer=True, show_page_number=False)
+    else:
+        build_with_footer(doc, story, footer=False)
     return buffer.getvalue()
 
 
-def build_employment_offer_pdf(data: dict) -> bytes:
+def build_employment_offer_pdf(data: dict, *, letterhead: bool = True) -> bytes:
     from .pdf_styles import (
         BRAND_BG_TINT,
         BRAND_DIVIDER,
@@ -852,7 +842,10 @@ def build_employment_offer_pdf(data: dict) -> bytes:
     doc = make_doc(buffer)
     s = get_styles()
     story: list = []
-    story.extend(build_letterhead())
+    if letterhead:
+        story.extend(build_letterhead())
+    else:
+        story.append(Spacer(1, 35 * mm))
 
     candidate_name = str(data.get("candidate_name", "")).strip()
     position = str(data.get("position", "")).strip()
@@ -1035,7 +1028,10 @@ def build_employment_offer_pdf(data: dict) -> bytes:
     ]))
     story.append(ack_table)
 
-    build_with_footer(doc, story)
+    if letterhead:
+        build_with_footer(doc, story, footer=True, show_page_number=False)
+    else:
+        build_with_footer(doc, story, footer=False)
     return buffer.getvalue()
 
 

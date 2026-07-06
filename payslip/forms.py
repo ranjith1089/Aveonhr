@@ -116,6 +116,12 @@ class OfferLetterForm(forms.Form):
             attrs={"min": 1, "max": 24, "step": 1, "placeholder": "e.g. 3"}
         ),
     )
+    intern_signatory = forms.CharField(
+        label="Signatory Name", max_length=200, required=False, initial="Ranjith Kumar"
+    )
+    intern_signatory_designation = forms.CharField(
+        label="Signatory Designation", max_length=200, required=False, initial="General Manager"
+    )
 
     # Appointment Order fields
     serial_no = forms.CharField(label="Ref No", max_length=100, required=False)
