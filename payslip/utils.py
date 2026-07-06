@@ -1093,7 +1093,7 @@ def build_experience_certificate_pdf(data: dict, *, letterhead: bool = True) -> 
 
     if certificate_type == "internship":
         story.append(Paragraph("INTERNSHIP EXPERIENCE CERTIFICATE", s["title"]))
-        story.append(Paragraph("To Whomsoever It May Concern", s["subtitle"]))
+        story.append(Paragraph('<font size="14"><b>To Whomsoever It May Concern</b></font>', s["subtitle"]))
 
         story.append(Paragraph(
             f"This is to certify that <b>{intern_name}</b> has completed {his_her} internship "
@@ -1114,7 +1114,7 @@ def build_experience_certificate_pdf(data: dict, *, letterhead: bool = True) -> 
         ))
     else:
         story.append(Paragraph("EXPERIENCE LETTER", s["title"]))
-        story.append(Paragraph("To Whomsoever It May Concern", s["subtitle"]))
+        story.append(Paragraph('<font size="14"><b>To Whomsoever It May Concern</b></font>', s["subtitle"]))
 
         full_name = f"{title} {employee_name}".strip()
 
