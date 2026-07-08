@@ -230,7 +230,7 @@ MODULES: dict[str, Module] = {
     },
     "CMS_HRM": {
         "code": "CMS_HRM",
-        "name": "Human Resource Management",
+        "name": "HR and Payroll",
         "category": "CMS_FINANCE",
         "icon": "👥",
         "color": "#E65100",
@@ -460,10 +460,11 @@ MODULES: dict[str, Module] = {
         "category": "CMS_CORE",
         "icon": "🔗",
         "color": "#E65100",
-        "short_desc": "Payment, SMS, Google/Microsoft, REST APIs and SSO - connected.",
+        "short_desc": "Payment, SMS, WhatsApp, biometrics, Google/Microsoft, REST APIs and SSO - connected.",
         "sub_features": [
             "Payment Gateway", "SMS Gateway",
-            "Email Integration", "Google Workspace",
+            "WhatsApp Integration", "Email Integration",
+            "Face / Thumb Reader (Biometric)", "Google Workspace",
             "Microsoft 365", "REST APIs",
             "ERP Integration", "Single Sign-On (SSO)",
         ],
