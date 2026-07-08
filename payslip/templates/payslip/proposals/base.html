@@ -383,12 +383,38 @@
   .sig-name { font-size:17px; font-weight:800; color:{{ hero.color }}; margin-top:6px; }
   .sig-title { font-size:14px; color:#64748B; }
 
+  /* ===== A4 print pagination (compact flow) ===== */
+  @page { size: A4; margin: 12mm 10mm 14mm; }
+
   @media print {
+    /* Backgrounds/tints must survive printing (hero gradient, card tints) */
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
     body { background:#fff; }
     .page { max-width:100%; }
-    .sec, .addressee-wrap, .hero-body, .hero-bar { padding-left:32px; padding-right:32px; }
-    .mod-block, .why-g, .ben-g, .why-aveon-g, .ns-grid, .ba-table { page-break-inside:avoid; }
-    .salutation-wrap { padding-left:32px; padding-right:32px; }
+    .sec, .addressee-wrap, .hero-body, .hero-bar, .salutation-wrap {
+      padding-left:32px; padding-right:32px;
+    }
+    /* Tighter cover so page 1 isn't half empty */
+    .hero-body { padding-top:32px; padding-bottom:36px; }
+    .tl-circle { box-shadow:none; }
+
+    /* Atomic blocks - never split across pages (per-card, not per-grid,
+       so pages fill up instead of leaving gaps) */
+    .mod-block, .ba-table, .wn-col, .wn-callout,
+    .why-c, .ben-c, .why-aveon-c, .ns-card, .ns-contact,
+    .tl-row, .comp-item, .tnc-list li,
+    .comm-wrap, .comm-offer, .comm-totals,
+    .hero-stats, .addressee-wrap, .salutation-wrap, .sig {
+      page-break-inside:avoid; break-inside:avoid;
+    }
+
+    /* A heading must not sit alone at the bottom of a page */
+    .ey, .st, .sd, .wn-sub, .comm-y1-title {
+      page-break-after:avoid; break-after:avoid;
+    }
+
+    p { orphans:3; widows:3; }
   }
 </style>
 </head>
