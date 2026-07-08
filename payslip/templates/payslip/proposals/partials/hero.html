@@ -1,9 +1,14 @@
 {% load proposal_extras %}
 <div class="hero">
   <div class="hero-bar">
-    <div>
-      <div class="hero-company">{{ prepared_by }}</div>
-      <div class="hero-tagline">{{ company_tagline|default:"Built for Education. Powered by Innovation." }}</div>
+    <div class="hero-brand">
+      {% if logo_data_uri %}
+      <img class="hero-logo" src="{{ logo_data_uri }}" alt="Aveon logo">
+      {% endif %}
+      <div>
+        <div class="hero-company">{{ prepared_by }}</div>
+        <div class="hero-tagline">{{ company_tagline|default:"Built for Education. Powered by Innovation." }}</div>
+      </div>
     </div>
     <div style="font-size:11px;color:rgba(255,255,255,0.75);text-align:right;font-family:Arial,sans-serif;">
       Proposal Date<br>

@@ -293,7 +293,19 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
         WHY_AVEON,
         WHY_NOW,
     )
-    from .pdf_styles import COMPANY_EMAIL, COMPANY_WEBSITE
+    from .pdf_styles import COMPANY_EMAIL, COMPANY_WEBSITE, LOGO_PATH
+
+    # Inline the logo as a data URI so it renders in the browser preview,
+    # print-to-PDF and WeasyPrint without static-path resolution issues.
+    logo_data_uri = ""
+    try:
+        if LOGO_PATH.exists():
+            import base64
+            logo_data_uri = "data:image/png;base64," + base64.b64encode(
+                LOGO_PATH.read_bytes()
+            ).decode("ascii")
+    except Exception:
+        logo_data_uri = ""
 
     pres = PRESENTATIONS.get(bundle_code or "", CUSTOM_PRESENTATION)
     exec_paragraphs = [
@@ -329,6 +341,7 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
         "contact_phone": "+91 8754006483",
         "contact_email": COMPANY_EMAIL,
         "contact_website": COMPANY_WEBSITE,
+        "logo_data_uri": logo_data_uri,
         "default_phases": DEFAULT_PHASES,
         "default_terms": DEFAULT_TERMS,
         "authorized_signatory_name": cd["authorized_signatory_name"],
