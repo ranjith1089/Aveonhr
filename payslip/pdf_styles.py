@@ -48,7 +48,7 @@ BRAND_BG_TINT = colors.HexColor("#F8FAFC")   # subtle row backgrounds
 COMPANY_NAME = "Aveon Infotech Private Limited"
 COMPANY_TAGLINE = "Built for Education. Powered by Innovation."
 COMPANY_ADDRESS = "Coimbatore, Tamil Nadu, India"
-COMPANY_EMAIL = "info@aveoninfotech.com"
+COMPANY_EMAIL = "contact@aveoninfotech.com"
 COMPANY_WEBSITE = "www.aveoninfotech.com"
 
 LOGO_PATH = Path(__file__).parent / "static" / "payslip" / "logo.png"
