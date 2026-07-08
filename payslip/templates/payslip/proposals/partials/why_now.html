@@ -1,0 +1,27 @@
+{% load proposal_extras %}
+<div class="wn-grid">
+  <div class="wn-col">
+    <h3 class="wn-h">The Challenge</h3>
+    <p class="wn-p">{{ why_now.challenge }}</p>
+  </div>
+  <div class="wn-col">
+    <h3 class="wn-h">The Opportunity</h3>
+    <p class="wn-p">{{ why_now.opportunity }}</p>
+  </div>
+</div>
+
+<div class="wn-callout">{{ why_now.bottom_line }}</div>
+
+<h3 class="wn-sub">Before vs. After Aveon</h3>
+<div class="ba-table">
+  <div class="ba-hdr">
+    <span>Without Aveon</span>
+    <span>With Aveon</span>
+  </div>
+  {% for before, after in before_after %}
+  <div class="ba-row">
+    <span class="ba-before">✕&nbsp; {{ before }}</span>
+    <span class="ba-after">✓&nbsp; {{ after }}</span>
+  </div>
+  {% endfor %}
+</div>

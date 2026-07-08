@@ -39,13 +39,25 @@
   {% endwith %}
 </div>
 
+{% if pricing.implementation.waived %}
+<div class="comm-offer">
+  <span class="comm-offer-badge">Limited-Period Offer</span>
+  <span>₹{{ pricing.implementation.original_amount|inr }} one-time implementation fee — <strong>fully waived</strong>. Go live for the price of a single year&rsquo;s subscription.</span>
+</div>
+{% endif %}
+
+<h3 class="comm-y1-title">Illustrative Year-1 Cost</h3>
 <div class="comm-totals">
   <div class="ct-row">
     <span>Annual subscription ({{ minimum_student_commitment|inr }} × ₹{{ pricing.annual.per_unit|inr }})</span>
     <span>₹{{ pricing.annual.amount|inr }}</span>
   </div>
   <div class="ct-row">
-    <span>One-time implementation (after waiver)</span>
+    {% if pricing.implementation.waived %}
+    <span>One-time implementation (₹{{ pricing.implementation.original_amount|inr }} waived)</span>
+    {% else %}
+    <span>One-time implementation</span>
+    {% endif %}
     <span>₹{{ pricing.implementation.amount|inr }}</span>
   </div>
   <div class="ct-row">
@@ -53,7 +65,7 @@
     <span>₹{{ pricing.gst_amount|inr }}</span>
   </div>
   <div class="ct-row grand">
-    <span>Grand Total (Year 1)</span>
+    <span>Year-1 Total</span>
     <span>₹{{ pricing.grand_total|inr }}</span>
   </div>
 </div>

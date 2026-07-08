@@ -1,0 +1,17 @@
+{% load proposal_extras %}
+<div class="ns-grid">
+  {% for step in next_steps %}
+  <div class="ns-card">
+    <div class="ns-num" style="background:{{ hero.color }};">{{ forloop.counter }}</div>
+    <div class="ns-title">{{ step.title }}</div>
+    <div class="ns-desc">{{ step.desc }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="ns-contact">
+  <span class="ns-talk">Let&rsquo;s talk.</span>
+  {% if contact_phone %}<span>Phone: <strong>{{ contact_phone }}</strong></span>{% endif %}
+  {% if contact_email %}<span>Email: <strong>{{ contact_email }}</strong></span>{% endif %}
+  {% if contact_website %}<span>Website: <strong>{{ contact_website }}</strong></span>{% endif %}
+</div>

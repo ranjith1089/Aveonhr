@@ -1,15 +1,27 @@
 {% load proposal_extras %}
-<div class="feat-g">
+<div class="mod-list">
   {% for mod in modules %}
-  <div class="feat-c" style="border-color:{{ mod.color }}33;background:{{ mod.color }}08;">
-    <div class="feat-top" style="background:{{ mod.color }};"></div>
-    <div class="feat-num" style="color:{{ mod.color }};">MODULE {{ forloop.counter|stringformat:"02d" }}</div>
-    <span class="feat-icon">{{ mod.icon }}</span>
-    <div class="feat-title">
-      {{ mod.name }}
-      {% if mod.tag %}<span class="mod-tag">{{ mod.tag }}</span>{% endif %}
+  <div class="mod-block" style="border-color:{{ mod.color }}33;">
+    <div class="mod-hdr" style="background:{{ mod.color }}0F;border-left:4px solid {{ mod.color }};">
+      <span class="mod-hdr-num" style="color:{{ mod.color }};">MODULE {{ forloop.counter|stringformat:"02d" }}</span>
+      <span class="mod-hdr-icon">{{ mod.icon }}</span>
+      <span class="mod-hdr-name">
+        {{ mod.name }}
+        {% if mod.tag %}<span class="mod-tag">{{ mod.tag }}</span>{% endif %}
+      </span>
+      {% if mod.sub_features %}
+      <span class="mod-hdr-count" style="color:{{ mod.color }};border-color:{{ mod.color }}55;">{{ mod.sub_features|length }} features</span>
+      {% endif %}
     </div>
-    <div class="feat-desc">{{ mod.short_desc }}</div>
+    {% if mod.sub_features %}
+    <div class="mod-feats">
+      {% for feat in mod.sub_features %}
+      <div class="mod-feat"><span class="mod-feat-dot" style="color:{{ mod.color }};">•</span> {{ feat }}</div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="mod-feats"><div class="mod-feat">{{ mod.short_desc }}</div></div>
+    {% endif %}
   </div>
   {% endfor %}
 </div>

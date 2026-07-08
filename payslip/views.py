@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import timedelta
 
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
@@ -282,21 +283,32 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
     )
 
     from .proposal_catalog import (
+        BEFORE_AFTER,
         BENEFITS,
         CUSTOM_PRESENTATION,
         FIVE_PILLARS,
         IMPLEMENTATION_COMPONENTS,
+        NEXT_STEPS,
         PRESENTATIONS,
+        SALUTATION,
         WHY_AVEON,
+        WHY_NOW,
     )
+    from .pdf_styles import COMPANY_EMAIL, COMPANY_WEBSITE
+
     pres = PRESENTATIONS.get(bundle_code or "", CUSTOM_PRESENTATION)
     exec_paragraphs = [
         p.format(client=cd["client_name"]) for p in pres.get("executive_paragraphs", [])
     ]
+
+    proposal_date = cd["proposal_date"]
+    valid_till = proposal_date + timedelta(days=30) if proposal_date else None
+
     return {
         "proposal_title": f"Aveon Proposal — {cd['client_name']}",
         "prepared_by": cd["prepared_by"],
-        "proposal_date": cd["proposal_date"],
+        "proposal_date": proposal_date,
+        "valid_till": valid_till,
         "to_address": cd["to_address"],
         "client_name": cd["client_name"],
         "client_address_lines": _split_address_lines(cd["client_address"]),
@@ -314,6 +326,13 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
         "benefits": BENEFITS,
         "implementation_components": IMPLEMENTATION_COMPONENTS,
         "why_aveon": WHY_AVEON,
+        "why_now": WHY_NOW,
+        "before_after": BEFORE_AFTER,
+        "next_steps": NEXT_STEPS,
+        "salutation": SALUTATION,
+        "contact_phone": "+91 8754006483",
+        "contact_email": COMPANY_EMAIL,
+        "contact_website": COMPANY_WEBSITE,
         "default_phases": DEFAULT_PHASES,
         "default_terms": DEFAULT_TERMS,
         "authorized_signatory_name": cd["authorized_signatory_name"],
