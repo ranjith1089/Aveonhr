@@ -16,7 +16,8 @@
 
   /* ===== Hero ===== */
   .hero {
-    background:linear-gradient(135deg, {{ hero.color }} 0%, {{ hero.color }} 40%, {{ hero.gradient_end }} 100%);
+    /* Softened: alpha on the gradient stops lightens the colours a notch */
+    background:linear-gradient(135deg, {{ hero.color }}F0 0%, {{ hero.color }}DE 45%, {{ hero.gradient_end }}B8 100%);
     position:relative; overflow:hidden;
   }
   .hero-bar {
