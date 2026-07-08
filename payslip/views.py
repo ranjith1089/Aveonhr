@@ -301,7 +301,7 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
     ]
 
     return {
-        "proposal_title": f"Aveon Proposal — {cd['client_name']}",
+        "proposal_title": f"Aveon Proposal - {cd['client_name']}",
         "prepared_by": cd["prepared_by"],
         "proposal_date": cd["proposal_date"],
         "to_address": cd["to_address"],

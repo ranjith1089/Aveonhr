@@ -1,17 +1,17 @@
 """
-Proposal module catalog — single source of truth for everything the
+Proposal module catalog - single source of truth for everything the
 proposal builder can offer.
 
 Three top-level tables:
 
-    MODULES   — individual modules (CMS sub-modules, COE sub-modules,
+    MODULES   - individual modules (CMS sub-modules, COE sub-modules,
                 standalone offerings, add-ons)
-    BUNDLES   — pre-built packages (Complete CMS, Complete COE, etc.)
-    CATEGORIES— grouping shown in the form UI
+    BUNDLES   - pre-built packages (Complete CMS, Complete COE, etc.)
+    CATEGORIES- grouping shown in the form UI
 
 The form lets the user either pick a BUNDLE or pick individual MODULES.
 The view resolves the selection into a flat list of modules, computes
-pricing, and renders the proposal template.
+pricing and renders the proposal template.
 
 Adding a new module or bundle later = a single dict entry here.
 No HTML edits, no form edits.
@@ -49,14 +49,14 @@ class Bundle(TypedDict, total=False):
 
 
 # ---------------------------------------------------------------------------
-# Categories — UI grouping for the form's "Custom" mode
+# Categories - UI grouping for the form's "Custom" mode
 # ---------------------------------------------------------------------------
 CATEGORIES: dict[str, str] = {
-    "CMS_CORE":      "CMS — Core Academic & Administration",
-    "CMS_FINANCE":   "CMS — Finance & HR",
-    "CMS_STUDENT":   "CMS — Student Services & Communication",
-    "COE_CORE":      "COE — Examination Lifecycle",
-    "COE_RESULTS":   "COE — Results, Revaluation & Certificates",
+    "CMS_CORE":      "CMS - Core Academic & Administration",
+    "CMS_FINANCE":   "CMS - Finance & HR",
+    "CMS_STUDENT":   "CMS - Student Services & Communication",
+    "COE_CORE":      "COE - Examination Lifecycle",
+    "COE_RESULTS":   "COE - Results, Revaluation & Certificates",
     "ADDON":         "Free Add-ons",
     "STANDALONE":    "Standalone Offerings",
 }
@@ -67,14 +67,14 @@ CATEGORIES: dict[str, str] = {
 # ---------------------------------------------------------------------------
 MODULES: dict[str, Module] = {
 
-    # ==================== CMS — 25 modules (docx-aligned) ==================
+    # ==================== CMS - 25 modules (docx-aligned) ==================
     "CMS_ADMISSION": {
         "code": "CMS_ADMISSION",
         "name": "Admission & Enrollment Management",
         "category": "CMS_CORE",
         "icon": "🎓",
         "color": "#2E7D32",
-        "short_desc": "Online admissions from enquiry to enrollment — portal, merit lists, certificates.",
+        "short_desc": "Online admissions from enquiry to enrollment - portal, merit lists, certificates.",
         "sub_features": [
             "Online Admission Portal", "Lead & Enquiry Management",
             "Application Tracking", "Online Document Upload",
@@ -94,7 +94,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_CORE",
         "icon": "🧑‍🎓",
         "color": "#1565C0",
-        "short_desc": "One complete digital profile per student — academic, personal, and lifecycle.",
+        "short_desc": "One complete digital profile per student - academic, personal and lifecycle.",
         "sub_features": [
             "Complete Student Profile", "Academic History",
             "Parent Information", "Medical Information",
@@ -195,7 +195,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_CORE",
         "icon": "📝",
         "color": "#1565C0",
-        "short_desc": "The complete exam lifecycle — planning to result analytics.",
+        "short_desc": "The complete exam lifecycle - planning to result analytics.",
         "sub_features": [
             "Examination Planning", "Hall Ticket Generation",
             "Seating Arrangement", "Invigilator Allocation",
@@ -216,7 +216,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_FINANCE",
         "icon": "💰",
         "color": "#2E7D32",
-        "short_desc": "Fee structures to financial reports — collections, ledgers, reconciliation.",
+        "short_desc": "Fee structures to financial reports - collections, ledgers, reconciliation.",
         "sub_features": [
             "Fee Structure", "Fee Collection",
             "Online Payments", "Scholarship Management",
@@ -234,7 +234,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_FINANCE",
         "icon": "👥",
         "color": "#E65100",
-        "short_desc": "Recruitment to payroll — the full employee lifecycle in one place.",
+        "short_desc": "Recruitment to payroll - the full employee lifecycle in one place.",
         "sub_features": [
             "Employee Management", "Recruitment",
             "Staff Profile", "Leave Management",
@@ -267,7 +267,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_STUDENT",
         "icon": "🏠",
         "color": "#00838F",
-        "short_desc": "Rooms, gate passes, mess planning and billing — fully tracked.",
+        "short_desc": "Rooms, gate passes, mess planning and billing - fully tracked.",
         "sub_features": [
             "Hostel Admission", "Room Allocation",
             "Bed Management", "Visitor Management",
@@ -315,7 +315,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_STUDENT",
         "icon": "🤝",
         "color": "#1565C0",
-        "short_desc": "A living alumni network — directory, events, donations, mentorship.",
+        "short_desc": "A living alumni network - directory, events, donations, mentorship.",
         "sub_features": [
             "Alumni Registration", "Alumni Portal",
             "Alumni Directory", "Events",
@@ -330,7 +330,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_CORE",
         "icon": "🔬",
         "color": "#2E7D32",
-        "short_desc": "Publications, patents, funded projects and FDPs — tracked institution-wide.",
+        "short_desc": "Publications, patents, funded projects and FDPs - tracked institution-wide.",
         "sub_features": [
             "Publications", "Patents",
             "Consultancy", "Funded Projects",
@@ -346,7 +346,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_CORE",
         "icon": "✅",
         "color": "#E65100",
-        "short_desc": "Accreditation reports on demand — SSR, AQAR, NIRF, IQAC.",
+        "short_desc": "Accreditation reports on demand - SSR, AQAR, NIRF, IQAC.",
         "sub_features": [
             "SSR Data Collection", "Criteria-wise Reports",
             "AQAR Reports", "DVV Support",
@@ -362,7 +362,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_FINANCE",
         "icon": "📦",
         "color": "#6A1B9A",
-        "short_desc": "Purchases, assets, AMC and stores — audited end to end.",
+        "short_desc": "Purchases, assets, AMC and stores - audited end to end.",
         "sub_features": [
             "Purchase Request", "Purchase Order",
             "Vendor Management", "Asset Register",
@@ -377,7 +377,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_STUDENT",
         "icon": "📣",
         "color": "#00838F",
-        "short_desc": "SMS, WhatsApp, email and push — every stakeholder reached instantly.",
+        "short_desc": "SMS, WhatsApp, email and push - every stakeholder reached instantly.",
         "sub_features": [
             "SMS", "Email",
             "WhatsApp", "Push Notifications",
@@ -412,7 +412,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_CORE",
         "icon": "👨‍🏫",
         "color": "#283593",
-        "short_desc": "Everything faculty need daily — attendance, marks, plans, leave.",
+        "short_desc": "Everything faculty need daily - attendance, marks, plans, leave.",
         "sub_features": [
             "Attendance Entry", "Lesson Plan",
             "Internal Marks", "Assignment Evaluation",
@@ -460,7 +460,7 @@ MODULES: dict[str, Module] = {
         "category": "CMS_CORE",
         "icon": "🔗",
         "color": "#E65100",
-        "short_desc": "Payment, SMS, Google/Microsoft, REST APIs and SSO — connected.",
+        "short_desc": "Payment, SMS, Google/Microsoft, REST APIs and SSO - connected.",
         "sub_features": [
             "Payment Gateway", "SMS Gateway",
             "Email Integration", "Google Workspace",
@@ -487,7 +487,7 @@ MODULES: dict[str, Module] = {
         "default_price_per_student": Decimal("35"),
     },
 
-    # ============================ COE — 13 sub-modules =====================
+    # ============================ COE - 13 sub-modules =====================
     "COE_MASTER_SETUP": {
         "code": "COE_MASTER_SETUP",
         "name": "Examination Master Setup",
@@ -718,7 +718,7 @@ MODULES: dict[str, Module] = {
         "category": "STANDALONE",
         "icon": "💼",
         "color": "#2E7D32",
-        "short_desc": "Full HR + payroll suite — usable without the rest of CMS.",
+        "short_desc": "Full HR + payroll suite - usable without the rest of CMS.",
         "sub_features": [
             "Employee lifecycle",
             "Biometric attendance",
@@ -734,7 +734,7 @@ MODULES: dict[str, Module] = {
 
 
 # ---------------------------------------------------------------------------
-# Bundles — pre-built packages
+# Bundles - pre-built packages
 # ---------------------------------------------------------------------------
 def _sum_modules(codes: list[str]) -> Decimal:
     return sum((MODULES[c]["default_price_per_student"] for c in codes), Decimal("0"))
@@ -751,7 +751,7 @@ CMS_FULL_MODULES = [
     "CMS_INTEGRATION", "CMS_SECURITY",
 ]
 
-# Total feature count across the CMS bundle — drives the hero "275+" stat
+# Total feature count across the CMS bundle - drives the hero "275+" stat
 # so the number can never drift from the actual catalog.
 def _cms_feature_count() -> int:
     return sum(len(MODULES[c].get("sub_features", [])) for c in CMS_FULL_MODULES)
@@ -770,7 +770,7 @@ BUNDLES: dict[str, Bundle] = {
     "CMS_FULL": {
         "code": "CMS_FULL",
         "name": "Complete CMS ERP",
-        "tagline": "All 25 integrated modules — one ecosystem for the whole institution.",
+        "tagline": "All 25 integrated modules - one ecosystem for the whole institution.",
         "modules": CMS_FULL_MODULES,
         "bundle_price_per_student": Decimal("500"),
         "standalone_total": _sum_modules(CMS_FULL_MODULES),
@@ -783,7 +783,7 @@ BUNDLES: dict[str, Bundle] = {
     "COE_FULL": {
         "code": "COE_FULL",
         "name": "Complete COE Suite",
-        "tagline": "End-to-end examination lifecycle — registration to transcripts.",
+        "tagline": "End-to-end examination lifecycle - registration to transcripts.",
         "modules": COE_FULL_MODULES + ["COPO_MAPPING"],
         "bundle_price_per_student": Decimal("150"),
         "standalone_total": _sum_modules(COE_FULL_MODULES),
@@ -823,7 +823,7 @@ BUNDLES: dict[str, Bundle] = {
 
 # ---------------------------------------------------------------------------
 # Per-bundle presentation defaults (hero copy, stats, phases, terms)
-# Keeps all narrative content in one place — the view stays thin.
+# Keeps all narrative content in one place - the view stays thin.
 # ---------------------------------------------------------------------------
 DEFAULT_PHASES: list[dict] = [
     {"title": "Discovery & Requirement Gathering",
@@ -862,13 +862,13 @@ DEFAULT_TERMS: list[str] = [
 
 
 # ---------------------------------------------------------------------------
-# Narrative content for the proposal sections — verbatim style from the
+# Narrative content for the proposal sections - verbatim style from the
 # canonical Aveon HTML proposals so the rendered output matches in format,
-# alignment, and tone.
+# alignment and tone.
 # ---------------------------------------------------------------------------
 FIVE_PILLARS: list[dict] = [
     {"title": "Comprehensive Integration",
-     "desc": "All institutional functions in one unified platform — no more silos.",
+     "desc": "All institutional functions in one unified platform - no more silos.",
      "color": "#1565C0", "icon": "🔗"},
     {"title": "Future-Ready Technology",
      "desc": "Modern architecture built to scale with your institution's growth.",
@@ -896,16 +896,16 @@ BENEFITS: list[dict] = [
     {"title": "For Educators & Staff",
      "icon": "👨‍🏫", "color": "#2E7D32",
      "items": [
-        "Reduced administrative burden — more time for teaching and mentoring.",
+        "Reduced administrative burden - more time for teaching and mentoring.",
         "Tools for better academic planning and student engagement.",
-        "Attendance, marks, and lesson plans in a single click.",
+        "Attendance, marks and lesson plans in a single click.",
      ]},
     {"title": "For Students & Parents",
      "icon": "🎓", "color": "#E65100",
      "items": [
         "Transparency in academic progress and fees builds trust.",
         "Always-connected mobile apps keep everyone informed.",
-        "Self-service for results, certificates, payments, and requests.",
+        "Self-service for results, certificates, payments and requests.",
      ]},
 ]
 
@@ -916,7 +916,7 @@ IMPLEMENTATION_COMPONENTS: list[dict] = [
     {"title": "Software Customization",
      "desc": "Tailoring modules to meet the unique needs of the institution (e.g., CBCS, OBE, fee structures, reports, etc.)."},
     {"title": "Data Migration",
-     "desc": "Importing legacy data — student records, staff, library, inventory, asset management, vendor data, COE data, financial data. Complete cleansing and validation."},
+     "desc": "Importing legacy data - student records, staff, library, inventory, asset management, vendor data, COE data, financial data. Complete cleansing and validation."},
     {"title": "System Configuration",
      "desc": "Role-based access for management, administrators, staff, students, parents. Defining workflows and automation rules across all modules."},
     {"title": "Hosting and Deployment",
@@ -951,30 +951,30 @@ WHY_AVEON: list[dict] = [
 
 
 # ---------------------------------------------------------------------------
-# "Why Now" narrative — the challenge/opportunity story that opens the
+# "Why Now" narrative - the challenge/opportunity story that opens the
 # proposal, with the before/after comparison. Copy from the canonical
 # Aveon CMS ERP proposal document.
 # ---------------------------------------------------------------------------
 WHY_NOW: dict = {
     "challenge": (
         "Running a modern institution means juggling admissions, academics, "
-        "exams, fees, HR, hostel, transport, placements, and accreditation — "
+        "exams, fees, HR, hostel, transport, placements and accreditation - "
         "often across disconnected spreadsheets and half a dozen standalone "
         "tools. The cost shows up everywhere: the same data keyed in three "
         "times, decisions delayed while reports are compiled by hand, a "
-        "scramble every time NAAC or NBA comes calling, and skilled staff "
+        "scramble every time NAAC or NBA comes calling and skilled staff "
         "buried in routine paperwork instead of teaching and mentoring."
     ),
     "opportunity": (
         "Aveon's Complete CMS ERP replaces that patchwork with one connected "
         "platform. Every record is entered once and shared everywhere. "
-        "Attendance, marks, and fees are captured automatically. Leadership "
+        "Attendance, marks and fees are captured automatically. Leadership "
         "sees live dashboards instead of month-old summaries. Parents and "
         "students stay informed through mobile apps. And accreditation "
-        "reports are generated on demand — not assembled in a panic."
+        "reports are generated on demand - not assembled in a panic."
     ),
     "bottom_line": (
-        "The bottom line: one source of truth, up to 90% less manual effort, "
+        "The bottom line: one source of truth, up to 90% less manual effort "
         "and the real-time intelligence to run your institution with "
         "confidence."
     ),
@@ -999,14 +999,14 @@ NEXT_STEPS: list[dict] = [
     {"title": "Confirm & Sign Off",
      "desc": "Approve scope and lock your timeline."},
     {"title": "Go Live in 5-6 Weeks",
-     "desc": "We migrate, train, and launch with you."},
+     "desc": "We migrate, train and launch with you."},
 ]
 
 SALUTATION: str = (
     "Thank you for the opportunity to present Aveon's Complete CMS ERP. "
     "This proposal shows exactly how your institution can unify admissions, "
-    "academics, examinations, finance, HR, and compliance on a single modern "
-    "platform — and go live in as little as five to six weeks."
+    "academics, examinations, finance, HR and compliance on a single modern "
+    "platform - and go live in as little as five to six weeks."
 )
 
 
@@ -1014,7 +1014,7 @@ PRESENTATIONS: dict[str, dict] = {
     "CMS_FULL": {
         "kicker": "Complete CMS ERP",
         "title_template": "Run Your Entire <em>Campus</em> on One Platform",
-        "subtitle": (f"From admissions to alumni — {len(CMS_FULL_MODULES)} "
+        "subtitle": (f"From admissions to alumni - {len(CMS_FULL_MODULES)} "
                      "integrated modules, one login, zero silos. Purpose-built "
                      "for the modern Indian institution."),
         "stats_template": [
@@ -1025,19 +1025,19 @@ PRESENTATIONS: dict[str, dict] = {
         ],
         "executive_title": "Streamline Your Institution's Operations",
         "executive_paragraphs": [
-            "Aveon Infotech proposes the implementation of our Complete CMS ERP at {client}, transforming how you manage academic, administrative, and financial operations.",
-            "The solution covers the entire institutional lifecycle — admissions, academics, attendance, examinations, finance, HR & payroll, library, hostel, transport, placements, alumni, research, accreditation, and analytics — in one unified platform.",
-            "It is designed to reduce manual effort, improve accuracy, accelerate decision-making, and give every stakeholder real-time institutional intelligence.",
+            "Aveon Infotech proposes the implementation of our Complete CMS ERP at {client}, transforming how you manage academic, administrative and financial operations.",
+            "The solution covers the entire institutional lifecycle - admissions, academics, attendance, examinations, finance, HR & payroll, library, hostel, transport, placements, alumni, research, accreditation and analytics - in one unified platform.",
+            "It is designed to reduce manual effort, improve accuracy, accelerate decision-making and give every stakeholder real-time institutional intelligence.",
         ],
         "modules_section_title": f"{len(CMS_FULL_MODULES)} Integrated Modules",
-        "modules_section_desc": "A complete ecosystem covering every dimension of institutional management — from admissions to alumni. Each module below lists the features included at no extra cost.",
-        "commercial_line_label": "Complete CMS ERP Package — all 25 modules — Per Student / Per Year",
+        "modules_section_desc": "A complete ecosystem covering every dimension of institutional management - from admissions to alumni. Each module below lists the features included at no extra cost.",
+        "commercial_line_label": "Complete CMS ERP Package - all 25 modules - Per Student / Per Year",
     },
     "COE_FULL": {
         "kicker": "Complete COE Suite",
         "title_template": "End-to-end <em>Examination</em> Automation for {client}",
-        "subtitle": ("Streamline the entire examination lifecycle — from "
-                     "registration to transcripts — with built-in NBA/NAAC "
+        "subtitle": ("Streamline the entire examination lifecycle - from "
+                     "registration to transcripts - with built-in NBA/NAAC "
                      "compliance."),
         "stats_template": [
             {"value": "13+1", "label": "Modules + Free CO-PO Add-on"},
@@ -1047,12 +1047,12 @@ PRESENTATIONS: dict[str, dict] = {
         "executive_title": "Redefining Examination Management",
         "executive_paragraphs": [
             "Aveon Infotech proposes the Aveon Controller of Examinations (COE) Automation System to streamline and digitise the complete examination lifecycle at {client}.",
-            "The proposed solution automates examination planning, student registration, hall ticket generation, valuation, result processing, revaluation, supplementary examinations, transcript generation and statutory reports — while ensuring compliance with university regulations and institutional academic policies.",
+            "The proposed solution automates examination planning, student registration, hall ticket generation, valuation, result processing, revaluation, supplementary examinations, transcript generation and statutory reports - while ensuring compliance with university regulations and institutional academic policies.",
             "The system is designed to reduce manual effort, improve accuracy, accelerate result publication and provide real-time examination analytics.",
         ],
         "modules_section_title": "14 Fully Integrated COE Modules",
-        "modules_section_desc": "End-to-end examination automation — every step from regulation setup to transcript generation, including a free CO–PO Mapping add-on.",
-        "commercial_line_label": "Annual Subscription Fee for Complete COE Module — Per Student Per Year",
+        "modules_section_desc": "End-to-end examination automation - every step from regulation setup to transcript generation, including a free CO–PO Mapping add-on.",
+        "commercial_line_label": "Annual Subscription Fee for Complete COE Module - Per Student Per Year",
         "commercial_bonus_label": "🎁 CO–PO Mapping Module included FREE as add-on (worth ₹75 per student per year)",
     },
     "COE_CLASSIC": {
@@ -1068,17 +1068,17 @@ PRESENTATIONS: dict[str, dict] = {
         "executive_title": "Examination Automation, Made Simple",
         "executive_paragraphs": [
             "Aveon Infotech proposes the implementation of the Aveon Controller of Examinations (COE) Automation System at {client}, covering the complete examination lifecycle.",
-            "From regulation management and registration through hall tickets, valuation, results, revaluation and transcripts — every stage is automated, audited and accreditation-ready.",
+            "From regulation management and registration through hall tickets, valuation, results, revaluation and transcripts - every stage is automated, audited and accreditation-ready.",
             "Designed to reduce administrative workload, accelerate result publication and improve transparency for students, parents and management.",
         ],
         "modules_section_title": "13 Integrated COE Modules",
         "modules_section_desc": "Complete examination lifecycle automation aligned with university regulations.",
-        "commercial_line_label": "Complete COE Package — Per Student / Per Year",
+        "commercial_line_label": "Complete COE Package - Per Student / Per Year",
     },
     "HR_PAYROLL_STANDALONE": {
         "kicker": "HR & Payroll Standalone",
         "title_template": "Plug-and-Play <em>HR & Payroll</em> for {client}",
-        "subtitle": ("Full HR + payroll suite — usable without the rest of "
+        "subtitle": ("Full HR + payroll suite - usable without the rest of "
                      "the CMS ecosystem."),
         "stats_template": [
             {"value": "6+", "label": "HR Workflows"},
@@ -1087,13 +1087,13 @@ PRESENTATIONS: dict[str, dict] = {
         ],
         "executive_title": "End-to-End HR & Payroll Automation",
         "executive_paragraphs": [
-            "Aveon Infotech proposes a complete HR & Payroll automation solution for {client}, covering employee lifecycle, attendance, leave, payroll and statutory compliance — without requiring the full CMS ecosystem.",
+            "Aveon Infotech proposes a complete HR & Payroll automation solution for {client}, covering employee lifecycle, attendance, leave, payroll and statutory compliance - without requiring the full CMS ecosystem.",
             "The system automates salary computation, statutory deductions (PF, ESI, PT, IT), Form-16 generation, biometric attendance integration and full payslip distribution.",
             "Designed to be plug-and-play for institutions that need HR & Payroll automation today and may scale to full ERP later.",
         ],
         "modules_section_title": "HR & Payroll Workflows",
-        "modules_section_desc": "Employee lifecycle to payslip — fully automated with statutory compliance built in.",
-        "commercial_line_label": "HR & Payroll Subscription — Per Employee / Per Year",
+        "modules_section_desc": "Employee lifecycle to payslip - fully automated with statutory compliance built in.",
+        "commercial_line_label": "HR & Payroll Subscription - Per Employee / Per Year",
     },
 }
 
@@ -1101,7 +1101,7 @@ PRESENTATIONS: dict[str, dict] = {
 CUSTOM_PRESENTATION: dict = {
     "kicker": "Custom Stack",
     "title_template": "Custom <em>Modular Stack</em> for {client}",
-    "subtitle": ("A curated combination of Aveon modules — picked to match "
+    "subtitle": ("A curated combination of Aveon modules - picked to match "
                  "your institution's specific workflow needs."),
     "stats_template": None,  # generated dynamically in build_presentation()
 }
@@ -1194,7 +1194,7 @@ def compute_pricing(
     gst_percent: Decimal,
 ) -> dict:
     """
-    Single-price model — the sales team negotiates one per-student/per-employee
+    Single-price model - the sales team negotiates one per-student/per-employee
     rate (e.g., ₹250, ₹300, ₹500) for the bundle they're proposing. No per-module
     breakdown is shown; the proposal lists the modules as features only.
 
@@ -1208,7 +1208,7 @@ def compute_pricing(
 
     pres = PRESENTATIONS.get(bundle_code or "", CUSTOM_PRESENTATION)
     annual_line = {
-        "label": pres.get("commercial_line_label") or "Annual Subscription — Per Unit / Per Year",
+        "label": pres.get("commercial_line_label") or "Annual Subscription - Per Unit / Per Year",
         "bonus": pres.get("commercial_bonus_label"),
         "amount": annual,
         "per_unit": price,
@@ -1217,7 +1217,7 @@ def compute_pricing(
     impl_fee = Decimal(one_time_implementation_fee or 0)
     impl_line = {
         "label": ("Server setup, installation, implementation, data migration, "
-                  "data cleansing & ERP configuration — Per Institution (One-time)"),
+                  "data cleansing & ERP configuration - Per Institution (One-time)"),
         "amount": Decimal("0") if waive_one_time else impl_fee,
         "original_amount": impl_fee,
         "waived": waive_one_time,
