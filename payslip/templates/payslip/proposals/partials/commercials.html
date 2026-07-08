@@ -46,6 +46,7 @@
 </div>
 {% endif %}
 
+{% if include_year1_cost %}
 <h3 class="comm-y1-title">Illustrative Year-1 Cost</h3>
 <div class="comm-totals">
   <div class="ct-row">
@@ -69,3 +70,4 @@
     <span>₹{{ pricing.grand_total|inr }}</span>
   </div>
 </div>
+{% endif %}

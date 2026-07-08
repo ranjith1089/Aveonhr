@@ -437,6 +437,11 @@ class ProposalQuotationForm(forms.Form):
         required=False,
         initial=True,
     )
+    include_year1_cost = forms.BooleanField(
+        label="Include 'Illustrative Year-1 Cost' table",
+        required=False,
+        initial=True,
+    )
     gst_percent = forms.DecimalField(
         label="GST (%)",
         max_digits=5,

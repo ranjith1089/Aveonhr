@@ -8,14 +8,6 @@
       {% for line in client_address_lines %}{{ line }}{% if not forloop.last %}<br>{% endif %}{% endfor %}
     </div>
   </div>
-  <div class="addressee-meta">
-    <div class="addressee-meta-row">Prepared For</div>
-    <div class="addressee-meta-val">{{ client_name }}</div>
-    {% if valid_till %}
-    <div class="addressee-meta-row" style="margin-top:14px;">Proposal Valid Till</div>
-    <div class="addressee-meta-val">{{ valid_till|date:"d M Y" }}</div>
-    {% endif %}
-  </div>
 </div>
 {% if salutation %}
 <div class="salutation-wrap">
