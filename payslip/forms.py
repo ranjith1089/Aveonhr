@@ -382,7 +382,13 @@ class ProposalQuotationForm(forms.Form):
     proposal_date = forms.DateField(
         label="Proposal Date",
         initial=date.today,
-        widget=forms.DateInput(attrs={"type": "date"}),
+        # Text input in DD/MM/YYYY: the native date picker's display format
+        # is locale-controlled and cannot be forced to DD/MM/YYYY.
+        input_formats=["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"],
+        widget=forms.DateInput(
+            format="%d/%m/%Y",
+            attrs={"placeholder": "DD/MM/YYYY", "inputmode": "numeric"},
+        ),
     )
     prepared_by = forms.CharField(
         label="Prepared By",
