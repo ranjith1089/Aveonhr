@@ -443,13 +443,13 @@ def proposal_quotation(request: HttpRequest) -> HttpResponse:
 
 @require_GET
 def cms_feature_list(request: HttpRequest) -> HttpResponse:
-    """Standalone, print-ready CMS ERP feature catalogue.
+    """Print-ready CMS ERP product specifications document.
 
-    Renders every CMS module with its full feature list straight from
-    proposal_catalog (same single source of truth as the proposal), with
-    no client or pricing details - for demos, tenders and evaluations.
+    Renders the complete Product Features & Functional Specifications
+    (Version 2026) verbatim from cms_spec.py - 16 chapters, every module's
+    full 9-part spec - for demos, tenders and RFP responses.
     """
-    from .proposal_catalog import CMS_FULL_MODULES, MODULES, _cms_feature_count
+    from .cms_spec import CMS_SPEC
     from .pdf_styles import COMPANY_EMAIL, COMPANY_WEBSITE, LOGO_PATH
 
     logo_data_uri = ""
@@ -462,11 +462,8 @@ def cms_feature_list(request: HttpRequest) -> HttpResponse:
     except Exception:
         logo_data_uri = ""
 
-    modules = [MODULES[c] for c in CMS_FULL_MODULES]
     context = {
-        "modules": modules,
-        "module_count": len(modules),
-        "feature_count": _cms_feature_count(),
+        "spec": CMS_SPEC,
         "logo_data_uri": logo_data_uri,
         "contact_phone": "+91 8754006483",
         "contact_email": COMPANY_EMAIL,
