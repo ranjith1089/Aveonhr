@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    cms_feature_list,
     download_file,
     experience_certificate,
     landing,
@@ -18,6 +19,7 @@ urlpatterns = [
     path("travel-expense/", travel_expense, name="travel_expense"),
     path("payslip/", upload_payslips, name="upload_payslips"),
     path("proposal-quotation/", proposal_quotation, name="proposal_quotation"),
+    path("proposal-quotation/cms-features/", cms_feature_list, name="cms_feature_list"),
     path("preview/<str:token>/", preview_pdf, name="preview_pdf"),
     path("download/<str:token>/", download_file, name="download_file"),
 ]
