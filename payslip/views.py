@@ -469,4 +469,9 @@ def cms_feature_list(request: HttpRequest) -> HttpResponse:
         "contact_email": COMPANY_EMAIL,
         "contact_website": COMPANY_WEBSITE,
     }
-    return render(request, "payslip/proposals/feature_list.html", context)
+    response = render(request, "payslip/proposals/feature_list.html", context)
+    if request.GET.get("download"):
+        response["Content-Disposition"] = (
+            'attachment; filename="Aveon_CMS_ERP_Product_Specifications_v2026.html"'
+        )
+    return response
