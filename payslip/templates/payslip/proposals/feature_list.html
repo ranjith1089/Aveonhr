@@ -224,16 +224,12 @@
   }
   .flow-arrow { color:#E65100; font-weight:900; font-size:14px; }
 
-  /* Signature + contact */
-  .sig { padding:28px 60px 20px; border-top:1px solid #E2E8F0; text-align:right; }
-  .sig p { font-size:15px; color:#334155; margin:0; }
-  .sig-name { font-size:17px; font-weight:800; color:#1565C0; margin-top:6px; }
-  .sig-title { font-size:14px; color:#64748B; }
+  /* Contact strip */
   .ns-contact {
     display:flex; align-items:center; gap:24px; flex-wrap:wrap;
     background:#1A1A2E; color:#E2E8F0;
     border-radius:10px; padding:16px 22px;
-    font-size:14.5px; margin:16px 60px 40px;
+    font-size:14.5px; margin:28px 60px 40px;
   }
   .ns-contact strong { color:#fff; }
   .ns-talk { font-size:15px; font-weight:900; color:#FFD54F; }
@@ -246,7 +242,7 @@
     body { background:#fff; }
     .toolbar { display:none; }
     .page { max-width:100%; box-shadow:none; }
-    .sec, .hero-body, .hero-bar, .ch-hdr, .sig { padding-left:32px; padding-right:32px; }
+    .sec, .hero-body, .hero-bar, .ch-hdr { padding-left:32px; padding-right:32px; }
     .hero-body { padding-top:30px; padding-bottom:34px; }
     .sec { padding-top:22px; padding-bottom:22px; }
     .ns-contact { margin-left:32px; margin-right:32px; }
@@ -443,12 +439,6 @@
   <div class="sec tint">
     <h2 class="st">About Aveon Infotech</h2>
     {% for para in spec.about.paragraphs %}<p class="body-p">{{ para }}</p>{% endfor %}
-  </div>
-
-  <div class="sig">
-    <p>For Aveon Infotech Private Limited</p>
-    <p class="sig-name">Parvathi G</p>
-    <p class="sig-title">Chief Executive Officer</p>
   </div>
 
   <div class="ns-contact">
