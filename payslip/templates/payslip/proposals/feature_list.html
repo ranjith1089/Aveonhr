@@ -20,16 +20,16 @@
     display:flex; gap:10px;
   }
   .toolbar a, .toolbar button {
-    display:inline-flex; align-items:center; gap:8px;
-    padding:10px 18px; border-radius:10px;
-    font-size:13.5px; font-weight:700; font-family:inherit;
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    height:42px; padding:0 18px; border-radius:10px;
+    font-size:13.5px; font-weight:700; font-family:inherit; line-height:1;
     cursor:pointer; text-decoration:none;
     box-shadow:0 4px 14px rgba(15,30,70,0.25);
-    border:none;
+    border:1.5px solid transparent;
   }
   .toolbar .tb-download { background:#1565C0; color:#fff; }
   .toolbar .tb-download:hover { background:#0F4C9A; }
-  .toolbar .tb-print { background:#fff; color:#1A1A2E; border:1.5px solid #CBD5E1; }
+  .toolbar .tb-print { background:#fff; color:#1A1A2E; border-color:#CBD5E1; }
   .toolbar .tb-print:hover { background:#F1F5F9; }
 
   /* ===== Cover ===== */
@@ -128,9 +128,10 @@
 
   /* Module spec */
   .mod-spec {
-    margin-top:26px; border:1.5px solid #DCE4EF; border-radius:14px;
+    margin-top:18px; border:1.5px solid #DCE4EF; border-radius:14px;
     overflow:hidden; box-shadow:0 2px 8px rgba(15,30,70,0.05);
   }
+  .mod-spec:first-of-type { margin-top:8px; }
   .mod-banner {
     display:flex; align-items:center; gap:12px;
     background:linear-gradient(90deg, #EEF4FF, #F8FAFF);
@@ -143,11 +144,11 @@
     border-radius:6px; padding:4px 10px; flex-shrink:0;
   }
   .mod-banner-name { font-size:17px; font-weight:800; color:#1A1A2E; }
-  .mod-inner { padding:18px 22px 22px; }
+  .mod-inner { padding:16px 22px 20px; }
   .ms-h {
     display:flex; align-items:center; gap:8px;
     font-size:13px; font-weight:800; letter-spacing:1px; text-transform:uppercase;
-    color:#1565C0; margin:16px 0 8px;
+    color:#1565C0; margin:14px 0 6px;
   }
   .ms-h:first-child { margin-top:0; }
   .ms-h .ms-n {
@@ -231,10 +232,24 @@
     .page { max-width:100%; box-shadow:none; }
     .sec, .hero-body, .hero-bar, .ch-hdr, .sig { padding-left:32px; padding-right:32px; }
     .hero-body { padding-top:30px; padding-bottom:34px; }
+    .sec { padding-top:22px; padding-bottom:22px; }
     .ns-contact { margin-left:32px; margin-right:32px; }
-    .ch-hdr { page-break-before:always; break-before:page; }
-    .mod-banner, .feat-grid, .roles-tbl, .comp-callout, .cards-g,
-    .dc-table, .hero-stats, .ns-contact, .flow-wrap { page-break-inside:avoid; break-inside:avoid; }
+    .mod-spec { margin-top:12px; box-shadow:none; }
+    .mod-inner { padding:12px 18px 16px; }
+
+    /* Compact flow: no forced page breaks - content fills every page.
+       Headers just stay attached to what follows them. */
+    .ch-hdr { padding-top:18px; padding-bottom:18px;
+              page-break-inside:avoid; break-inside:avoid;
+              page-break-after:avoid; break-after:avoid; }
+    .mod-banner { page-break-inside:avoid; break-inside:avoid;
+                  page-break-after:avoid; break-after:avoid; }
+
+    /* Small atomic blocks never split */
+    .feat-grid, .roles-tbl, .comp-callout, .cards-g,
+    .dc-table, .hero-stats, .ns-contact, .flow-wrap {
+      page-break-inside:avoid; break-inside:avoid;
+    }
     .ms-h, .st, .narr-h { page-break-after:avoid; break-after:avoid; }
     p, li { orphans:3; widows:3; }
   }
