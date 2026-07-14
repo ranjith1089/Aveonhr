@@ -1,4 +1,6 @@
 from datetime import date
+
+from django.utils import timezone as _tz
 from decimal import Decimal, InvalidOperation
 
 from django import forms
@@ -442,7 +444,7 @@ class ProposalQuotationForm(ProfilePrefillMixin, forms.Form):
 
     proposal_date = forms.DateField(
         label="Proposal Date",
-        initial=date.today,
+        initial=_tz.localdate,
         # Text input in DD/MM/YYYY: the native date picker's display format
         # is locale-controlled and cannot be forced to DD/MM/YYYY.
         input_formats=["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"],

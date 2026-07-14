@@ -18,6 +18,13 @@ from PIL import Image as PilImage
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
+def _local_today() -> date:
+    """Today in the app timezone (IST) - serverless hosts run on UTC, so a
+    late-evening IST document must not carry yesterday's date."""
+    from django.utils import timezone
+    return timezone.localdate()
+
+
 @dataclass
 class CompanyInfo:
     name: str
@@ -605,7 +612,7 @@ def build_offer_letter_pdf(data: dict, *, letterhead: bool = True, brand=None) -
 
     # Title + date on a single line: title centered, date right-aligned below
     story.append(Paragraph("INTERNSHIP OFFER LETTER", s["title"]))
-    story.append(Paragraph(f"Issued on {format_date(date.today())}", s["subtitle"]))
+    story.append(Paragraph(f"Issued on {format_date(_local_today())}", s["subtitle"]))
 
     # Recipient address block — left-aligned, compact
     recipient_lines = [name]
@@ -696,7 +703,7 @@ def build_appointment_order_pdf(data: dict, *, letterhead: bool = True, brand=No
         story.append(Spacer(1, 35 * mm))
 
     # Inputs
-    today = date.today()
+    today = _local_today()
     serial_no = str(data.get("serial_no", "")).strip()
     employee_name = str(data.get("employee_name", "")).strip()
     addr1 = str(data.get("present_address1", "")).strip()
@@ -862,7 +869,7 @@ def build_employment_offer_pdf(data: dict, *, letterhead: bool = True, brand=Non
     employer_designation = str(data.get("employer_designation", "")).strip()
 
     story.append(Paragraph("OFFER LETTER", s["title"]))
-    story.append(Paragraph(f"Issued on {format_date(date.today())}", s["subtitle"]))
+    story.append(Paragraph(f"Issued on {format_date(_local_today())}", s["subtitle"]))
 
     story.append(Paragraph(f"Dear {candidate_name},", s["body_left"]))
     story.append(Spacer(1, SPACE_SM))
@@ -1092,7 +1099,7 @@ def build_experience_certificate_pdf(data: dict, *, letterhead: bool = True, bra
         his_her, him_her, he_she = "her", "her", "she"
 
     # Date row — right-aligned, professional
-    story.append(Paragraph(f"<b>Date:</b> {format_date(date.today())}", s["small_right"]))
+    story.append(Paragraph(f"<b>Date:</b> {format_date(_local_today())}", s["small_right"]))
     story.append(Spacer(1, SPACE_MD))
 
     if certificate_type == "internship":
