@@ -21,6 +21,18 @@
     </div>
   </div>
 
+  {% if expiring_count or po_pending_count %}
+  <div class="msg" style="background:#FFFBEB; border:1px solid #FDE68A; color:#92400E; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+    <span>
+      ⏰
+      {% if expiring_count %}<b>{{ expiring_count }}</b> agreement{{ expiring_count|pluralize }} expiring or expired{% endif %}
+      {% if expiring_count and po_pending_count %} · {% endif %}
+      {% if po_pending_count %}<b>{{ po_pending_count }}</b> client{{ po_pending_count|pluralize }} without a PO{% endif %}
+    </span>
+    <a class="btn small" href="{% url 'implementation_dashboard' %}" style="background:#B45309;">Open Implementation →</a>
+  </div>
+  {% endif %}
+
   <!-- FY stat cards with collection progress -->
   <div class="stat-grid" style="margin-bottom:16px;">
     {% for r in fy_rows %}

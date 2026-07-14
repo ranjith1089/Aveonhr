@@ -92,3 +92,58 @@ class IncomeImportForm(forms.Form):
         if ext not in EXCEL_EXTENSIONS or ext == ".xls":
             raise ValidationError("Please upload a .xlsx file.")
         return f
+
+
+# ---------------------------------------------------------------------------
+# Implementation tracking
+# ---------------------------------------------------------------------------
+from .models import ClientOnboarding, FeatureStatus
+
+
+class ClientOnboardingForm(forms.ModelForm):
+    class Meta:
+        model = ClientOnboarding
+        fields = [
+            "stage",
+            "contact_person", "contact_designation", "contact_phone",
+            "contact_email", "institution_type", "address", "city",
+            "student_strength", "onboarded_on", "go_live_date", "engineer",
+            "po_received", "po_number", "po_date",
+            "agreement_signed", "agreement_years", "agreement_start",
+            "agreement_end", "reminder_days",
+            "notes",
+        ]
+        widgets = {
+            "engineer": forms.TextInput(attrs={
+                "list": "engineer-options",
+                "placeholder": "Pick or type a new engineer",
+            }),
+            "address": forms.Textarea(attrs={"rows": 2}),
+            "notes": forms.Textarea(attrs={"rows": 3}),
+            "onboarded_on": forms.DateInput(attrs={"type": "date"}),
+            "go_live_date": forms.DateInput(attrs={"type": "date"}),
+            "po_date": forms.DateInput(attrs={"type": "date"}),
+            "agreement_start": forms.DateInput(attrs={"type": "date"}),
+            "agreement_end": forms.DateInput(attrs={"type": "date"}),
+        }
+        help_texts = {
+            "agreement_end": "Leave blank to auto-compute from start date + years.",
+            "reminder_days": "Show an expiry reminder this many days before the end date.",
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        start = cleaned.get("agreement_start")
+        end = cleaned.get("agreement_end")
+        if start and end and end <= start:
+            self.add_error("agreement_end", "End date must be after the start date.")
+        return cleaned
+
+
+class FeatureAddForm(forms.ModelForm):
+    class Meta:
+        model = FeatureStatus
+        fields = ["name", "status"]
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "Feature / module name"}),
+        }

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{ client.name }} - Implementation - Aveon Income</title>
+{% include "payslip/income/_income_style.html" %}
+<style>
+  .head-chips { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0 4px; }
+  .section-title { font-size:12px; font-weight:800; color:#1565C0; text-transform:uppercase; letter-spacing:1px; margin:18px 0 10px; padding-bottom:6px; border-bottom:1.5px solid #E8EEF7; grid-column:1 / -1; }
+  select.status-sel { padding:6px 8px; font-size:12.5px; width:auto; min-width:125px; }
+  input.cell-input { padding:6px 8px; font-size:12.5px; }
+  .feat-tbl td { padding:7px 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  {% include "payslip/income/_income_nav.html" with active_page="implementation" %}
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+      <div>
+        <h1>🚀 {{ client.name }}</h1>
+        <div class="head-chips">
+          <span class="badge {{ stage_badge }}">{{ onboarding.get_stage_display }}</span>
+          {% if onboarding.po_received %}
+          <span class="badge green">PO received{% if onboarding.po_number %} · {{ onboarding.po_number }}{% endif %}</span>
+          {% else %}
+          <span class="badge amber">PO pending</span>
+          {% endif %}
+          {% if onboarding.agreement_expired %}
+          <span class="badge red">{{ onboarding.agreement_label }}</span>
+          {% elif onboarding.agreement_expiring %}
+          <span class="badge amber">{{ onboarding.agreement_label }}</span>
+          {% elif onboarding.agreement_signed %}
+          <span class="badge green">{{ onboarding.agreement_label }}</span>
+          {% else %}
+          <span class="badge gray">Agreement pending</span>
+          {% endif %}
+        </div>
+      </div>
+      <div style="text-align:right; min-width:180px;">
+        <div class="bar" style="margin-top:6px;"><div class="bar-fill {% if progress.pct < 50 %}warn{% endif %}" style="width:{{ progress.pct }}%;"></div></div>
+        <div class="bar-lbl">{{ progress.live }} of {{ progress.applicable }} applicable features live ({{ progress.pct }}%)</div>
+        <div style="margin-top:8px;"><a class="btn small secondary" href="{% url 'income_client_detail' client.pk %}">← Billing &amp; payments</a></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🏫 Onboarding, PO &amp; agreement</h2>
+    {% if form.errors %}
+    <div class="msg error">
+      {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_onboarding" />
+      <div class="grid">
+        <div class="section-title">Client details</div>
+        <p><label>Stage</label>{{ form.stage }}</p>
+        <p><label>Institution Type</label>{{ form.institution_type }}</p>
+        <p><label>Contact Person</label>{{ form.contact_person }}</p>
+        <p><label>Designation</label>{{ form.contact_designation }}</p>
+        <p><label>Phone</label>{{ form.contact_phone }}</p>
+        <p><label>Email</label>{{ form.contact_email }}</p>
+        <p class="full"><label>Address</label>{{ form.address }}</p>
+        <p><label>City</label>{{ form.city }}</p>
+        <p><label>Student Strength</label>{{ form.student_strength }}</p>
+        <p><label>Onboarded On</label>{{ form.onboarded_on }}</p>
+        <p><label>Go-Live Date</label>{{ form.go_live_date }}</p>
+        <p>
+          <label>Implementation Engineer</label>
+          {{ form.engineer }}
+          <datalist id="engineer-options">
+            {% for e in engineer_options %}<option value="{{ e }}">{% endfor %}
+          </datalist>
+        </p>
+
+        <div class="section-title">Purchase order</div>
+        <p style="align-self:end;"><label style="display:inline;">{{ form.po_received }} PO received</label></p>
+        <p><label>PO Number</label>{{ form.po_number }}</p>
+        <p><label>PO Date</label>{{ form.po_date }}</p>
+
+        <div class="section-title">Agreement</div>
+        <p style="align-self:end;"><label style="display:inline;">{{ form.agreement_signed }} Agreement signed</label></p>
+        <p><label>Agreement Years</label>{{ form.agreement_years }}</p>
+        <p><label>Start Date</label>{{ form.agreement_start }}</p>
+        <p><label>End Date</label>{{ form.agreement_end }}<span class="muted">Leave blank to auto-compute from start + years.</span></p>
+        <p><label>Reminder (days before end)</label>{{ form.reminder_days }}</p>
+
+        <p class="full"><label>Notes</label>{{ form.notes }}</p>
+      </div>
+      <div style="margin-top:16px;">
+        <button class="btn" type="submit">Save Details</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+      <h2 style="margin-bottom:0;">🧩 Feature-wise implementation status</h2>
+      <form method="post" style="margin:0;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="seed_cms" />
+        <button class="btn small secondary" type="submit">+ Add 25 CMS ERP modules</button>
+      </form>
+    </div>
+
+    {% if feature_rows %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_features" />
+      <div class="tbl-wrap">
+        <table class="feat-tbl">
+          <tr><th>#</th><th>Feature / Module</th><th>Status</th><th>Engineer</th><th>Started</th><th>Completed</th><th>Remarks</th><th></th></tr>
+          {% for row in feature_rows %}
+          <tr>
+            <td class="muted">{{ forloop.counter }}</td>
+            <td><b>{{ row.feature.name }}</b><br /><span class="badge {{ row.badge }}">{{ row.feature.get_status_display }}</span></td>
+            <td>
+              <select class="status-sel" name="status_{{ row.feature.pk }}">
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if row.feature.status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input class="cell-input" type="text" name="engineer_{{ row.feature.pk }}" value="{{ row.feature.engineer }}" list="engineer-options" style="min-width:110px;" /></td>
+            <td class="muted" style="white-space:nowrap;">{{ row.feature.started_on|date:"d M Y"|default:"—" }}</td>
+            <td class="muted" style="white-space:nowrap;">{{ row.feature.completed_on|date:"d M Y"|default:"—" }}</td>
+            <td><input class="cell-input" type="text" name="remarks_{{ row.feature.pk }}" value="{{ row.feature.remarks }}" style="min-width:140px;" /></td>
+            <td>
+              <button class="btn small danger" type="submit" name="action" value="delete_feature"
+                      onclick="return confirm('Remove {{ row.feature.name|escapejs }}?');"
+                      formnovalidate
+                      form="del-{{ row.feature.pk }}">✕</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      <div style="margin-top:14px;">
+        <button class="btn" type="submit">Save All Statuses</button>
+        <span class="muted" style="margin-left:10px;">Setting a feature to Live stamps its completed date automatically.</span>
+      </div>
+    </form>
+    {% for row in feature_rows %}
+    <form id="del-{{ row.feature.pk }}" method="post" style="display:none;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="delete_feature" />
+      <input type="hidden" name="feature_id" value="{{ row.feature.pk }}" />
+    </form>
+    {% endfor %}
+    {% else %}
+    <div class="empty">
+      <div class="big">🧩</div>
+      No features tracked yet - click <b>+ Add 25 CMS ERP modules</b> to seed the standard list, or add a custom row below.
+    </div>
+    {% endif %}
+
+    <div style="margin-top:16px; padding-top:14px; border-top:1.5px dashed #E2E8F0;">
+      <form method="post" class="inline-form">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_feature" />
+        <div style="flex:2;"><label>Add a custom feature</label>{{ add_form.name }}</div>
+        <div><label>Status</label>{{ add_form.status }}</div>
+        <div style="flex:0;"><button class="btn" type="submit">Add</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+</body>
+</html>

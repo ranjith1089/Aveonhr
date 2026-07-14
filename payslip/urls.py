@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import views_income
+from . import views_implementation, views_income
 from .views import (
     cms_feature_list,
     company_profile,
@@ -41,6 +41,8 @@ urlpatterns = [
     path("income/billing/<int:pk>/edit/", views_income.income_billing_edit, name="income_billing_edit"),
     path("income/billing/<int:pk>/payments/add/", views_income.income_payment_add, name="income_payment_add"),
     path("income/payments/<int:pk>/delete/", views_income.income_payment_delete, name="income_payment_delete"),
+    path("income/implementation/", views_implementation.implementation_dashboard, name="implementation_dashboard"),
+    path("income/clients/<int:pk>/implementation/", views_implementation.client_implementation, name="client_implementation"),
     path("income/export.xlsx", views_income.income_export, name="income_export"),
     path("income/import/", views_income.income_import, name="income_import"),
 ]

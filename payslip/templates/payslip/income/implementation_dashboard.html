@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Implementation - Aveon Income</title>
+{% include "payslip/income/_income_style.html" %}
+<style>
+  .stage-chips { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
+  .stage-chip {
+    background:#fff; border:1.5px solid #E3EAF5; border-radius:12px;
+    padding:12px 18px; min-width:130px; text-align:center;
+  }
+  .stage-chip .cnt { font-size:22px; font-weight:900; }
+  .stage-chip .lbl { font-size:11px; font-weight:800; color:#64748B; text-transform:uppercase; letter-spacing:.8px; margin-top:2px; }
+</style>
+</head>
+<body>
+<div class="container">
+  {% include "payslip/income/_income_nav.html" with active_page="implementation" %}
+
+  <h1 style="margin-bottom:4px;">🚀 Implementation Tracker</h1>
+  <p class="sub">Onboarding, purchase orders, agreements and feature-wise delivery status per client.</p>
+
+  <div class="stage-chips">
+    {% for chip in stage_chips %}
+    <div class="stage-chip">
+      <div class="cnt">{{ chip.count }}</div>
+      <div class="lbl"><span class="badge {{ chip.badge }}">{{ chip.label }}</span></div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if expiring %}
+  <div class="card" style="border-left:4px solid #C62828;">
+    <h2 style="color:#C62828;">⏰ Agreements needing attention</h2>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>Client</th><th>Agreement</th><th>Ends</th><th>Status</th><th></th></tr>
+        {% for o in expiring %}
+        <tr>
+          <td><a href="{% url 'client_implementation' o.client.pk %}">{{ o.client.name }}</a></td>
+          <td>{{ o.agreement_years|default:"?" }} year{{ o.agreement_years|pluralize }} from {{ o.agreement_start|date:"d M Y"|default:"—" }}</td>
+          <td>{{ o.agreement_end|date:"d M Y" }}</td>
+          <td>
+            {% if o.agreement_expired %}<span class="badge red">{{ o.agreement_label }}</span>
+            {% else %}<span class="badge amber">{{ o.agreement_label }}</span>{% endif %}
+          </td>
+          <td><a class="btn small secondary" href="{% url 'client_implementation' o.client.pk %}">Open</a></td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="two-col">
+    <div class="card">
+      <h2>📋 Client implementation status</h2>
+      {% if rows %}
+      <div class="tbl-wrap">
+        <table>
+          <tr><th>Client</th><th>Stage</th><th>Features live</th><th style="min-width:140px;">Progress</th></tr>
+          {% for r in rows %}
+          <tr>
+            <td><a href="{% url 'client_implementation' r.client.pk %}">{{ r.client.name }}</a></td>
+            <td><span class="badge {{ r.stage_badge }}">{{ r.stage_label }}</span></td>
+            <td class="num">
+              {% if r.progress.applicable %}{{ r.progress.live }} / {{ r.progress.applicable }}
+              {% else %}<span class="muted">no features yet</span>{% endif %}
+            </td>
+            <td>
+              <div class="bar" style="margin-top:0;"><div class="bar-fill {% if r.progress.pct < 50 %}warn{% endif %}" style="width:{{ r.progress.pct }}%;"></div></div>
+              <div class="bar-lbl">{{ r.progress.pct }}% live</div>
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% else %}
+      <div class="empty"><div class="big">🗂️</div>No clients yet - add one from the Clients tab.</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>📄 PO pending</h2>
+      {% if po_pending %}
+      <div class="tbl-wrap">
+        <table>
+          <tr><th>Client</th><th>Stage</th><th></th></tr>
+          {% for p in po_pending %}
+          <tr>
+            <td><a href="{% url 'client_implementation' p.client.pk %}">{{ p.client.name }}</a></td>
+            <td>
+              {% if p.onboarding %}{{ p.onboarding.get_stage_display }}{% else %}<span class="muted">not started</span>{% endif %}
+            </td>
+            <td><a class="btn small secondary" href="{% url 'client_implementation' p.client.pk %}">Update</a></td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      {% else %}
+      <div class="empty"><div class="big">✅</div>Every active client has a PO on file.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -4,6 +4,7 @@
     <a href="{% url 'income_dashboard' %}" {% if active_page == "dashboard" %}class="active"{% endif %}>Dashboard</a>
     <a href="{% url 'income_analytics' %}" {% if active_page == "analytics" %}class="active"{% endif %}>📈 Analytics</a>
     <a href="{% url 'income_client_list' %}" {% if active_page == "clients" %}class="active"{% endif %}>Clients</a>
+    <a href="{% url 'implementation_dashboard' %}" {% if active_page == "implementation" %}class="active"{% endif %}>🚀 Implementation</a>
     <a href="{% url 'income_client_create' %}">+ Add Client</a>
     <a href="{% url 'income_export' %}">Export Excel</a>
     <a href="{% url 'income_import' %}" {% if active_page == "import" %}class="active"{% endif %}>Import</a>

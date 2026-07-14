@@ -77,6 +77,17 @@ def income_dashboard(request: HttpRequest) -> HttpResponse:
 
     top_clients = [r for r in analytics["client_outstanding"] if r["balance"] > 0][:8]
 
+    # Implementation alerts: agreement expiry + missing POs (one cheap query).
+    from .models import ClientOnboarding
+    expiring_count = 0
+    po_pending_count = IncomeClient.objects.filter(is_active=True).exclude(
+        onboarding__po_received=True
+    ).count()
+    for o in ClientOnboarding.objects.filter(agreement_signed=True,
+                                             agreement_end__isnull=False):
+        if o.agreement_expired or o.agreement_expiring:
+            expiring_count += 1
+
     fy_chart = {
         "labels": [r["year"] for r in analytics["fy_rows"]],
         "billed": [float(r["billed"]) for r in analytics["fy_rows"]],
@@ -94,6 +105,8 @@ def income_dashboard(request: HttpRequest) -> HttpResponse:
         "waiting": waiting,
         "recent_payments": recent_payments,
         "client_count": IncomeClient.objects.filter(is_active=True).count(),
+        "expiring_count": expiring_count,
+        "po_pending_count": po_pending_count,
         "today": today,
     })
 

@@ -236,3 +236,151 @@ class PaymentReceipt(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.billing} + {self.amount}"
+
+
+# ---------------------------------------------------------------------------
+# Implementation tracking - onboarding, PO, agreement reminders and
+# feature-wise delivery status per Income client (staff-only, org-wide).
+# ---------------------------------------------------------------------------
+class ClientOnboarding(models.Model):
+    class Stage(models.TextChoices):
+        ONBOARDING = "ONBOARDING", "Onboarding"
+        IMPLEMENTATION = "IMPLEMENTATION", "Implementation"
+        LIVE = "LIVE", "Live"
+        ON_HOLD = "ON_HOLD", "On hold"
+        DISCONTINUED = "DISCONTINUED", "Discontinued"
+
+    class InstitutionType(models.TextChoices):
+        COLLEGE = "COLLEGE", "College"
+        SCHOOL = "SCHOOL", "School"
+        UNIVERSITY = "UNIVERSITY", "University"
+        POLYTECHNIC = "POLYTECHNIC", "Polytechnic"
+        OTHER = "OTHER", "Other"
+
+    client = models.OneToOneField(IncomeClient, on_delete=models.CASCADE,
+                                  related_name="onboarding")
+    stage = models.CharField(max_length=20, choices=Stage.choices,
+                             default=Stage.ONBOARDING)
+
+    # Full client details
+    contact_person = models.CharField(max_length=200, blank=True, default="")
+    contact_designation = models.CharField(max_length=200, blank=True, default="")
+    contact_phone = models.CharField(max_length=30, blank=True, default="")
+    contact_email = models.EmailField(blank=True, default="")
+    institution_type = models.CharField(max_length=20, choices=InstitutionType.choices,
+                                        blank=True, default="")
+    address = models.TextField(blank=True, default="")
+    city = models.CharField(max_length=100, blank=True, default="")
+    student_strength = models.PositiveIntegerField(null=True, blank=True)
+    onboarded_on = models.DateField(null=True, blank=True)
+    go_live_date = models.DateField(null=True, blank=True)
+    engineer = models.CharField(max_length=50, blank=True, default="")
+
+    # Purchase order
+    po_received = models.BooleanField(default=False)
+    po_number = models.CharField(max_length=100, blank=True, default="")
+    po_date = models.DateField(null=True, blank=True)
+
+    # Agreement
+    agreement_signed = models.BooleanField(default=False)
+    agreement_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    agreement_start = models.DateField(null=True, blank=True)
+    agreement_end = models.DateField(null=True, blank=True)
+    reminder_days = models.PositiveSmallIntegerField(default=90)
+
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Onboarding: {self.client.name}"
+
+    def save(self, *args, **kwargs):
+        # Auto-compute the agreement end date from start + years when the
+        # end is not set explicitly (an explicit end always wins).
+        if self.agreement_start and self.agreement_years and not self.agreement_end:
+            try:
+                self.agreement_end = self.agreement_start.replace(
+                    year=self.agreement_start.year + self.agreement_years
+                )
+            except ValueError:  # Feb 29 -> Feb 28
+                self.agreement_end = self.agreement_start.replace(
+                    year=self.agreement_start.year + self.agreement_years, day=28
+                )
+        super().save(*args, **kwargs)
+
+    @property
+    def days_to_expiry(self) -> int | None:
+        if not self.agreement_end:
+            return None
+        from django.utils import timezone
+        return (self.agreement_end - timezone.localdate()).days
+
+    @property
+    def agreement_expired(self) -> bool:
+        d = self.days_to_expiry
+        return d is not None and d < 0
+
+    @property
+    def agreement_expiring(self) -> bool:
+        d = self.days_to_expiry
+        return d is not None and 0 <= d <= self.reminder_days
+
+    @property
+    def agreement_label(self) -> str:
+        if not self.agreement_signed:
+            return "Agreement pending"
+        if self.agreement_expired:
+            return f"Expired {abs(self.days_to_expiry)}d ago"
+        if self.agreement_expiring:
+            return f"Expires in {self.days_to_expiry}d"
+        if self.agreement_end:
+            return f"Valid till {self.agreement_end:%d %b %Y}"
+        return "Signed"
+
+
+def onboarding_for(client: IncomeClient) -> ClientOnboarding:
+    onboarding, _ = ClientOnboarding.objects.get_or_create(client=client)
+    return onboarding
+
+
+class FeatureStatus(models.Model):
+    class Status(models.TextChoices):
+        NOT_STARTED = "NOT_STARTED", "Not started"
+        IN_PROGRESS = "IN_PROGRESS", "In progress"
+        TESTING = "TESTING", "Testing"
+        LIVE = "LIVE", "Live"
+        ON_HOLD = "ON_HOLD", "On hold"
+        NA = "NA", "N.A."
+
+    client = models.ForeignKey(IncomeClient, on_delete=models.CASCADE,
+                               related_name="features")
+    name = models.CharField(max_length=200)
+    status = models.CharField(max_length=20, choices=Status.choices,
+                              default=Status.NOT_STARTED)
+    engineer = models.CharField(max_length=50, blank=True, default="")
+    started_on = models.DateField(null=True, blank=True)
+    completed_on = models.DateField(null=True, blank=True)
+    remarks = models.CharField(max_length=300, blank=True, default="")
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        unique_together = [("client", "name")]
+        ordering = ["order", "id"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.client.name}: {self.name} ({self.status})"
+
+
+def feature_progress(features) -> dict:
+    """Live percent over applicable (non-N.A.) features."""
+    items = list(features)
+    applicable = [f for f in items if f.status != FeatureStatus.Status.NA]
+    live = [f for f in applicable if f.status == FeatureStatus.Status.LIVE]
+    total = len(applicable)
+    return {
+        "total": len(items),
+        "applicable": total,
+        "live": len(live),
+        "pct": int(len(live) / total * 100) if total else 0,
+    }

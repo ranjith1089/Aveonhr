@@ -266,3 +266,122 @@ class IncomeAnalyticsTests(TestCase):
         plain = User.objects.create_user("inc_plain", "p@x.com", "pass12345")
         self.client.force_login(plain)
         self.assertEqual(self.client.get("/income/analytics/").status_code, 403)
+
+
+class ImplementationTrackingTests(TestCase):
+    def setUp(self):
+        from .models import IncomeClient
+        self.staff = User.objects.create_user("impl_staff", "st@x.com", "pass12345", is_staff=True)
+        self.plain = User.objects.create_user("impl_plain", "pl@x.com", "pass12345")
+        self.income_client = IncomeClient.objects.create(name="Impl College")
+        self.client.force_login(self.staff)
+
+    def test_agreement_end_auto_computes_from_start_plus_years(self):
+        import datetime
+        from .models import ClientOnboarding
+        o = ClientOnboarding.objects.create(
+            client=self.income_client,
+            agreement_start=datetime.date(2025, 6, 1), agreement_years=3,
+        )
+        self.assertEqual(o.agreement_end, datetime.date(2028, 6, 1))
+
+    def test_explicit_agreement_end_wins(self):
+        import datetime
+        from .models import ClientOnboarding
+        o = ClientOnboarding.objects.create(
+            client=self.income_client,
+            agreement_start=datetime.date(2025, 6, 1), agreement_years=3,
+            agreement_end=datetime.date(2027, 12, 31),
+        )
+        self.assertEqual(o.agreement_end, datetime.date(2027, 12, 31))
+
+    def test_expiry_properties_across_boundaries(self):
+        import datetime
+        from django.utils import timezone
+        from .models import ClientOnboarding
+        today = timezone.localdate()
+        o = ClientOnboarding.objects.create(client=self.income_client,
+                                            agreement_signed=True)
+        # 89 days out: inside the 90-day window -> expiring, not expired
+        o.agreement_end = today + datetime.timedelta(days=89)
+        self.assertTrue(o.agreement_expiring)
+        self.assertFalse(o.agreement_expired)
+        # 91 days out: outside the window
+        o.agreement_end = today + datetime.timedelta(days=91)
+        self.assertFalse(o.agreement_expiring)
+        self.assertFalse(o.agreement_expired)
+        # past date: expired, not expiring
+        o.agreement_end = today - datetime.timedelta(days=1)
+        self.assertTrue(o.agreement_expired)
+        self.assertFalse(o.agreement_expiring)
+        # no end date at all
+        o.agreement_end = None
+        self.assertIsNone(o.days_to_expiry)
+        self.assertFalse(o.agreement_expired)
+        self.assertFalse(o.agreement_expiring)
+
+    def test_seed_cms_creates_25_modules_and_is_idempotent(self):
+        url = f"/income/clients/{self.income_client.pk}/implementation/"
+        resp = self.client.post(url, {"action": "seed_cms"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(self.income_client.features.count(), 25)
+        self.client.post(url, {"action": "seed_cms"})
+        self.assertEqual(self.income_client.features.count(), 25)
+
+    def test_progress_excludes_na(self):
+        from .models import FeatureStatus, feature_progress
+        S = FeatureStatus.Status
+        for i, status in enumerate([S.LIVE, S.LIVE, S.IN_PROGRESS, S.NA]):
+            FeatureStatus.objects.create(client=self.income_client,
+                                         name=f"F{i}", status=status, order=i)
+        p = feature_progress(self.income_client.features.all())
+        self.assertEqual(p["total"], 4)
+        self.assertEqual(p["applicable"], 3)
+        self.assertEqual(p["live"], 2)
+        self.assertEqual(p["pct"], 66)
+
+    def test_bulk_save_stamps_completed_on_for_live(self):
+        from django.utils import timezone
+        from .models import FeatureStatus
+        f = FeatureStatus.objects.create(client=self.income_client, name="Fees")
+        url = f"/income/clients/{self.income_client.pk}/implementation/"
+        resp = self.client.post(url, {
+            "action": "save_features",
+            f"status_{f.pk}": "LIVE",
+            f"engineer_{f.pk}": "Kalai",
+            f"remarks_{f.pk}": "done",
+        })
+        self.assertEqual(resp.status_code, 302)
+        f.refresh_from_db()
+        self.assertEqual(f.status, "LIVE")
+        self.assertEqual(f.completed_on, timezone.localdate())
+        self.assertEqual(f.engineer, "Kalai")
+
+    def test_access_control_both_routes(self):
+        dash = "/income/implementation/"
+        detail = f"/income/clients/{self.income_client.pk}/implementation/"
+        self.assertEqual(self.client.get(dash).status_code, 200)
+        self.assertEqual(self.client.get(detail).status_code, 200)
+        self.client.force_login(self.plain)
+        self.assertEqual(self.client.get(dash).status_code, 403)
+        self.assertEqual(self.client.get(detail).status_code, 403)
+        self.client.logout()
+        self.assertEqual(self.client.get(dash).status_code, 302)
+        self.assertEqual(self.client.get(detail).status_code, 302)
+
+    def test_dashboard_lists_expiring_and_po_pending(self):
+        import datetime
+        from django.utils import timezone
+        from .models import ClientOnboarding
+        ClientOnboarding.objects.create(
+            client=self.income_client, agreement_signed=True,
+            agreement_end=timezone.localdate() + datetime.timedelta(days=30),
+        )
+        resp = self.client.get("/income/implementation/")
+        self.assertContains(resp, "Impl College")
+        self.assertContains(resp, "Agreements needing attention")
+        self.assertContains(resp, "PO pending")
+
+    def test_income_dashboard_shows_alert_banner(self):
+        resp = self.client.get("/income/")
+        self.assertContains(resp, "without a PO")

@@ -20,6 +20,7 @@
         {% if client.notes %}<p class="sub">{{ client.notes }}</p>{% endif %}
       </div>
       <div style="display:flex; gap:8px;">
+        <a class="btn secondary" href="{% url 'client_implementation' client.pk %}">🚀 Implementation</a>
         <a class="btn secondary" href="{% url 'income_client_edit' client.pk %}">Edit client</a>
         <a class="btn" href="{% url 'income_billing_create' client.pk %}">+ Add academic year</a>
       </div>

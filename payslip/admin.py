@@ -60,3 +60,22 @@ class ClientBillingAdmin(admin.ModelAdmin):
 class PaymentReceiptAdmin(admin.ModelAdmin):
     list_display = ("billing", "amount", "received_on", "mode")
     search_fields = ("billing__client__name",)
+
+
+from .models import ClientOnboarding, FeatureStatus
+
+
+@admin.register(ClientOnboarding)
+class ClientOnboardingAdmin(admin.ModelAdmin):
+    list_display = ("client", "stage", "engineer", "po_received",
+                    "agreement_signed", "agreement_end")
+    list_filter = ("stage", "po_received", "agreement_signed")
+    search_fields = ("client__name", "contact_person", "city")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(FeatureStatus)
+class FeatureStatusAdmin(admin.ModelAdmin):
+    list_display = ("client", "name", "status", "engineer", "completed_on")
+    list_filter = ("status", "engineer")
+    search_fields = ("client__name", "name")
