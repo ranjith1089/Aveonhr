@@ -610,7 +610,10 @@ class SignupForm(UserCreationForm):
     def clean_email(self):
         email = (self.cleaned_data.get("email") or "").strip().lower()
         if User.objects.filter(email__iexact=email).exists():
-            raise ValidationError("An account with this email already exists.")
+            raise ValidationError(
+                "An account with this email already exists - please log in "
+                "instead (use the username you chose when signing up)."
+            )
         return email
 
     def save(self, commit=True):
