@@ -1,0 +1,110 @@
+{% load humanize %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Income Dashboard - Aveon</title>
+{% include "payslip/income/_income_style.html" %}
+</head>
+<body>
+<div class="container">
+  {% include "payslip/income/_income_nav.html" %}
+
+  <div class="card">
+    <h1>Income Dashboard</h1>
+    <p class="sub">Outstanding balances across {{ client_count }} active client{{ client_count|pluralize }} - {{ today|date:"d M Y" }}</p>
+    <div class="stat-grid">
+      {% for year, amount in fy_totals %}
+      <div class="stat">
+        <div class="stat-val {% if amount > 0 %}red{% else %}green{% endif %}">₹ {{ amount|floatformat:2|intcomma }}</div>
+        <div class="stat-lbl">Outstanding {{ year }}</div>
+      </div>
+      {% endfor %}
+      <div class="stat" style="border-color:#1565C0;">
+        <div class="stat-val red">₹ {{ grand_total|floatformat:2|intcomma }}</div>
+        <div class="stat-lbl">TOTAL OUTSTANDING</div>
+      </div>
+    </div>
+  </div>
+
+  {% if followups %}
+  <div class="card" style="border-left:5px solid #C62828;">
+    <h2 style="color:#C62828;">⏰ Follow-ups due</h2>
+    <table>
+      <thead><tr><th>Date</th><th>Client</th><th>Year</th><th class="num">Balance</th><th>Note</th><th></th></tr></thead>
+      <tbody>
+        {% for b in followups %}
+        <tr>
+          <td><span class="badge red">{{ b.next_followup_date|date:"d M Y" }}</span></td>
+          <td><a href="{% url 'income_client_detail' b.client_id %}">{{ b.client.name }}</a></td>
+          <td>{{ b.academic_year }}</td>
+          <td class="num money-due">₹ {{ b.balance|floatformat:2|intcomma }}</td>
+          <td>{{ b.followup_note }}</td>
+          <td><a class="btn small secondary" href="{% url 'income_billing_edit' b.pk %}">Update</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>By Implementation Engineer</h2>
+    <table>
+      <thead><tr><th>Engineer</th><th class="num">Clients</th><th class="num">Outstanding</th></tr></thead>
+      <tbody>
+        {% for row in engineer_table %}
+        <tr>
+          <td>{{ row.engineer }}</td>
+          <td class="num">{{ row.client_count }}</td>
+          <td class="num {% if row.outstanding > 0 %}money-due{% else %}money-neg{% endif %}">₹ {{ row.outstanding|floatformat:2|intcomma }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="muted">No billing rows yet - add clients or import the sheet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if waiting %}
+  <div class="card">
+    <h2>Waiting (invoice)</h2>
+    <table>
+      <thead><tr><th>Client</th><th>Year</th><th class="num">Net</th><th>Remarks</th></tr></thead>
+      <tbody>
+        {% for b in waiting %}
+        <tr>
+          <td><a href="{% url 'income_client_detail' b.client_id %}">{{ b.client.name }}</a></td>
+          <td>{{ b.academic_year }}</td>
+          <td class="num">₹ {{ b.net_amount|floatformat:2|intcomma }}</td>
+          <td>{{ b.remarks|truncatechars:80 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>Recent Payments</h2>
+    <table>
+      <thead><tr><th>Client</th><th>Year</th><th class="num">Amount</th><th>Received</th><th>Mode</th><th>Note</th></tr></thead>
+      <tbody>
+        {% for p in recent_payments %}
+        <tr>
+          <td><a href="{% url 'income_client_detail' p.billing.client_id %}">{{ p.billing.client.name }}</a></td>
+          <td>{{ p.billing.academic_year }}</td>
+          <td class="num money-neg">₹ {{ p.amount|floatformat:2|intcomma }}</td>
+          <td>{% if p.received_on %}{{ p.received_on|date:"d M Y" }}{% else %}<span class="muted">imported</span>{% endif %}</td>
+          <td>{{ p.mode }}</td>
+          <td>{{ p.note|truncatechars:50 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="muted">No payments recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>

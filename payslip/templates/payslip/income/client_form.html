@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{ heading }} - Aveon Income</title>
+{% include "payslip/income/_income_style.html" %}
+</head>
+<body>
+<div class="container" style="max-width:680px;">
+  {% include "payslip/income/_income_nav.html" %}
+
+  <div class="card">
+    <h1>{{ heading }}</h1>
+    {% if form.errors %}
+    <div class="msg error">
+      {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+    <form method="post" style="margin-top:14px;">
+      {% csrf_token %}
+      <div class="grid">
+        <p class="full"><label>Client Name</label>{{ form.name }}</p>
+        <p class="full"><label>Agreement Status</label>{{ form.agreement_status }}</p>
+        <p class="full"><label>Notes</label>{{ form.notes }}</p>
+        <p><label style="display:inline;">{{ form.is_active }} Active client</label></p>
+      </div>
+      <div style="margin-top:18px; display:flex; gap:12px;">
+        <button class="btn" type="submit">Save</button>
+        <a class="btn secondary" href="{% if client %}{% url 'income_client_detail' client.pk %}{% else %}{% url 'income_client_list' %}{% endif %}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

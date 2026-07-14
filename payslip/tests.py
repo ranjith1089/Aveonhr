@@ -113,3 +113,79 @@ class ProposalQuotationViewTests(TestCase):
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertIn('attachment; filename="aveon_cms_erp_proposal.pdf"', response['Content-Disposition'])
         self.assertTrue(response.content.startswith(b'%PDF-'))
+
+
+class IncomeModuleTests(TestCase):
+    def setUp(self):
+        from .models import IncomeClient
+        self.staff = User.objects.create_user("inc_staff", "is@x.com", "pass12345", is_staff=True)
+        self.plain = User.objects.create_user("inc_plain", "ip@x.com", "pass12345")
+        self.client_obj = IncomeClient.objects.create(name="Test College")
+
+    def test_gst_math_and_quantization(self):
+        from decimal import Decimal
+        from .models import ClientBilling
+        b = ClientBilling(client=self.client_obj, academic_year="2025-2026",
+                          student_count=1234, rate=Decimal("250"))
+        b.save()
+        self.assertEqual(b.taxable_value, Decimal("308500.00"))
+        self.assertEqual(b.gst_amount, Decimal("55530.00"))
+        self.assertEqual(b.net_amount, Decimal("364030.00"))
+        self.assertEqual(b.year_start, 2025)
+
+    def test_override_amounts_untouched(self):
+        from decimal import Decimal
+        from .models import ClientBilling
+        b = ClientBilling(client=self.client_obj, academic_year="2024-2025",
+                          override_amounts=True, net_amount=Decimal("850000.02"))
+        b.save()
+        self.assertEqual(b.net_amount, Decimal("850000.02"))
+        self.assertEqual(b.gst_amount, Decimal("0"))
+
+    def test_balance_with_part_payments_and_overpayment(self):
+        from decimal import Decimal
+        from .models import ClientBilling, PaymentReceipt
+        b = ClientBilling(client=self.client_obj, academic_year="2025-2026",
+                          override_amounts=True, net_amount=Decimal("100000"),
+                          previous_pending=Decimal("20000"))
+        b.save()
+        PaymentReceipt.objects.create(billing=b, amount=Decimal("50000"))
+        PaymentReceipt.objects.create(billing=b, amount=Decimal("80000"))
+        self.assertEqual(b.received_total, Decimal("130000"))
+        self.assertEqual(b.balance, Decimal("-10000"))  # overpaid -> advance
+
+    def test_academic_year_normalization(self):
+        from .forms_income import ClientBillingForm
+        form = ClientBillingForm(data={"academic_year": "2025-26",
+                                       "override_amounts": True, "net_amount": "1000",
+                                       "one_time_payment": "0", "gst_amount": "0",
+                                       "previous_pending": "0"})
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["academic_year"], "2025-2026")
+
+    def test_to_decimal_handles_currency_and_text(self):
+        from decimal import Decimal
+        from .services.income_import import _to_decimal
+        self.assertEqual(_to_decimal("₹1,23,456.75"), Decimal("123456.75"))
+        self.assertEqual(_to_decimal(1500), Decimal("1500.00"))
+        self.assertIsNone(_to_decimal("Around 3 Lakhs"))
+        self.assertIsNone(_to_decimal(""))
+
+    def test_access_control(self):
+        # anonymous -> login redirect
+        r = self.client.get("/income/")
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/accounts/login/", r["Location"])
+        # non-staff -> 403
+        self.client.force_login(self.plain)
+        self.assertEqual(self.client.get("/income/").status_code, 403)
+        # staff -> 200
+        self.client.force_login(self.staff)
+        self.assertEqual(self.client.get("/income/").status_code, 200)
+
+    def test_seed_totals_match_sheet_footer(self):
+        from decimal import Decimal
+        from payslip.management.commands.seed_income import _rows
+        rows = _rows().rows
+        total = sum((r.net_amount + r.previous_pending - r.received for r in rows), Decimal("0"))
+        self.assertEqual(total, Decimal("6281796.42"))

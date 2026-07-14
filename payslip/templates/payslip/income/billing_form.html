@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{ heading }} - Aveon Income</title>
+{% include "payslip/income/_income_style.html" %}
+</head>
+<body>
+<div class="container" style="max-width:760px;">
+  {% include "payslip/income/_income_nav.html" %}
+
+  <div class="card">
+    <h1>{{ heading }}</h1>
+    <p class="sub">Amounts auto-calculate from Students × Rate (+18% GST). Tick "manual amounts" for fixed-fee years.</p>
+    {% if form.errors %}
+    <div class="msg error">
+      {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+    <form method="post" style="margin-top:14px;">
+      {% csrf_token %}
+      <div class="grid">
+        <p><label>Academic Year</label>{{ form.academic_year }}</p>
+        <p><label>Implementation Engineer</label>{{ form.engineer }}</p>
+        <p><label>Student Count</label>{{ form.student_count }}</p>
+        <p><label>Rate (₹ / student / year)</label>{{ form.rate }}</p>
+        <p><label>One-Time Payment (₹)</label>{{ form.one_time_payment }}</p>
+        <p><label>Previous Pending (₹)</label>{{ form.previous_pending }}</p>
+        <p class="full" style="background:#F8FAFC; border:1.5px dashed #CBD5E1; border-radius:10px; padding:10px 14px;">
+          <label style="display:inline;">{{ form.override_amounts }} Manual amounts (fixed-fee / lump sum - skip auto-calculation)</label>
+        </p>
+        <div id="manual-amounts" class="full grid" style="gap:12px 18px;">
+          <p><label>Taxable Value (₹)</label>{{ form.taxable_value }}</p>
+          <p><label>GST Amount (₹)</label>{{ form.gst_amount }}</p>
+          <p><label>Net Amount (₹)</label>{{ form.net_amount }}</p>
+        </div>
+        <p><label>Invoice Status</label>{{ form.invoice_status }}</p>
+        <p><label>Next Follow-up Date</label>{{ form.next_followup_date }}</p>
+        <p class="full"><label>Follow-up Note</label>{{ form.followup_note }}</p>
+        <p class="full"><label>Remarks</label>{{ form.remarks }}</p>
+      </div>
+      <div style="margin-top:18px; display:flex; gap:12px;">
+        <button class="btn" type="submit">Save</button>
+        <a class="btn secondary" href="{% url 'income_client_detail' client.pk %}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+  const chk = document.getElementById('id_override_amounts');
+  const manual = document.getElementById('manual-amounts');
+  function toggle() {
+    manual.style.opacity = chk.checked ? '1' : '0.45';
+    manual.querySelectorAll('input').forEach(i => i.readOnly = !chk.checked);
+  }
+  chk.addEventListener('change', toggle);
+  toggle();
+</script>
+</body>
+</html>

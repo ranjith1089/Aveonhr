@@ -1,5 +1,6 @@
 from django.urls import include, path
 
+from . import views_income
 from .views import (
     cms_feature_list,
     company_profile,
@@ -29,5 +30,17 @@ urlpatterns = [
     path("proposal-quotation/cms-features/", cms_feature_list, name="cms_feature_list"),
     path("preview/<str:token>/", preview_pdf, name="preview_pdf"),
     path("download/<str:token>/", download_file, name="download_file"),
+    # --- Income module (staff-only) ---
+    path("income/", views_income.income_dashboard, name="income_dashboard"),
+    path("income/clients/", views_income.income_client_list, name="income_client_list"),
+    path("income/clients/new/", views_income.income_client_create, name="income_client_create"),
+    path("income/clients/<int:pk>/", views_income.income_client_detail, name="income_client_detail"),
+    path("income/clients/<int:pk>/edit/", views_income.income_client_edit, name="income_client_edit"),
+    path("income/clients/<int:pk>/billing/new/", views_income.income_billing_create, name="income_billing_create"),
+    path("income/billing/<int:pk>/edit/", views_income.income_billing_edit, name="income_billing_edit"),
+    path("income/billing/<int:pk>/payments/add/", views_income.income_payment_add, name="income_payment_add"),
+    path("income/payments/<int:pk>/delete/", views_income.income_payment_delete, name="income_payment_delete"),
+    path("income/export.xlsx", views_income.income_export, name="income_export"),
+    path("income/import/", views_income.income_import, name="income_import"),
 ]
 
