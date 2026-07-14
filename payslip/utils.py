@@ -556,7 +556,7 @@ def _add_months_clamped(d: "date", months: int) -> "date":
     return _date(new_year, new_month, min(d.day, last_day))
 
 
-def build_offer_letter_pdf(data: dict, *, letterhead: bool = True) -> bytes:
+def build_offer_letter_pdf(data: dict, *, letterhead: bool = True, brand=None) -> bytes:
     from .pdf_styles import (
         SPACE_MD,
         SPACE_SM,
@@ -569,11 +569,13 @@ def build_offer_letter_pdf(data: dict, *, letterhead: bool = True) -> bytes:
     )
 
     buffer = BytesIO()
-    doc = make_doc(buffer)
+    from .pdf_styles import CompanyBranding
+    brand = brand or CompanyBranding()
+    doc = make_doc(buffer, author=brand.name)
     s = get_styles()
     story: list = []
     if letterhead:
-        story.extend(build_letterhead())
+        story.extend(build_letterhead(brand=brand))
     else:
         # Plain export for pre-printed letterhead paper: leave blank clearance
         # at the top so content sits below the physical letterhead band.
@@ -624,13 +626,13 @@ def build_offer_letter_pdf(data: dict, *, letterhead: bool = True) -> bytes:
     if duration_months and end_date:
         month_word = "month" if duration_months == 1 else "months"
         body_sentence = (
-            "We are pleased to offer you an internship at our company Aveon Infotech Private Limited "
+            f"We are pleased to offer you an internship at our company {brand.name} "
             f"as an <b>{role}</b> for a period of <b>{duration_months} {month_word}</b>, starting on "
             f"<b>{start_date_label}</b> and ending on <b>{end_date_label}</b>."
         )
     else:
         body_sentence = (
-            "We are pleased to offer you an internship at our company Aveon Infotech Private Limited "
+            f"We are pleased to offer you an internship at our company {brand.name} "
             f"as an <b>{role}</b>. Your internship starts on <b>{start_date_label}</b>."
         )
     story.append(Paragraph(body_sentence, s["body"]))
@@ -645,31 +647,31 @@ def build_offer_letter_pdf(data: dict, *, letterhead: bool = True) -> bytes:
         s["body"],
     ))
     story.append(Paragraph(
-        "The Internship cannot be construed as an employment offer with Aveon Infotech Private Limited.",
+        f"The Internship cannot be construed as an employment offer with {brand.name}.",
         s["body"],
     ))
 
     # Signatory comes from the form; falls back to the long-standing defaults
     # so older drafts (saved before the fields existed) still render.
-    signatory = _xml_escape(str(data.get("intern_signatory") or "").strip()) or "Ranjith Kumar"
+    signatory = _xml_escape(str(data.get("intern_signatory") or "").strip()) or brand.signatory_name or "Ranjith Kumar"
     signatory_designation = (
-        _xml_escape(str(data.get("intern_signatory_designation") or "").strip()) or "General Manager"
+        _xml_escape(str(data.get("intern_signatory_designation") or "").strip()) or brand.signatory_designation or "General Manager"
     )
     story.extend(build_signature_block(
         closing="Sincerely,",
-        company="Aveon Infotech Private Limited",
+        company=brand.name,
         name=signatory,
         designation=signatory_designation,
     ))
 
     if letterhead:
-        build_with_footer(doc, story, footer=True, show_page_number=False)
+        build_with_footer(doc, story, footer=True, show_page_number=False, company_name=brand.name)
     else:
         build_with_footer(doc, story, footer=False)
     return buffer.getvalue()
 
 
-def build_appointment_order_pdf(data: dict, *, letterhead: bool = True) -> bytes:
+def build_appointment_order_pdf(data: dict, *, letterhead: bool = True, brand=None) -> bytes:
     from .pdf_styles import (
         SPACE_MD,
         SPACE_SM,
@@ -683,11 +685,13 @@ def build_appointment_order_pdf(data: dict, *, letterhead: bool = True) -> bytes
     )
 
     buffer = BytesIO()
-    doc = make_doc(buffer)
+    from .pdf_styles import CompanyBranding
+    brand = brand or CompanyBranding()
+    doc = make_doc(buffer, author=brand.name)
     s = get_styles()
     story: list = []
     if letterhead:
-        story.extend(build_letterhead())
+        story.extend(build_letterhead(brand=brand))
     else:
         story.append(Spacer(1, 35 * mm))
 
@@ -814,13 +818,13 @@ def build_appointment_order_pdf(data: dict, *, letterhead: bool = True) -> bytes
     story.append(acceptance_table)
 
     if letterhead:
-        build_with_footer(doc, story, footer=True, show_page_number=False)
+        build_with_footer(doc, story, footer=True, show_page_number=False, company_name=brand.name)
     else:
         build_with_footer(doc, story, footer=False)
     return buffer.getvalue()
 
 
-def build_employment_offer_pdf(data: dict, *, letterhead: bool = True) -> bytes:
+def build_employment_offer_pdf(data: dict, *, letterhead: bool = True, brand=None) -> bytes:
     from .pdf_styles import (
         BRAND_BG_TINT,
         BRAND_DIVIDER,
@@ -839,11 +843,13 @@ def build_employment_offer_pdf(data: dict, *, letterhead: bool = True) -> bytes:
     )
 
     buffer = BytesIO()
-    doc = make_doc(buffer)
+    from .pdf_styles import CompanyBranding
+    brand = brand or CompanyBranding()
+    doc = make_doc(buffer, author=brand.name)
     s = get_styles()
     story: list = []
     if letterhead:
-        story.extend(build_letterhead())
+        story.extend(build_letterhead(brand=brand))
     else:
         story.append(Spacer(1, 35 * mm))
 
@@ -863,7 +869,7 @@ def build_employment_offer_pdf(data: dict, *, letterhead: bool = True) -> bytes:
 
     story.append(Paragraph(
         f"We are pleased to extend this offer of employment for the position of <b>{position}</b> at "
-        "<b>Aveon Infotech Private Limited</b>. Our company is committed to providing "
+        f"<b>{brand.name}</b>. Our company is committed to providing "
         "the best possible work environment for our employees, and we believe that you have the skills, "
         "experience, and dedication needed to be a valuable member of our team.",
         s["body"],
@@ -1029,13 +1035,13 @@ def build_employment_offer_pdf(data: dict, *, letterhead: bool = True) -> bytes:
     story.append(ack_table)
 
     if letterhead:
-        build_with_footer(doc, story, footer=True, show_page_number=False)
+        build_with_footer(doc, story, footer=True, show_page_number=False, company_name=brand.name)
     else:
         build_with_footer(doc, story, footer=False)
     return buffer.getvalue()
 
 
-def build_experience_certificate_pdf(data: dict, *, letterhead: bool = True) -> bytes:
+def build_experience_certificate_pdf(data: dict, *, letterhead: bool = True, brand=None) -> bytes:
     from .pdf_styles import (
         SPACE_MD,
         build_letterhead,
@@ -1047,11 +1053,13 @@ def build_experience_certificate_pdf(data: dict, *, letterhead: bool = True) -> 
     )
 
     buffer = BytesIO()
-    doc = make_doc(buffer)
+    from .pdf_styles import CompanyBranding
+    brand = brand or CompanyBranding()
+    doc = make_doc(buffer, author=brand.name)
     s = get_styles()
     story: list = []
     if letterhead:
-        story.extend(build_letterhead())
+        story.extend(build_letterhead(brand=brand))
     else:
         # Plain export for pre-printed letterhead paper: leave blank clearance
         # at the top so content sits below the physical letterhead band.
@@ -1143,7 +1151,7 @@ def build_experience_certificate_pdf(data: dict, *, letterhead: bool = True) -> 
 
     if letterhead:
         # Keep the company footer line but drop the page number.
-        build_with_footer(doc, story, footer=True, show_page_number=False)
+        build_with_footer(doc, story, footer=True, show_page_number=False, company_name=brand.name)
     else:
         # Plain export for pre-printed paper: no digital footer at all.
         build_with_footer(doc, story, footer=False)

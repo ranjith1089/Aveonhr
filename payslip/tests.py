@@ -1,8 +1,14 @@
+from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
 
 class ProposalQuotationViewTests(TestCase):
+    def setUp(self):
+        # All tools require login since the SaaS transformation.
+        self.user = User.objects.create_user("tester", "tester@example.com", "pass12345")
+        self.client.force_login(self.user)
+
     def test_get_proposal_quotation_page(self):
         response = self.client.get(reverse('proposal_quotation'))
         self.assertEqual(response.status_code, 200)

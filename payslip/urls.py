@@ -1,12 +1,15 @@
-from django.urls import path
+from django.urls import include, path
 
 from .views import (
     cms_feature_list,
+    company_profile,
     download_file,
     experience_certificate,
     landing,
     offer_letter,
     preview_pdf,
+    profile_logo,
+    signup,
     travel_expense,
     upload_payslips,
     proposal_quotation,
@@ -14,6 +17,10 @@ from .views import (
 
 urlpatterns = [
     path("", landing, name="landing"),
+    path("accounts/signup/", signup, name="signup"),
+    path("accounts/", include("django.contrib.auth.urls")),
+    path("profile/", company_profile, name="company_profile"),
+    path("profile/logo/", profile_logo, name="profile_logo"),
     path("offer-letter/", offer_letter, name="offer_letter"),
     path("experience-certificate/", experience_certificate, name="experience_certificate"),
     path("travel-expense/", travel_expense, name="travel_expense"),

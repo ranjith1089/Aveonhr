@@ -15,6 +15,13 @@ venv/
 env/
 
 #
+# Database / generated
+#
+db.sqlite3
+staticfiles/
+tmp_payslips/
+
+#
 # OS / editor
 #
 .DS_Store

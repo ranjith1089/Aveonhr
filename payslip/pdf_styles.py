@@ -15,6 +15,7 @@ layouts; touching them would be churn for no gain.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -50,8 +51,53 @@ COMPANY_TAGLINE = "Built for Education. Powered by Innovation."
 COMPANY_ADDRESS = "Coimbatore, Tamil Nadu, India"
 COMPANY_EMAIL = "contact@aveoninfotech.com"
 COMPANY_WEBSITE = "www.aveoninfotech.com"
+COMPANY_PHONE = "+91 8754006483"
 
 LOGO_PATH = Path(__file__).parent / "static" / "payslip" / "logo.png"
+
+
+@dataclass(frozen=True)
+class CompanyBranding:
+    """Per-tenant company identity used to brand generated documents.
+
+    Defaults are the built-in (Aveon) values, so passing no branding - or a
+    branding built from an empty profile - produces today's exact output.
+    """
+
+    name: str = COMPANY_NAME
+    tagline: str = COMPANY_TAGLINE
+    address: str = COMPANY_ADDRESS
+    email: str = COMPANY_EMAIL
+    phone: str = COMPANY_PHONE
+    website: str = COMPANY_WEBSITE
+    jurisdiction: str = "Coimbatore, Tamil Nadu"
+    signatory_name: str = ""
+    signatory_designation: str = ""
+    logo_bytes: bytes | None = None  # None -> fall back to LOGO_PATH
+    brand_primary: str = "#1565C0"
+    brand_accent: str = "#2E7D32"
+
+    @classmethod
+    def from_profile(cls, profile) -> "CompanyBranding":
+        """Build branding from a CompanyProfile; blank fields keep defaults."""
+        if profile is None:
+            return cls()
+        d = cls()
+        addr_parts = [p for p in [profile.address, profile.city, profile.state, profile.country] if p]
+        return cls(
+            name=profile.company_name or d.name,
+            tagline=profile.tagline or d.tagline,
+            address=", ".join(addr_parts) if profile.address or profile.city else d.address,
+            email=profile.email or d.email,
+            phone=profile.phone or d.phone,
+            website=profile.website or d.website,
+            jurisdiction=profile.jurisdiction or d.jurisdiction,
+            signatory_name=profile.signatory_name or "",
+            signatory_designation=profile.signatory_designation or "",
+            logo_bytes=profile.logo_bytes,
+            brand_primary=profile.brand_primary or d.brand_primary,
+            brand_accent=profile.brand_accent or d.brand_accent,
+        )
 
 # ---------------------------------------------------------------------------
 # Layout constants — same units everywhere so spacing is predictable
@@ -189,21 +235,38 @@ def build_letterhead(
     address: str = COMPANY_ADDRESS,
     contact: str = "",
     include_logo: bool = True,
+    brand: "CompanyBranding | None" = None,
 ) -> list:
     """
     Returns a list of flowables forming a letterhead block:
         [logo + company-block table] + colored divider line + spacer
     Logo is omitted gracefully if the file is missing.
+
+    Pass `brand=` to derive every field (incl. logo bytes and brand color)
+    from a tenant's CompanyBranding; explicit kwargs are then ignored.
     """
+    if brand is not None:
+        company_name = brand.name
+        tagline = brand.tagline
+        address = brand.address
+        contact = " | ".join(p for p in [brand.email, brand.phone] if p)
+    brand_primary = brand.brand_primary if brand else "#1565C0"
+    logo_bytes = brand.logo_bytes if brand else None
+
     styles = get_styles()
     flowables: list = []
 
-    # Left cell: logo (if available)
+    # Left cell: logo. Tenant logo bytes win; the bundled (Aveon) file is
+    # only used for the default company - a custom company without an
+    # uploaded logo gets no logo rather than someone else's.
     left_cell = ""
-    if include_logo and LOGO_PATH.exists():
+    if include_logo:
         try:
-            img = Image(str(LOGO_PATH), width=28 * mm, height=28 * mm, kind="proportional")
-            left_cell = img
+            if logo_bytes:
+                from io import BytesIO
+                left_cell = Image(BytesIO(logo_bytes), width=28 * mm, height=28 * mm, kind="proportional")
+            elif company_name == COMPANY_NAME and LOGO_PATH.exists():
+                left_cell = Image(str(LOGO_PATH), width=28 * mm, height=28 * mm, kind="proportional")
         except Exception:
             left_cell = ""
 
@@ -211,7 +274,7 @@ def build_letterhead(
     # so we build a single paragraph with <br/> line breaks and inline <font>
     # styling per line.
     company_lines = [
-        f'<font name="{FONT_BOLD}" size="14" color="#1565C0">{company_name}</font>',
+        f'<font name="{FONT_BOLD}" size="14" color="{brand_primary}">{company_name}</font>',
         f'<font name="{FONT_BODY}" size="9" color="#475569"><i>{tagline}</i></font>',
     ]
     if address:
@@ -240,10 +303,10 @@ def build_letterhead(
     ]))
     flowables.append(header_table)
 
-    # Colored divider — same primary blue as the proposal hero
+    # Colored divider — the tenant's primary brand colour
     divider = Table([[""]], colWidths=[None], rowHeights=[2.4])
     divider.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), BRAND_PRIMARY),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(brand_primary)),
         ("LINEBELOW", (0, 0), (-1, -1), 0, colors.white),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
@@ -298,7 +361,7 @@ def build_signature_block(
 # Footer — drawn directly on the canvas via SimpleDocTemplate callbacks.
 # Includes page number + generated-on date + company name.
 # ---------------------------------------------------------------------------
-def _make_footer_drawer(show_page_number: bool = True):
+def _make_footer_drawer(show_page_number: bool = True, company_name: str = COMPANY_NAME):
     """Return a footer-drawing callback. Page number is optional so a builder
     can keep the company footer line while dropping the 'Page N' text."""
     def _draw(canvas, doc) -> None:
@@ -309,7 +372,7 @@ def _make_footer_drawer(show_page_number: bool = True):
         y = 12 * mm
 
         # Left: company name
-        canvas.drawString(MARGIN_SIDE, y, COMPANY_NAME)
+        canvas.drawString(MARGIN_SIDE, y, company_name)
 
         # Center: thin divider above the footer text
         canvas.setStrokeColor(BRAND_DIVIDER)
@@ -327,7 +390,7 @@ def _make_footer_drawer(show_page_number: bool = True):
 _draw_footer = _make_footer_drawer(True)
 
 
-def make_doc(buffer) -> SimpleDocTemplate:
+def make_doc(buffer, *, author: str = COMPANY_NAME, title: str = "Document") -> SimpleDocTemplate:
     """A SimpleDocTemplate pre-wired with the shared margins + footer."""
     return SimpleDocTemplate(
         buffer,
@@ -336,8 +399,8 @@ def make_doc(buffer) -> SimpleDocTemplate:
         rightMargin=MARGIN_SIDE,
         topMargin=MARGIN_TOP,
         bottomMargin=MARGIN_BOTTOM,
-        title="Aveon Document",
-        author=COMPANY_NAME,
+        title=title,
+        author=author,
     )
 
 
@@ -347,6 +410,7 @@ def build_with_footer(
     *,
     footer: bool = True,
     show_page_number: bool = True,
+    company_name: str = COMPANY_NAME,
 ) -> None:
     """Build the doc, optionally drawing the standard footer on every page.
 
@@ -358,5 +422,5 @@ def build_with_footer(
     if not footer:
         doc.build(story)
         return
-    drawer = _make_footer_drawer(show_page_number)
+    drawer = _make_footer_drawer(show_page_number, company_name)
     doc.build(story, onFirstPage=drawer, onLaterPages=drawer)

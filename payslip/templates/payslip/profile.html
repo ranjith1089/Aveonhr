@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Company Profile - Aveon HR Suite</title>
+<style>
+  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:'Segoe UI', Arial, sans-serif; background:#F5F7FA; color:#1A1A2E; }
+  .container { max-width:860px; margin:0 auto; padding:32px 20px 60px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  .topbar a { color:#1565C0; text-decoration:none; font-size:14px; font-weight:600; }
+  .card {
+    background:#fff; border-radius:16px; padding:32px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.1); margin-bottom:16px;
+  }
+  h1 { font-size:24px; font-weight:900; margin-bottom:4px; }
+  .sub { font-size:14px; color:#5A6478; margin-bottom:8px; }
+  .banner {
+    border-radius:10px; padding:12px 18px; font-size:14px; margin-bottom:18px;
+  }
+  .banner.welcome { background:#EEF4FF; border:1px solid #BFDBFE; color:#1E40AF; }
+  .banner.saved { background:#F0FDF4; border:1px solid #BBF7D0; color:#166534; }
+  h3 { font-size:15px; font-weight:800; color:#1565C0; margin:22px 0 12px; text-transform:uppercase; letter-spacing:1px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 20px; }
+  .grid .full { grid-column:1 / -1; }
+  label { display:block; font-size:12.5px; font-weight:700; color:#334155; margin-bottom:5px; }
+  input[type=text], input[type=email], textarea {
+    width:100%; padding:10px 13px; border:1.5px solid #D6DEEB; border-radius:9px;
+    font-size:14px; font-family:inherit;
+  }
+  input[type=color] { width:60px; height:38px; padding:2px; border:1.5px solid #D6DEEB; border-radius:8px; cursor:pointer; }
+  input:focus, textarea:focus { outline:none; border-color:#1565C0; }
+  .logo-row { display:flex; align-items:center; gap:20px; flex-wrap:wrap; }
+  .logo-preview {
+    width:84px; height:84px; border-radius:12px; border:1.5px solid #E2E8F0;
+    background:#F8FAFC; display:flex; align-items:center; justify-content:center;
+    overflow:hidden; flex-shrink:0;
+  }
+  .logo-preview img { max-width:100%; max-height:100%; object-fit:contain; }
+  .logo-preview span { font-size:11px; color:#94A3B8; }
+  .help { font-size:11.5px; color:#94A3B8; margin-top:4px; }
+  .errors { background:#FEF2F2; border:1px solid #FECACA; border-radius:9px; padding:10px 14px; font-size:13px; color:#991B1B; margin-bottom:16px; }
+  .btn {
+    padding:12px 28px; border:none; border-radius:9px;
+    background:#1565C0; color:#fff; font-size:15px; font-weight:700; cursor:pointer;
+  }
+  .btn:hover { background:#0F4C9A; }
+  .actions { display:flex; align-items:center; gap:16px; margin-top:24px; }
+  .actions a { color:#5A6478; font-size:13.5px; text-decoration:none; }
+  @media (max-width:640px) { .grid { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <a href="{% url 'landing' %}">&larr; Aveon HR Suite</a>
+    <div>
+      <a href="{% url 'logout' %}" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">Log out</a>
+      <form id="logout-form" method="post" action="{% url 'logout' %}" style="display:none;">{% csrf_token %}</form>
+    </div>
+  </div>
+
+  <div class="card">
+    <h1>Company Profile</h1>
+    <p class="sub">These details prefill every tool and brand every document you generate - letterheads, footers, signatures and logos.</p>
+
+    {% if welcome %}
+    <div class="banner welcome">Welcome! Set up your company once - every payslip, offer letter and certificate will use it automatically. You can change it anytime.</div>
+    {% endif %}
+    {% if saved %}
+    <div class="banner saved">&#10003; Profile saved. Your documents will now use these details.</div>
+    {% endif %}
+
+    {% if form.errors %}
+    <div class="errors">
+      {% for field, errs in form.errors.items %}
+        {% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+
+      <h3>Company</h3>
+      <div class="grid">
+        <p><label>Company Name</label>{{ form.company_name }}</p>
+        <p><label>Tagline</label>{{ form.tagline }}</p>
+        <p class="full"><label>Address</label>{{ form.address }}</p>
+        <p><label>City</label>{{ form.city }}</p>
+        <p><label>State</label>{{ form.state }}</p>
+        <p><label>Country</label>{{ form.country }}</p>
+        <p><label>Jurisdiction (for legal documents)</label>{{ form.jurisdiction }}</p>
+      </div>
+
+      <h3>Contact</h3>
+      <div class="grid">
+        <p><label>Email</label>{{ form.email }}</p>
+        <p><label>Phone</label>{{ form.phone }}</p>
+        <p class="full"><label>Website</label>{{ form.website }}</p>
+      </div>
+
+      <h3>Logo &amp; Branding</h3>
+      <div class="logo-row">
+        <div class="logo-preview">
+          {% if profile.logo %}
+          <img src="{% url 'profile_logo' %}?v={{ profile.updated_at|date:'U' }}" alt="Company logo">
+          {% else %}
+          <span>No logo</span>
+          {% endif %}
+        </div>
+        <div style="flex:1; min-width:240px;">
+          {{ form.logo_upload }}
+          <div class="help">PNG or JPG, up to 2 MB.</div>
+          {% if profile.logo %}
+          <p style="margin-top:8px; font-size:13px;">{{ form.remove_logo }} <label style="display:inline; font-weight:600;">Remove current logo</label></p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="grid" style="margin-top:14px;">
+        <p><label>Primary Brand Color</label>{{ form.brand_primary }}</p>
+        <p><label>Accent Color</label>{{ form.brand_accent }}</p>
+      </div>
+
+      <h3>Authorized Signatory</h3>
+      <div class="grid">
+        <p><label>Signatory Name</label>{{ form.signatory_name }}</p>
+        <p><label>Signatory Designation</label>{{ form.signatory_designation }}</p>
+      </div>
+
+      <div class="actions">
+        <button class="btn" type="submit">Save Profile</button>
+        <a href="{% url 'landing' %}">Continue to tools &rarr;</a>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

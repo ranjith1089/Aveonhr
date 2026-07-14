@@ -32,7 +32,40 @@ def _extension(filename: str) -> str:
     return ("." + filename.rsplit(".", 1)[-1].lower()) if "." in filename else ""
 
 
-class PayslipUploadForm(forms.Form):
+class ProfilePrefillMixin:
+    """Prefill form initials from the logged-in user's CompanyProfile.
+
+    Subclasses declare PROFILE_PREFILL = {form_field: profile_attr}.
+    Only non-blank profile values override the built-in initials, so an
+    empty profile keeps today's defaults.
+    """
+
+    PROFILE_PREFILL: dict[str, str] = {}
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return
+        from .models import profile_for
+        profile = profile_for(user)
+        for field_name, attr in self.PROFILE_PREFILL.items():
+            if field_name not in self.fields:
+                continue
+            if attr == "_city_state":
+                value = ", ".join(p for p in [profile.city, profile.state] if p)
+            else:
+                value = getattr(profile, attr, "") or ""
+            if value:
+                self.fields[field_name].initial = value
+
+
+class PayslipUploadForm(ProfilePrefillMixin, forms.Form):
+    PROFILE_PREFILL = {
+        "company_name": "company_name",
+        "company_address": "address",
+        "company_email": "email",
+        "company_phone": "phone",
+    }
     company_name = forms.CharField(
         label="Company Name", 
         max_length=200,
@@ -81,7 +114,16 @@ class PayslipUploadForm(forms.Form):
         return file
 
 
-class OfferLetterForm(forms.Form):
+class OfferLetterForm(ProfilePrefillMixin, forms.Form):
+    PROFILE_PREFILL = {
+        "intern_signatory": "signatory_name",
+        "intern_signatory_designation": "signatory_designation",
+        "company_name": "company_name",
+        "signatory": "signatory_name",
+        "signatory_designation": "signatory_designation",
+        "employer_name": "signatory_name",
+        "employer_designation": "signatory_designation",
+    }
     OFFER_TYPES = [
         ("", "-- Select Offer Type --"),
         ("internship", "INTERNSHIP OFFER LETTER"),
@@ -200,7 +242,14 @@ class OfferLetterForm(forms.Form):
         return cleaned
 
 
-class ExperienceCertificateForm(forms.Form):
+class ExperienceCertificateForm(ProfilePrefillMixin, forms.Form):
+    PROFILE_PREFILL = {
+        "internship_company": "company_name",
+        "internship_location": "city",
+        "company_name_exp": "company_name",
+        "signatory_exp": "signatory_name",
+        "signatory_designation_exp": "signatory_designation",
+    }
     CERTIFICATE_TYPES = [
         ("", "-- Select Certificate Type --"),
         ("employee", "Employee Experience Letter"),
@@ -303,7 +352,13 @@ class ExperienceCertificateForm(forms.Form):
         return cleaned
 
 
-class TravelExpenseForm(forms.Form):
+class TravelExpenseForm(ProfilePrefillMixin, forms.Form):
+    PROFILE_PREFILL = {
+        "company_name_travel": "company_name",
+        "company_address_travel": "address",
+        "company_city_state": "_city_state",
+        "company_country": "country",
+    }
     # Company Information
     company_name_travel = forms.CharField(label="Company Name", max_length=200)
     company_address_travel = forms.CharField(label="Company Address", max_length=300)
@@ -342,7 +397,13 @@ class TravelExpenseForm(forms.Form):
     )
 
 
-class ProposalQuotationForm(forms.Form):
+class ProposalQuotationForm(ProfilePrefillMixin, forms.Form):
+    PROFILE_PREFILL = {
+        "prepared_by": "company_name",
+        "authorized_signatory_name": "signatory_name",
+        "authorized_signatory_designation": "signatory_designation",
+        "jurisdiction": "jurisdiction",
+    }
     """
     Module-wise proposal builder.
 
@@ -523,3 +584,88 @@ class ProposalQuotationForm(forms.Form):
         non_negative("one_time_implementation_fee", "One-Time Implementation Fee")
         non_negative("gst_percent", "GST (%)")
         return cleaned
+
+
+# ---------------------------------------------------------------------------
+# SaaS: signup + company profile
+# ---------------------------------------------------------------------------
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
+
+from .models import CompanyProfile
+
+
+class SignupForm(UserCreationForm):
+    email = forms.EmailField(
+        required=True,
+        widget=forms.EmailInput(attrs={"placeholder": "you@company.com"}),
+    )
+
+    class Meta:
+        model = User
+        fields = ("username", "email", "password1", "password2")
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise ValidationError("An account with this email already exists.")
+        return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data["email"]
+        if commit:
+            user.save()
+        return user
+
+
+class CompanyProfileForm(forms.ModelForm):
+    logo_upload = forms.ImageField(
+        label="Company Logo",
+        required=False,
+        help_text="PNG or JPG, up to 2 MB. Stored at up to 512px.",
+    )
+    remove_logo = forms.BooleanField(label="Remove current logo", required=False)
+
+    class Meta:
+        model = CompanyProfile
+        fields = [
+            "company_name", "tagline", "address", "city", "state", "country",
+            "email", "phone", "website", "jurisdiction",
+            "brand_primary", "brand_accent",
+            "signatory_name", "signatory_designation",
+        ]
+        widgets = {
+            "address": forms.Textarea(attrs={"rows": 3}),
+            "brand_primary": forms.TextInput(attrs={"type": "color"}),
+            "brand_accent": forms.TextInput(attrs={"type": "color"}),
+        }
+
+    def clean_logo_upload(self):
+        f = self.cleaned_data.get("logo_upload")
+        if not f:
+            return f
+        if f.size > 2 * 1024 * 1024:
+            raise ValidationError("Logo must be 2 MB or smaller.")
+        return f
+
+    def save(self, commit=True):
+        profile = super().save(commit=False)
+        if self.cleaned_data.get("remove_logo"):
+            profile.logo = None
+            profile.logo_content_type = ""
+        upload = self.cleaned_data.get("logo_upload")
+        if upload:
+            from io import BytesIO
+            from PIL import Image as PilImage
+            img = PilImage.open(upload)
+            img.load()
+            img = img.convert("RGBA")
+            img.thumbnail((512, 512), PilImage.LANCZOS)
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            profile.logo = buf.getvalue()
+            profile.logo_content_type = "image/png"
+        if commit:
+            profile.save()
+        return profile
