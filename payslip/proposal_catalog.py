@@ -859,9 +859,9 @@ DEFAULT_TERMS: list[str] = [
     "complete the implementation as on date.",
     "Online support will be free of cost.",
     "Client has to provide SMS / WhatsApp API credentials for integration.",
-    "The license fee shall remain fixed for the first two years. 5% increase "
+    "The license fee shall remain fixed for the first three years. 5% increase "
     "on the license price will be applied every year from the beginning of "
-    "the third year.",
+    "the fourth year.",
 ]
 
 
