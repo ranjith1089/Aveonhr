@@ -607,12 +607,21 @@ class SignupForm(UserCreationForm):
         model = User
         fields = ("username", "email", "password1", "password2")
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["username"].widget.attrs.update(
+            {"placeholder": "e.g. ranjith", "autofocus": True}
+        )
+        self.fields["password1"].widget.attrs.update({"placeholder": "At least 8 characters"})
+        self.fields["password2"].widget.attrs.update({"placeholder": "Repeat the password"})
+
     def clean_email(self):
         email = (self.cleaned_data.get("email") or "").strip().lower()
         if User.objects.filter(email__iexact=email).exists():
             raise ValidationError(
                 "An account with this email already exists - please log in "
-                "instead (use the username you chose when signing up)."
+                "instead. You can log in with this email address directly, "
+                "or reset your password from the login page."
             )
         return email
 

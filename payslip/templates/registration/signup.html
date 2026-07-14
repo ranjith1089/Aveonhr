@@ -71,9 +71,18 @@
 
     <form method="post">
       {% csrf_token %}
-      <p><label for="id_username">Username</label>{{ form.username }}</p>
-      <p><label for="id_email">Email</label>{{ form.email }}</p>
-      <p><label for="id_password1">Password</label>{{ form.password1 }}</p>
+      <p>
+        <label for="id_username">Username</label>{{ form.username }}
+        <span class="helptext">Letters, digits and @/./+/-/_ only. You can log in with your email too.</span>
+      </p>
+      <p>
+        <label for="id_email">Email</label>{{ form.email }}
+        <span class="helptext">Used for password reset - use a real address.</span>
+      </p>
+      <p>
+        <label for="id_password1">Password</label>{{ form.password1 }}
+        <span class="helptext">At least 8 characters, not entirely numeric.</span>
+      </p>
       <p><label for="id_password2">Confirm password</label>{{ form.password2 }}</p>
       <button class="btn" type="submit">Create account</button>
     </form>
