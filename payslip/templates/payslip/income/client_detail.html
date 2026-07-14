@@ -8,7 +8,7 @@
 </head>
 <body>
 <div class="container">
-  {% include "payslip/income/_income_nav.html" %}
+  {% include "payslip/income/_income_nav.html" with active_page="clients" %}
 
   <div class="card">
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:14px; flex-wrap:wrap;">
@@ -22,6 +22,20 @@
       <div style="display:flex; gap:8px;">
         <a class="btn secondary" href="{% url 'income_client_edit' client.pk %}">Edit client</a>
         <a class="btn" href="{% url 'income_billing_create' client.pk %}">+ Add academic year</a>
+      </div>
+    </div>
+    <div class="stat-grid" style="margin-top:16px;">
+      <div class="stat">
+        <div class="stat-val blue">₹ {{ total_billed|floatformat:0|intcomma }}</div>
+        <div class="stat-lbl">TOTAL BILLED</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val green">₹ {{ total_received|floatformat:0|intcomma }}</div>
+        <div class="stat-lbl">TOTAL RECEIVED</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val {% if total_balance > 0 %}red{% else %}green{% endif %}">₹ {{ total_balance|floatformat:0|intcomma }}</div>
+        <div class="stat-lbl">BALANCE{% if total_balance < 0 %} (ADVANCE){% endif %}</div>
       </div>
     </div>
   </div>
@@ -39,6 +53,10 @@
       <a class="btn small secondary" href="{% url 'income_billing_edit' b.pk %}">Edit</a>
     </div>
 
+    <div class="bar" style="margin:0 0 4px;"><div class="bar-fill {% if row.collection_pct < 60 %}warn{% endif %}" style="width:{{ row.collection_pct }}%;"></div></div>
+    <div class="bar-lbl" style="margin-bottom:10px;">{{ row.collection_pct }}% collected — ₹ {{ row.received|floatformat:0|intcomma }} of ₹ {{ b.total_due|floatformat:0|intcomma }}</div>
+
+    <div class="tbl-wrap">
     <table style="margin-bottom:12px;">
       <thead><tr>
         <th class="num">Students</th><th class="num">Rate</th><th class="num">One-time</th>
@@ -62,6 +80,7 @@
         </tr>
       </tbody>
     </table>
+    </div>
 
     {% if b.remarks %}<p class="sub" style="margin-bottom:12px;">📝 {{ b.remarks }}</p>{% endif %}
     {% if b.followup_note %}<p class="sub" style="margin-bottom:12px;">⏰ {{ b.followup_note }}</p>{% endif %}

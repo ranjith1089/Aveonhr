@@ -1,11 +1,12 @@
 <div class="topbar">
   <a class="brand" href="{% url 'income_dashboard' %}">💰 Aveon Income</a>
   <div class="topnav">
-    <a href="{% url 'income_dashboard' %}">Dashboard</a>
-    <a href="{% url 'income_client_list' %}">Clients</a>
+    <a href="{% url 'income_dashboard' %}" {% if active_page == "dashboard" %}class="active"{% endif %}>Dashboard</a>
+    <a href="{% url 'income_analytics' %}" {% if active_page == "analytics" %}class="active"{% endif %}>📈 Analytics</a>
+    <a href="{% url 'income_client_list' %}" {% if active_page == "clients" %}class="active"{% endif %}>Clients</a>
     <a href="{% url 'income_client_create' %}">+ Add Client</a>
     <a href="{% url 'income_export' %}">Export Excel</a>
-    <a href="{% url 'income_import' %}">Import</a>
+    <a href="{% url 'income_import' %}" {% if active_page == "import" %}class="active"{% endif %}>Import</a>
     <a href="{% url 'landing' %}">← HR Suite</a>
   </div>
 </div>

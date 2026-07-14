@@ -51,39 +51,34 @@ def _annotated_billings():
 
 @income_required
 def income_dashboard(request: HttpRequest) -> HttpResponse:
+    from .services.income_analytics import build_analytics
+
     billings = list(_annotated_billings())
     today = timezone.localdate()
+    analytics = build_analytics()
 
-    fy_totals: dict[str, Decimal] = {}
-    engineer_rows: dict[str, dict] = {}
-    grand_total = Decimal("0")
-    for b in billings:
-        outstanding = b.total_due - b.received_sum
-        fy_totals[b.academic_year] = fy_totals.get(b.academic_year, Decimal("0")) + outstanding
-        grand_total += outstanding
-        if b.engineer:
-            row = engineer_rows.setdefault(
-                b.engineer, {"engineer": b.engineer, "clients": set(), "outstanding": Decimal("0")}
-            )
-            row["clients"].add(b.client_id)
-            row["outstanding"] += outstanding
-
-    engineer_table = sorted(
-        ({"engineer": r["engineer"], "client_count": len(r["clients"]), "outstanding": r["outstanding"]}
-         for r in engineer_rows.values()),
-        key=lambda r: r["outstanding"], reverse=True,
-    )
     followups = [b for b in billings if b.next_followup_date and b.next_followup_date <= today]
     followups.sort(key=lambda b: b.next_followup_date)
     waiting = [b for b in billings if b.invoice_status == ClientBilling.InvoiceStatus.WAITING]
     recent_payments = (
-        PaymentReceipt.objects.select_related("billing__client").order_by("-created_at")[:10]
+        PaymentReceipt.objects.select_related("billing__client").order_by("-created_at")[:8]
     )
 
+    top_clients = [r for r in analytics["client_outstanding"] if r["balance"] > 0][:8]
+
+    fy_chart = {
+        "labels": [r["year"] for r in analytics["fy_rows"]],
+        "billed": [float(r["billed"]) for r in analytics["fy_rows"]],
+        "received": [float(r["received"]) for r in analytics["fy_rows"]],
+        "outstanding": [float(r["outstanding"]) for r in analytics["fy_rows"]],
+    }
+
     return render(request, "payslip/income/dashboard.html", {
-        "fy_totals": sorted(fy_totals.items(), key=lambda kv: kv[0]),
-        "grand_total": grand_total,
-        "engineer_table": engineer_table,
+        "fy_rows": analytics["fy_rows"],
+        "grand_total": analytics["grand_outstanding"],
+        "engineer_table": analytics["engineer_rows"],
+        "top_clients": top_clients,
+        "fy_chart": fy_chart,
         "followups": followups,
         "waiting": waiting,
         "recent_payments": recent_payments,
@@ -93,12 +88,90 @@ def income_dashboard(request: HttpRequest) -> HttpResponse:
 
 
 @income_required
+def income_analytics(request: HttpRequest) -> HttpResponse:
+    from .services.income_analytics import build_analytics, build_forecast
+
+    analytics = build_analytics()
+    forecast = build_forecast()
+
+    charts = {
+        "fy": {
+            "labels": [r["year"] for r in analytics["fy_rows"]],
+            "billed": [float(r["billed"]) for r in analytics["fy_rows"]],
+            "received": [float(r["received"]) for r in analytics["fy_rows"]],
+            "outstanding": [float(r["outstanding"]) for r in analytics["fy_rows"]],
+        },
+        "clients": {
+            "labels": [r["name"] for r in analytics["client_outstanding"] if r["balance"] > 0][:10],
+            "balances": [float(r["balance"]) for r in analytics["client_outstanding"] if r["balance"] > 0][:10],
+        },
+        "engineers": {
+            "labels": [r["engineer"] for r in analytics["engineer_rows"]],
+            "outstanding": [float(r["outstanding"]) for r in analytics["engineer_rows"]],
+        },
+        "monthly": {
+            "labels": [m["month"] for m in analytics["monthly_trend"]],
+            "amounts": [float(m["amount"]) for m in analytics["monthly_trend"]],
+        },
+        "forecast": {
+            "labels": [f"Current {forecast['current_year']}", "Conservative", "Growth-adjusted"],
+            "values": [float(forecast["current_billed"]),
+                       float(forecast["conservative_total"]),
+                       float(forecast["growth_total"])],
+        },
+    }
+
+    return render(request, "payslip/income/analytics.html", {
+        "analytics": analytics,
+        "forecast": forecast,
+        "charts": charts,
+    })
+
+
+@income_required
 def income_client_list(request: HttpRequest) -> HttpResponse:
     q = (request.GET.get("q") or "").strip()
-    clients = IncomeClient.objects.prefetch_related("billings__payments").all()
+    engineer = (request.GET.get("engineer") or "").strip()
+    show = (request.GET.get("show") or "all").strip()  # all | active | balance
+    sort = (request.GET.get("sort") or "balance").strip()  # balance | name
+
+    clients = list(IncomeClient.objects.prefetch_related("billings__payments").all())
     if q:
-        clients = clients.filter(name__icontains=q)
-    return render(request, "payslip/income/client_list.html", {"clients": clients, "q": q})
+        clients = [c for c in clients if q.lower() in c.name.lower()]
+    if engineer:
+        clients = [c for c in clients if any(b.engineer == engineer for b in c.billings.all())]
+    if show == "active":
+        clients = [c for c in clients if c.is_active]
+    elif show == "balance":
+        clients = [c for c in clients if c.total_balance > 0]
+
+    rows = []
+    total_billed = Decimal("0")
+    total_received = Decimal("0")
+    total_balance = Decimal("0")
+    for c in clients:
+        billed = sum((b.total_due for b in c.billings.all()), Decimal("0"))
+        received = sum((b.received_total for b in c.billings.all()), Decimal("0"))
+        balance = billed - received
+        pct = int(min(max(received / billed * 100, Decimal("0")), Decimal("100"))) if billed > 0 else 0
+        rows.append({"c": c, "billed": billed, "received": received,
+                     "balance": balance, "collection_pct": pct})
+        total_billed += billed
+        total_received += received
+        total_balance += balance
+
+    if sort == "name":
+        rows.sort(key=lambda r: r["c"].name.lower())
+    else:
+        rows.sort(key=lambda r: r["balance"], reverse=True)
+
+    from .models import ENGINEER_CHOICES
+    return render(request, "payslip/income/client_list.html", {
+        "rows": rows, "q": q, "engineer": engineer, "show": show, "sort": sort,
+        "engineers": [e[0] for e in ENGINEER_CHOICES],
+        "total_billed": total_billed, "total_received": total_received,
+        "total_balance": total_balance,
+    })
 
 
 @income_required
@@ -137,11 +210,19 @@ def income_client_detail(request: HttpRequest, pk: int) -> HttpResponse:
             and b.previous_pending is not None
             and abs(b.previous_pending - prev_balance) > Decimal("1")
         )
+        received = b.received_total
+        pct = int(min(max(received / b.total_due * 100, Decimal("0")), Decimal("100"))) if b.total_due > 0 else 0
         rows.append({"b": b, "mismatch": mismatch, "prior_balance": prev_balance,
-                     "payment_form": PaymentReceiptForm()})
+                     "payment_form": PaymentReceiptForm(), "received": received,
+                     "collection_pct": pct})
         prev_balance = b.balance
-    return render(request, "payslip/income/client_detail.html",
-                  {"client": client, "rows": rows})
+    total_billed = sum((b.total_due for b in billings), Decimal("0"))
+    total_received = sum((r["received"] for r in rows), Decimal("0"))
+    return render(request, "payslip/income/client_detail.html", {
+        "client": client, "rows": rows,
+        "total_billed": total_billed, "total_received": total_received,
+        "total_balance": total_billed - total_received,
+    })
 
 
 @income_required

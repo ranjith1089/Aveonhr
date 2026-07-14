@@ -5,106 +5,182 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Income Dashboard - Aveon</title>
 {% include "payslip/income/_income_style.html" %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="container">
-  {% include "payslip/income/_income_nav.html" %}
+  {% include "payslip/income/_income_nav.html" with active_page="dashboard" %}
 
   <div class="card">
-    <h1>Income Dashboard</h1>
-    <p class="sub">Outstanding balances across {{ client_count }} active client{{ client_count|pluralize }} - {{ today|date:"d M Y" }}</p>
-    <div class="stat-grid">
-      {% for year, amount in fy_totals %}
-      <div class="stat">
-        <div class="stat-val {% if amount > 0 %}red{% else %}green{% endif %}">₹ {{ amount|floatformat:2|intcomma }}</div>
-        <div class="stat-lbl">Outstanding {{ year }}</div>
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div>
+        <h1>Income Dashboard</h1>
+        <p class="sub" style="margin:0;">{{ client_count }} active client{{ client_count|pluralize }} · {{ today|date:"d M Y" }}</p>
       </div>
-      {% endfor %}
-      <div class="stat" style="border-color:#1565C0;">
-        <div class="stat-val red">₹ {{ grand_total|floatformat:2|intcomma }}</div>
-        <div class="stat-lbl">TOTAL OUTSTANDING</div>
+      <a class="btn" href="{% url 'income_analytics' %}">📈 Open full analytics →</a>
+    </div>
+  </div>
+
+  <!-- FY stat cards with collection progress -->
+  <div class="stat-grid" style="margin-bottom:16px;">
+    {% for r in fy_rows %}
+    <div class="stat">
+      <div class="stat-val {% if r.outstanding > 0 %}red{% else %}green{% endif %}">₹ {{ r.outstanding|floatformat:0|intcomma }}</div>
+      <div class="stat-lbl">OUTSTANDING {{ r.year }}</div>
+      <div class="bar"><div class="bar-fill {% if r.collection_pct < 60 %}warn{% endif %}" style="width:{{ r.collection_pct }}%;"></div></div>
+      <div class="bar-lbl">{{ r.collection_pct }}% collected of ₹ {{ r.billed|floatformat:0|intcomma }} billed</div>
+    </div>
+    {% endfor %}
+    <div class="stat" style="border-color:#1565C0; background:linear-gradient(135deg,#EEF4FF,#E3EDFF);">
+      <div class="stat-val red">₹ {{ grand_total|floatformat:0|intcomma }}</div>
+      <div class="stat-lbl">TOTAL OUTSTANDING</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <!-- Client-wise balance -->
+    <div class="card">
+      <h2>🏦 Client-wise Balance (top outstanding)</h2>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>#</th><th>Client</th><th>Engineer</th><th class="num">Balance</th><th style="width:110px;">Share</th></tr></thead>
+          <tbody>
+            {% for r in top_clients %}
+            <tr>
+              <td class="muted">{{ forloop.counter }}</td>
+              <td><a href="{% url 'income_client_detail' r.client_id %}">{{ r.name }}</a>
+                {% if not r.is_active %}<span class="badge gray">Discontinued</span>{% endif %}</td>
+              <td>{{ r.engineer }}</td>
+              <td class="num money-due">₹ {{ r.balance|floatformat:0|intcomma }}</td>
+              <td>
+                <div class="bar" style="margin:0;"><div class="bar-fill warn" style="width:{{ r.share_pct }}%;"></div></div>
+                <div class="bar-lbl">{{ r.share_pct }}%</div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5"><div class="empty"><div class="big">🎉</div>No outstanding balances!</div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
+      <p style="margin-top:10px;"><a href="{% url 'income_client_list' %}" style="color:#1565C0; font-weight:700; text-decoration:none; font-size:13px;">View all clients →</a></p>
+    </div>
+
+    <!-- FY chart -->
+    <div class="card">
+      <h2>📊 Billed vs Received vs Outstanding</h2>
+      <div class="chart-box"><canvas id="fyChart"></canvas></div>
     </div>
   </div>
 
   {% if followups %}
   <div class="card" style="border-left:5px solid #C62828;">
     <h2 style="color:#C62828;">⏰ Follow-ups due</h2>
-    <table>
-      <thead><tr><th>Date</th><th>Client</th><th>Year</th><th class="num">Balance</th><th>Note</th><th></th></tr></thead>
-      <tbody>
-        {% for b in followups %}
-        <tr>
-          <td><span class="badge red">{{ b.next_followup_date|date:"d M Y" }}</span></td>
-          <td><a href="{% url 'income_client_detail' b.client_id %}">{{ b.client.name }}</a></td>
-          <td>{{ b.academic_year }}</td>
-          <td class="num money-due">₹ {{ b.balance|floatformat:2|intcomma }}</td>
-          <td>{{ b.followup_note }}</td>
-          <td><a class="btn small secondary" href="{% url 'income_billing_edit' b.pk %}">Update</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Client</th><th>Year</th><th class="num">Balance</th><th>Note</th><th></th></tr></thead>
+        <tbody>
+          {% for b in followups %}
+          <tr>
+            <td><span class="badge red">{{ b.next_followup_date|date:"d M Y" }}</span></td>
+            <td><a href="{% url 'income_client_detail' b.client_id %}">{{ b.client.name }}</a></td>
+            <td>{{ b.academic_year }}</td>
+            <td class="num money-due">₹ {{ b.balance|floatformat:0|intcomma }}</td>
+            <td>{{ b.followup_note }}</td>
+            <td><a class="btn small secondary" href="{% url 'income_billing_edit' b.pk %}">Update</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
   {% endif %}
 
-  <div class="card">
-    <h2>By Implementation Engineer</h2>
-    <table>
-      <thead><tr><th>Engineer</th><th class="num">Clients</th><th class="num">Outstanding</th></tr></thead>
-      <tbody>
-        {% for row in engineer_table %}
-        <tr>
-          <td>{{ row.engineer }}</td>
-          <td class="num">{{ row.client_count }}</td>
-          <td class="num {% if row.outstanding > 0 %}money-due{% else %}money-neg{% endif %}">₹ {{ row.outstanding|floatformat:2|intcomma }}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="3" class="muted">No billing rows yet - add clients or import the sheet.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="two-col">
+    <div class="card">
+      <h2>👷 By Implementation Engineer</h2>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Engineer</th><th class="num">Clients</th><th class="num">Outstanding</th></tr></thead>
+          <tbody>
+            {% for row in engineer_table %}
+            <tr>
+              <td>{{ row.engineer }}</td>
+              <td class="num">{{ row.client_count }}</td>
+              <td class="num {% if row.outstanding > 0 %}money-due{% else %}money-neg{% endif %}">₹ {{ row.outstanding|floatformat:0|intcomma }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3"><div class="empty"><div class="big">📋</div>No billing rows yet.<br><a class="btn small" style="margin-top:10px;" href="{% url 'income_client_create' %}">Add your first client</a></div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>💸 Recent Payments</h2>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Client</th><th class="num">Amount</th><th>Received</th></tr></thead>
+          <tbody>
+            {% for p in recent_payments %}
+            <tr>
+              <td><a href="{% url 'income_client_detail' p.billing.client_id %}">{{ p.billing.client.name }}</a>
+                  <span class="muted">{{ p.billing.academic_year }}</span></td>
+              <td class="num money-neg">₹ {{ p.amount|floatformat:0|intcomma }}</td>
+              <td>{% if p.received_on %}{{ p.received_on|date:"d M Y" }}{% else %}<span class="muted">imported</span>{% endif %}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3"><div class="empty"><div class="big">💤</div>No payments recorded yet.</div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   {% if waiting %}
   <div class="card">
-    <h2>Waiting (invoice)</h2>
-    <table>
-      <thead><tr><th>Client</th><th>Year</th><th class="num">Net</th><th>Remarks</th></tr></thead>
-      <tbody>
-        {% for b in waiting %}
-        <tr>
-          <td><a href="{% url 'income_client_detail' b.client_id %}">{{ b.client.name }}</a></td>
-          <td>{{ b.academic_year }}</td>
-          <td class="num">₹ {{ b.net_amount|floatformat:2|intcomma }}</td>
-          <td>{{ b.remarks|truncatechars:80 }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <h2>⏳ Waiting (invoice)</h2>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Client</th><th>Year</th><th class="num">Net</th><th>Remarks</th></tr></thead>
+        <tbody>
+          {% for b in waiting %}
+          <tr>
+            <td><a href="{% url 'income_client_detail' b.client_id %}">{{ b.client.name }}</a></td>
+            <td>{{ b.academic_year }}</td>
+            <td class="num">₹ {{ b.net_amount|floatformat:0|intcomma }}</td>
+            <td>{{ b.remarks|truncatechars:80 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
   {% endif %}
-
-  <div class="card">
-    <h2>Recent Payments</h2>
-    <table>
-      <thead><tr><th>Client</th><th>Year</th><th class="num">Amount</th><th>Received</th><th>Mode</th><th>Note</th></tr></thead>
-      <tbody>
-        {% for p in recent_payments %}
-        <tr>
-          <td><a href="{% url 'income_client_detail' p.billing.client_id %}">{{ p.billing.client.name }}</a></td>
-          <td>{{ p.billing.academic_year }}</td>
-          <td class="num money-neg">₹ {{ p.amount|floatformat:2|intcomma }}</td>
-          <td>{% if p.received_on %}{{ p.received_on|date:"d M Y" }}{% else %}<span class="muted">imported</span>{% endif %}</td>
-          <td>{{ p.mode }}</td>
-          <td>{{ p.note|truncatechars:50 }}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="6" class="muted">No payments recorded yet.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
 </div>
+
+{{ fy_chart|json_script:"fy-chart-data" }}
+<script>
+  const fyData = JSON.parse(document.getElementById('fy-chart-data').textContent);
+  new Chart(document.getElementById('fyChart'), {
+    type: 'bar',
+    data: {
+      labels: fyData.labels,
+      datasets: [
+        { label: 'Billed', data: fyData.billed, backgroundColor: '#1565C0', borderRadius: 6 },
+        { label: 'Received', data: fyData.received, backgroundColor: '#2E7D32', borderRadius: 6 },
+        { label: 'Outstanding', data: fyData.outstanding, backgroundColor: '#E65100', borderRadius: 6 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ₹ ${c.parsed.y.toLocaleString('en-IN')}` } } },
+      scales: { y: { ticks: { callback: v => '₹' + (v >= 100000 ? (v/100000).toFixed(1) + 'L' : v.toLocaleString('en-IN')) } } }
+    }
+  });
+</script>
 </body>
 </html>

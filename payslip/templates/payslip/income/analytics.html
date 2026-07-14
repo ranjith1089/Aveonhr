@@ -1,0 +1,211 @@
+{% load humanize %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Analytics &amp; Forecast - Aveon Income</title>
+{% include "payslip/income/_income_style.html" %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="container">
+  {% include "payslip/income/_income_nav.html" with active_page="analytics" %}
+
+  <div class="card">
+    <h1>📈 Analytics &amp; Forecast</h1>
+    <p class="sub" style="margin:0;">Revenue performance across financial years and a projection for {{ forecast.target_year }}.</p>
+  </div>
+
+  <!-- FY summary stats -->
+  <div class="stat-grid" style="margin-bottom:16px;">
+    {% for r in analytics.fy_rows %}
+    <div class="stat">
+      <div class="stat-val blue">₹ {{ r.billed|floatformat:0|intcomma }}</div>
+      <div class="stat-lbl">BILLED {{ r.year }}</div>
+      <div class="bar"><div class="bar-fill {% if r.collection_pct < 60 %}warn{% endif %}" style="width:{{ r.collection_pct }}%;"></div></div>
+      <div class="bar-lbl">{{ r.collection_pct }}% collected · ₹ {{ r.outstanding|floatformat:0|intcomma }} outstanding</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <h2>📊 Billed vs Received vs Outstanding</h2>
+      <div class="chart-box"><canvas id="fyChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>🏦 Top clients by outstanding</h2>
+      <div class="chart-box"><canvas id="clientChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <h2>👷 Outstanding by engineer</h2>
+      <div class="chart-box"><canvas id="engChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>💸 Monthly collections trend</h2>
+      {% if charts.monthly.labels %}
+      <div class="chart-box"><canvas id="monthChart"></canvas></div>
+      <p class="muted" style="margin-top:8px;">Dated payments only — ₹ {{ analytics.undated_received|floatformat:0|intcomma }} of imported opening balances have no date and are excluded from the trend (but counted in all totals).</p>
+      {% else %}
+      <div class="empty"><div class="big">📅</div>No dated payments yet.<br>New payments recorded with a date will build this trend.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ===================== FORECAST ===================== -->
+  <div class="card" style="border-top:4px solid #1565C0;">
+    <h2>🔮 Revenue Forecast — {{ forecast.target_year }}</h2>
+    <div class="stat-grid" style="margin-bottom:16px;">
+      <div class="stat">
+        <div class="stat-val">₹ {{ forecast.current_billed|floatformat:0|intcomma }}</div>
+        <div class="stat-lbl">CURRENT BILLED ({{ forecast.current_year }})</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val blue">₹ {{ forecast.conservative_total|floatformat:0|intcomma }}</div>
+        <div class="stat-lbl">CONSERVATIVE — SAME RENEWALS</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val green">₹ {{ forecast.growth_total|floatformat:0|intcomma }}</div>
+        <div class="stat-lbl">GROWTH-ADJUSTED PROJECTION</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div>
+        <div class="chart-box"><canvas id="forecastChart"></canvas></div>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Client</th><th class="num">Students</th>
+            <th class="num">Conservative</th><th class="num">Growth</th><th>Note</th>
+          </tr></thead>
+          <tbody>
+            {% for r in forecast.rows %}
+            <tr>
+              <td><a href="{% url 'income_client_detail' r.client_id %}">{{ r.name }}</a></td>
+              <td class="num">
+                {% if r.current_count %}{{ r.current_count|intcomma }}{% if r.projected_count %} → <b>{{ r.projected_count|intcomma }}</b>{% endif %}{% else %}-{% endif %}
+              </td>
+              <td class="num">₹ {{ r.conservative|floatformat:0|intcomma }}</td>
+              <td class="num" style="font-weight:700;">₹ {{ r.growth|floatformat:0|intcomma }}</td>
+              <td>{% if r.note %}<span class="badge gray">{{ r.note }}</span>{% endif %}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5"><div class="empty"><div class="big">📋</div>No active clients to forecast.</div></td></tr>
+            {% endfor %}
+            {% if forecast.rows %}
+            <tr class="total-row">
+              <td colspan="2">TOTAL ({{ forecast.rows|length }} renewals)</td>
+              <td class="num">₹ {{ forecast.conservative_total|floatformat:0|intcomma }}</td>
+              <td class="num">₹ {{ forecast.growth_total|floatformat:0|intcomma }}</td>
+              <td></td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:12px;">
+      Assumptions: only active clients renew (discontinued excluded) · conservative = latest year's net amount repeated ·
+      growth-adjusted = student count projected by each client's own year-over-year growth × latest rate + 18% GST ·
+      fixed-fee clients renew at the same amount.
+    </p>
+  </div>
+
+  <!-- Client-wise full table -->
+  <div class="card">
+    <h2>🏦 Client-wise balances (all)</h2>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Client</th><th>Engineer</th><th class="num">Billed</th><th class="num">Received</th><th class="num">Balance</th><th style="width:120px;">Collection</th></tr></thead>
+        <tbody>
+          {% for r in analytics.client_outstanding %}
+          <tr>
+            <td class="muted">{{ forloop.counter }}</td>
+            <td><a href="{% url 'income_client_detail' r.client_id %}">{{ r.name }}</a>
+              {% if not r.is_active %}<span class="badge gray">Discontinued</span>{% endif %}</td>
+            <td>{{ r.engineer }}</td>
+            <td class="num">₹ {{ r.billed|floatformat:0|intcomma }}</td>
+            <td class="num money-neg">₹ {{ r.received|floatformat:0|intcomma }}</td>
+            <td class="num {% if r.balance > 0 %}money-due{% else %}money-neg{% endif %}">₹ {{ r.balance|floatformat:0|intcomma }}</td>
+            <td>
+              <div class="bar" style="margin:0;"><div class="bar-fill {% if r.collection_pct < 60 %}warn{% endif %}" style="width:{{ r.collection_pct }}%;"></div></div>
+              <div class="bar-lbl">{{ r.collection_pct }}%</div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{{ charts|json_script:"charts-data" }}
+<script>
+  const C = JSON.parse(document.getElementById('charts-data').textContent);
+  const inr = v => '₹' + (v >= 100000 ? (v/100000).toFixed(1) + 'L' : v.toLocaleString('en-IN'));
+  const tt = { callbacks: { label: c => ` ${c.dataset.label || ''}: ₹ ${(c.parsed.y ?? c.parsed.x ?? c.parsed).toLocaleString('en-IN')}` } };
+
+  new Chart(document.getElementById('fyChart'), {
+    type: 'bar',
+    data: { labels: C.fy.labels, datasets: [
+      { label: 'Billed', data: C.fy.billed, backgroundColor: '#1565C0', borderRadius: 6 },
+      { label: 'Received', data: C.fy.received, backgroundColor: '#2E7D32', borderRadius: 6 },
+      { label: 'Outstanding', data: C.fy.outstanding, backgroundColor: '#E65100', borderRadius: 6 },
+    ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }, tooltip: tt },
+      scales: { y: { ticks: { callback: inr } } } }
+  });
+
+  new Chart(document.getElementById('clientChart'), {
+    type: 'bar',
+    data: { labels: C.clients.labels, datasets: [
+      { label: 'Outstanding', data: C.clients.balances, backgroundColor: '#E65100', borderRadius: 6 },
+    ]},
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tt },
+      scales: { x: { ticks: { callback: inr } } } }
+  });
+
+  new Chart(document.getElementById('engChart'), {
+    type: 'doughnut',
+    data: { labels: C.engineers.labels, datasets: [{
+      data: C.engineers.outstanding,
+      backgroundColor: ['#1565C0','#2E7D32','#E65100','#6A1B9A','#00838F','#C62828','#283593','#F9A825','#455A64'],
+    }]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ` ${c.label}: ₹ ${c.parsed.toLocaleString('en-IN')}` } } } }
+  });
+
+  if (C.monthly.labels.length) {
+    new Chart(document.getElementById('monthChart'), {
+      type: 'line',
+      data: { labels: C.monthly.labels, datasets: [{
+        label: 'Received', data: C.monthly.amounts,
+        borderColor: '#2E7D32', backgroundColor: '#2E7D3222', fill: true, tension: 0.3,
+      }]},
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: tt },
+        scales: { y: { ticks: { callback: inr } } } }
+    });
+  }
+
+  new Chart(document.getElementById('forecastChart'), {
+    type: 'bar',
+    data: { labels: C.forecast.labels, datasets: [{
+      label: 'Billing', data: C.forecast.values,
+      backgroundColor: ['#94A3B8', '#1565C0', '#2E7D32'], borderRadius: 8,
+    }]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: tt },
+      scales: { y: { ticks: { callback: inr } } } }
+  });
+</script>
+</body>
+</html>

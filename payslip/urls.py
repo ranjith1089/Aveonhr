@@ -32,6 +32,7 @@ urlpatterns = [
     path("download/<str:token>/", download_file, name="download_file"),
     # --- Income module (staff-only) ---
     path("income/", views_income.income_dashboard, name="income_dashboard"),
+    path("income/analytics/", views_income.income_analytics, name="income_analytics"),
     path("income/clients/", views_income.income_client_list, name="income_client_list"),
     path("income/clients/new/", views_income.income_client_create, name="income_client_create"),
     path("income/clients/<int:pk>/", views_income.income_client_detail, name="income_client_detail"),
