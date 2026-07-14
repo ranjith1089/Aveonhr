@@ -30,6 +30,11 @@ class ClientBillingForm(forms.ModelForm):
         ]
         widgets = {
             "academic_year": forms.TextInput(attrs={"placeholder": "2025-2026"}),
+            # Free text + datalist: pick an existing engineer or type a new name.
+            "engineer": forms.TextInput(attrs={
+                "list": "engineer-options",
+                "placeholder": "Pick or type a new engineer",
+            }),
             "remarks": forms.Textarea(attrs={"rows": 2}),
             "next_followup_date": forms.DateInput(attrs={"type": "date"}),
         }

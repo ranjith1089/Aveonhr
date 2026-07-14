@@ -22,7 +22,14 @@
       {% csrf_token %}
       <div class="grid">
         <p><label>Academic Year</label>{{ form.academic_year }}</p>
-        <p><label>Implementation Engineer</label>{{ form.engineer }}</p>
+        <p>
+          <label>Implementation Engineer</label>
+          {{ form.engineer }}
+          <datalist id="engineer-options">
+            {% for e in engineer_options %}<option value="{{ e }}">{% endfor %}
+          </datalist>
+          <span class="muted">Pick from the list or type a new name to add an engineer.</span>
+        </p>
         <p><label>Student Count</label>{{ form.student_count }}</p>
         <p><label>Rate (₹ / student / year)</label>{{ form.rate }}</p>
         <p><label>One-Time Payment (₹)</label>{{ form.one_time_payment }}</p>

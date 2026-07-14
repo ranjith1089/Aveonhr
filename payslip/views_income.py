@@ -39,6 +39,17 @@ def income_required(view):
     return wrapper
 
 
+def _engineer_names() -> list[str]:
+    """Known engineers + any new names already typed into billing rows."""
+    from .models import ENGINEER_CHOICES
+    base = {e[0] for e in ENGINEER_CHOICES}
+    used = set(
+        ClientBilling.objects.exclude(engineer="")
+        .values_list("engineer", flat=True).distinct()
+    )
+    return sorted(base | used)
+
+
 def _annotated_billings():
     return (
         ClientBilling.objects.select_related("client")
@@ -165,10 +176,9 @@ def income_client_list(request: HttpRequest) -> HttpResponse:
     else:
         rows.sort(key=lambda r: r["balance"], reverse=True)
 
-    from .models import ENGINEER_CHOICES
     return render(request, "payslip/income/client_list.html", {
         "rows": rows, "q": q, "engineer": engineer, "show": show, "sort": sort,
-        "engineers": [e[0] for e in ENGINEER_CHOICES],
+        "engineers": _engineer_names(),
         "total_billed": total_billed, "total_received": total_received,
         "total_balance": total_balance,
     })
@@ -250,7 +260,8 @@ def income_billing_create(request: HttpRequest, pk: int) -> HttpResponse:
             messages.success(request, f"{billing.academic_year} added for {client.name}.")
             return redirect("income_client_detail", pk=client.pk)
     return render(request, "payslip/income/billing_form.html",
-                  {"form": form, "heading": f"Add year - {client.name}", "client": client})
+                  {"form": form, "heading": f"Add year - {client.name}", "client": client,
+                   "engineer_options": _engineer_names()})
 
 
 @income_required
@@ -263,7 +274,7 @@ def income_billing_edit(request: HttpRequest, pk: int) -> HttpResponse:
         return redirect("income_client_detail", pk=billing.client_id)
     return render(request, "payslip/income/billing_form.html",
                   {"form": form, "heading": f"Edit {billing.client.name} {billing.academic_year}",
-                   "client": billing.client})
+                   "client": billing.client, "engineer_options": _engineer_names()})
 
 
 @income_required

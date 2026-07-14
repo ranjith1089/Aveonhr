@@ -161,7 +161,9 @@ class ClientBilling(models.Model):
     # stays visible via a mismatch badge instead of silent rewrites).
     previous_pending = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0"))
 
-    engineer = models.CharField(max_length=50, choices=ENGINEER_CHOICES, blank=True, default="")
+    # Free text with datalist suggestions in the form - new engineers can be
+    # added by simply typing a new name (ENGINEER_CHOICES seeds suggestions).
+    engineer = models.CharField(max_length=50, blank=True, default="")
     invoice_status = models.CharField(
         max_length=20, choices=InvoiceStatus.choices, blank=True, default=""
     )
@@ -194,6 +196,16 @@ class ClientBilling(models.Model):
 
     @property
     def received_total(self) -> Decimal:
+        # Fast paths first - avoids an N+1 query per row on list pages:
+        # 1) `received_sum` annotation (dashboard/analytics/export querysets)
+        received_sum = getattr(self, "received_sum", None)
+        if received_sum is not None:
+            return received_sum
+        # 2) prefetched payments (client list/detail querysets)
+        cache = getattr(self, "_prefetched_objects_cache", None)
+        if cache is not None and "payments" in cache:
+            return sum((p.amount for p in self.payments.all()), Decimal("0"))
+        # 3) fallback: single aggregate query
         agg = self.payments.aggregate(total=models.Sum("amount"))
         return agg["total"] or Decimal("0")
 

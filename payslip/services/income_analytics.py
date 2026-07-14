@@ -95,11 +95,11 @@ def build_analytics() -> dict:
     # ---- Monthly received trend (dated payments only) ----------------------
     monthly = defaultdict(lambda: Decimal("0"))
     undated_total = Decimal("0")
-    for p in PaymentReceipt.objects.all():
-        if p.received_on:
-            monthly[p.received_on.strftime("%Y-%m")] += p.amount
+    for received_on, amount in PaymentReceipt.objects.values_list("received_on", "amount"):
+        if received_on:
+            monthly[received_on.strftime("%Y-%m")] += amount
         else:
-            undated_total += p.amount
+            undated_total += amount
     monthly_trend = [{"month": k, "amount": v} for k, v in sorted(monthly.items())]
 
     return {
