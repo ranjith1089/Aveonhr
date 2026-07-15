@@ -6,29 +6,52 @@
 <title>Implementation - Aveon Income</title>
 {% include "payslip/income/_income_style.html" %}
 <style>
-  .stage-chips { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
-  .stage-chip {
-    background:#fff; border:1.5px solid #E3EAF5; border-radius:12px;
-    padding:12px 18px; min-width:130px; text-align:center;
+  .stat.clickable { cursor:pointer; user-select:none; }
+  .stat.clickable.on { border-color:#1565C0; box-shadow:0 0 0 3px #1565C022; }
+  .chip-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .fchip {
+    border:1.5px solid #D6DEEB; background:#fff; border-radius:20px;
+    padding:6px 14px; font-size:12px; font-weight:800; color:#475569;
+    cursor:pointer; transition:all .12s; white-space:nowrap;
   }
-  .stage-chip .cnt { font-size:22px; font-weight:900; }
-  .stage-chip .lbl { font-size:11px; font-weight:800; color:#64748B; text-transform:uppercase; letter-spacing:.8px; margin-top:2px; }
+  .fchip:hover { border-color:#1565C0; color:#1565C0; }
+  .fchip.on { background:#1565C0; border-color:#1565C0; color:#fff; }
+  .fchip .cnt { opacity:.65; font-weight:700; margin-left:4px; }
+  tr.row-link { cursor:pointer; }
+  .search-input { max-width:280px; }
+  #no-match { display:none; }
 </style>
 </head>
 <body>
 <div class="container">
   {% include "payslip/income/_income_nav.html" with active_page="implementation" %}
 
-  <h1 style="margin-bottom:4px;">🚀 Implementation Tracker</h1>
-  <p class="sub">Onboarding, purchase orders, agreements and feature-wise delivery status per client.</p>
-
-  <div class="stage-chips">
-    {% for chip in stage_chips %}
-    <div class="stage-chip">
-      <div class="cnt">{{ chip.count }}</div>
-      <div class="lbl"><span class="badge {{ chip.badge }}">{{ chip.label }}</span></div>
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+    <div>
+      <h1>🚀 Implementation Tracker</h1>
+      <p class="sub" style="margin:0;">Onboarding, purchase orders, agreements and feature-wise delivery per client · {{ today|date:"d M Y" }}</p>
     </div>
-    {% endfor %}
+    <a class="btn secondary" href="{% url 'income_client_list' %}">👥 All clients</a>
+  </div>
+
+  <!-- Clickable stat cards double as quick filters -->
+  <div class="stat-grid" style="margin-bottom:16px;">
+    <div class="stat clickable" data-quick="all" onclick="quickFilter(this)">
+      <div class="stat-val blue">{{ client_count }}</div>
+      <div class="stat-lbl">Total clients · show all</div>
+    </div>
+    <div class="stat clickable" data-quick="live" onclick="quickFilter(this)">
+      <div class="stat-val green">{{ live_count }}</div>
+      <div class="stat-lbl">Live clients</div>
+    </div>
+    <div class="stat clickable" data-quick="po" onclick="quickFilter(this)">
+      <div class="stat-val {% if po_pending_count %}red{% else %}green{% endif %}">{{ po_pending_count }}</div>
+      <div class="stat-lbl">PO pending</div>
+    </div>
+    <div class="stat clickable" data-quick="alert" onclick="quickFilter(this)">
+      <div class="stat-val {% if expiring %}red{% else %}green{% endif %}">{{ expiring|length }}</div>
+      <div class="stat-lbl">Agreement alerts</div>
+    </div>
   </div>
 
   {% if expiring %}
@@ -38,7 +61,7 @@
       <table>
         <tr><th>Client</th><th>Agreement</th><th>Ends</th><th>Status</th><th></th></tr>
         {% for o in expiring %}
-        <tr>
+        <tr class="row-link" onclick="window.location='{% url 'client_implementation' o.client.pk %}'">
           <td><a href="{% url 'client_implementation' o.client.pk %}">{{ o.client.name }}</a></td>
           <td>{{ o.agreement_years|default:"?" }} year{{ o.agreement_years|pluralize }} from {{ o.agreement_start|date:"d M Y"|default:"—" }}</td>
           <td>{{ o.agreement_end|date:"d M Y" }}</td>
@@ -46,7 +69,7 @@
             {% if o.agreement_expired %}<span class="badge red">{{ o.agreement_label }}</span>
             {% else %}<span class="badge amber">{{ o.agreement_label }}</span>{% endif %}
           </td>
-          <td><a class="btn small secondary" href="{% url 'client_implementation' o.client.pk %}">Open</a></td>
+          <td><a class="btn small secondary" href="{% url 'client_implementation' o.client.pk %}">Renew / update</a></td>
         </tr>
         {% endfor %}
       </table>
@@ -54,56 +77,98 @@
   </div>
   {% endif %}
 
-  <div class="two-col">
-    <div class="card">
-      <h2>📋 Client implementation status</h2>
-      {% if rows %}
-      <div class="tbl-wrap">
-        <table>
-          <tr><th>Client</th><th>Stage</th><th>Features live</th><th style="min-width:140px;">Progress</th></tr>
-          {% for r in rows %}
-          <tr>
-            <td><a href="{% url 'client_implementation' r.client.pk %}">{{ r.client.name }}</a></td>
-            <td><span class="badge {{ r.stage_badge }}">{{ r.stage_label }}</span></td>
-            <td class="num">
-              {% if r.progress.applicable %}{{ r.progress.live }} / {{ r.progress.applicable }}
-              {% else %}<span class="muted">no features yet</span>{% endif %}
-            </td>
-            <td>
-              <div class="bar" style="margin-top:0;"><div class="bar-fill {% if r.progress.pct < 50 %}warn{% endif %}" style="width:{{ r.progress.pct }}%;"></div></div>
-              <div class="bar-lbl">{{ r.progress.pct }}% live</div>
-            </td>
-          </tr>
-          {% endfor %}
-        </table>
+  <div class="card">
+    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+      <input class="search-input" type="text" id="client-search" placeholder="🔍 Search client…"
+             oninput="applyFilters()" autocomplete="off" />
+      <div class="chip-row">
+        <button type="button" class="fchip on" data-stage="" onclick="stageFilter(this)">All stages</button>
+        {% for chip in stage_chips %}
+        <button type="button" class="fchip" data-stage="{{ chip.key }}" onclick="stageFilter(this)">{{ chip.label }}<span class="cnt">{{ chip.count }}</span></button>
+        {% endfor %}
       </div>
-      {% else %}
-      <div class="empty"><div class="big">🗂️</div>No clients yet - add one from the Clients tab.</div>
-      {% endif %}
     </div>
 
-    <div class="card">
-      <h2>📄 PO pending</h2>
-      {% if po_pending %}
-      <div class="tbl-wrap">
-        <table>
-          <tr><th>Client</th><th>Stage</th><th></th></tr>
-          {% for p in po_pending %}
-          <tr>
-            <td><a href="{% url 'client_implementation' p.client.pk %}">{{ p.client.name }}</a></td>
-            <td>
-              {% if p.onboarding %}{{ p.onboarding.get_stage_display }}{% else %}<span class="muted">not started</span>{% endif %}
-            </td>
-            <td><a class="btn small secondary" href="{% url 'client_implementation' p.client.pk %}">Update</a></td>
-          </tr>
-          {% endfor %}
-        </table>
-      </div>
-      {% else %}
-      <div class="empty"><div class="big">✅</div>Every active client has a PO on file.</div>
-      {% endif %}
+    {% if rows %}
+    <div class="tbl-wrap">
+      <table id="client-table">
+        <tr><th>Client</th><th>Stage</th><th>Engineer</th><th>PO</th><th>Agreement</th><th style="min-width:150px;">Feature progress</th><th></th></tr>
+        {% for r in rows %}
+        <tr class="row-link"
+            data-name="{{ r.client.name|lower }}"
+            data-stage="{{ r.stage }}"
+            data-po="{% if r.po_pending %}pending{% else %}ok{% endif %}"
+            data-alert="{% if r.alert %}1{% else %}0{% endif %}"
+            onclick="window.location='{% url 'client_implementation' r.client.pk %}'">
+          <td><a href="{% url 'client_implementation' r.client.pk %}">{{ r.client.name }}</a></td>
+          <td><span class="badge {{ r.stage_badge }}">{{ r.stage_label }}</span></td>
+          <td>{{ r.engineer|default:"—" }}</td>
+          <td>
+            {% if r.po_ok %}<span class="badge green">✓ Received</span>
+            {% elif r.po_pending %}<span class="badge amber">Pending</span>
+            {% else %}<span class="badge gray">—</span>{% endif %}
+          </td>
+          <td><span class="badge {{ r.agr_badge }}">{{ r.agr_label }}</span></td>
+          <td>
+            {% if r.progress.applicable %}
+            <div class="bar" style="margin-top:0;"><div class="bar-fill {% if r.progress.pct < 50 %}warn{% endif %}" style="width:{{ r.progress.pct }}%;"></div></div>
+            <div class="bar-lbl">{{ r.progress.live }}/{{ r.progress.applicable }} live · {{ r.progress.pct }}%</div>
+            {% else %}
+            <span class="muted">no features yet</span>
+            {% endif %}
+          </td>
+          <td><a class="btn small secondary" href="{% url 'client_implementation' r.client.pk %}">Open →</a></td>
+        </tr>
+        {% endfor %}
+      </table>
+      <div id="no-match" class="empty"><div class="big">🔍</div>No clients match - clear the search or filters.</div>
     </div>
+    {% else %}
+    <div class="empty"><div class="big">🗂️</div>No clients yet - add one from the Clients tab.</div>
+    {% endif %}
   </div>
 </div>
+
+<script>
+  let activeStage = "";
+  let activeQuick = "all";
+
+  function stageFilter(btn) {
+    activeStage = btn.dataset.stage;
+    document.querySelectorAll(".fchip").forEach(c => c.classList.toggle("on", c === btn));
+    applyFilters();
+  }
+
+  function quickFilter(card) {
+    activeQuick = card.dataset.quick;
+    document.querySelectorAll(".stat.clickable").forEach(c => c.classList.toggle("on", c === card));
+    // The Live card is a stage shortcut; reset stage chips for the others.
+    if (activeQuick === "live") {
+      const liveChip = document.querySelector('.fchip[data-stage="LIVE"]');
+      if (liveChip) { stageFilter(liveChip); return; }
+    }
+    activeStage = "";
+    document.querySelectorAll(".fchip").forEach(c => c.classList.toggle("on", c.dataset.stage === ""));
+    applyFilters();
+  }
+
+  function applyFilters() {
+    const q = document.getElementById("client-search").value.trim().toLowerCase();
+    let shown = 0;
+    document.querySelectorAll("#client-table tr.row-link").forEach(tr => {
+      let ok = true;
+      if (q && !tr.dataset.name.includes(q)) ok = false;
+      if (activeStage && tr.dataset.stage !== activeStage) ok = false;
+      if (activeQuick === "po" && tr.dataset.po !== "pending") ok = false;
+      if (activeQuick === "alert" && tr.dataset.alert !== "1") ok = false;
+      tr.style.display = ok ? "" : "none";
+      if (ok) shown++;
+    });
+    const empty = document.getElementById("no-match");
+    if (empty) empty.style.display = shown ? "none" : "block";
+  }
+
+  document.querySelector('.stat.clickable[data-quick="all"]').classList.add("on");
+</script>
 </body>
 </html>

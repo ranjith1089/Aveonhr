@@ -39,18 +39,36 @@ def _cms_module_names() -> list[str]:
 
 @income_required
 def implementation_dashboard(request: HttpRequest) -> HttpResponse:
-    clients = list(IncomeClient.objects.prefetch_related("features")
+    clients = list(IncomeClient.objects.prefetch_related("features", "billings")
                    .select_related("onboarding"))
 
     stage_counts = {key: 0 for key, _ in ClientOnboarding.Stage.choices}
     rows = []
     expiring = []
-    po_pending = []
+    po_pending_count = 0
     for client in clients:
         onboarding = getattr(client, "onboarding", None)
         stage = onboarding.stage if onboarding else ClientOnboarding.Stage.ONBOARDING
         stage_counts[stage] += 1
         progress = feature_progress(client.features.all())
+
+        po_ok = bool(onboarding and onboarding.po_received)
+        po_pending = client.is_active and not po_ok
+        po_pending_count += int(po_pending)
+
+        # Agreement chip: pending -> gray, expired -> red, expiring -> amber,
+        # otherwise green with the validity label.
+        if onboarding and onboarding.agreement_signed:
+            if onboarding.agreement_expired:
+                agr_badge, agr_label = "red", onboarding.agreement_label
+            elif onboarding.agreement_expiring:
+                agr_badge, agr_label = "amber", onboarding.agreement_label
+            else:
+                agr_badge, agr_label = "green", onboarding.agreement_label
+            alert = onboarding.agreement_expired or onboarding.agreement_expiring
+        else:
+            agr_badge, agr_label, alert = "gray", "Pending", False
+
         rows.append({
             "client": client,
             "onboarding": onboarding,
@@ -58,13 +76,15 @@ def implementation_dashboard(request: HttpRequest) -> HttpResponse:
             "stage_label": dict(ClientOnboarding.Stage.choices)[stage],
             "stage_badge": STAGE_BADGES[stage],
             "progress": progress,
+            "po_ok": po_ok,
+            "po_pending": po_pending,
+            "agr_badge": agr_badge,
+            "agr_label": agr_label,
+            "alert": alert,
+            "engineer": (onboarding.engineer if onboarding else "") or client.latest_engineer,
         })
-        if onboarding and onboarding.agreement_signed and (
-            onboarding.agreement_expired or onboarding.agreement_expiring
-        ):
+        if alert:
             expiring.append(onboarding)
-        if client.is_active and not (onboarding and onboarding.po_received):
-            po_pending.append({"client": client, "onboarding": onboarding})
 
     # Expired first (most negative days), then soonest-to-expire.
     expiring.sort(key=lambda o: o.days_to_expiry)
@@ -80,7 +100,9 @@ def implementation_dashboard(request: HttpRequest) -> HttpResponse:
         "rows": rows,
         "stage_chips": stage_chips,
         "expiring": expiring,
-        "po_pending": po_pending,
+        "po_pending_count": po_pending_count,
+        "live_count": stage_counts[ClientOnboarding.Stage.LIVE],
+        "client_count": len(rows),
         "today": timezone.localdate(),
     })
 
@@ -178,6 +200,23 @@ def client_implementation(request: HttpRequest, pk: int) -> HttpResponse:
         for f in features
     ]
 
+    status_counts = {key: 0 for key, _ in FeatureStatus.Status.choices}
+    for f in features:
+        if f.status in status_counts:
+            status_counts[f.status] += 1
+    status_filters = [
+        {"key": key, "label": label, "count": status_counts[key]}
+        for key, label in FeatureStatus.Status.choices
+    ]
+
+    # Collapse the big details form once the basics are on file - the
+    # feature grid is the page people come back to. Errors force it open.
+    details_open = bool(form.errors) or not any([
+        onboarding.contact_person, onboarding.po_received,
+        onboarding.agreement_signed, onboarding.onboarded_on,
+        onboarding.engineer,
+    ])
+
     return render(request, "payslip/income/client_implementation.html", {
         "client": client,
         "onboarding": onboarding,
@@ -186,6 +225,9 @@ def client_implementation(request: HttpRequest, pk: int) -> HttpResponse:
         "feature_rows": feature_rows,
         "progress": progress,
         "status_choices": FeatureStatus.Status.choices,
+        "status_filters": status_filters,
         "stage_badge": STAGE_BADGES[onboarding.stage],
         "engineer_options": _engineer_names(),
+        "details_open": details_open,
+        "all_clients": IncomeClient.objects.only("id", "name").order_by("name"),
     })

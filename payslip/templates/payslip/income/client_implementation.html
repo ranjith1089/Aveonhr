@@ -7,10 +7,41 @@
 {% include "payslip/income/_income_style.html" %}
 <style>
   .head-chips { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0 4px; }
+  .crumb { font-size:12.5px; font-weight:700; color:#64748B; margin-bottom:4px; }
+  .crumb a { color:#1565C0; text-decoration:none; }
   .section-title { font-size:12px; font-weight:800; color:#1565C0; text-transform:uppercase; letter-spacing:1px; margin:18px 0 10px; padding-bottom:6px; border-bottom:1.5px solid #E8EEF7; grid-column:1 / -1; }
-  select.status-sel { padding:6px 8px; font-size:12.5px; width:auto; min-width:125px; }
+  select.status-sel { padding:6px 10px; font-size:12.5px; width:auto; min-width:128px; border-radius:14px; font-weight:700; border-width:1.5px; }
   input.cell-input { padding:6px 8px; font-size:12.5px; }
   .feat-tbl td { padding:7px 8px; }
+
+  /* Collapsible details card */
+  details.fold > summary { list-style:none; cursor:pointer; user-select:none; }
+  details.fold > summary::-webkit-details-marker { display:none; }
+  details.fold > summary .arrow { transition:transform .15s; display:inline-block; }
+  details.fold[open] > summary .arrow { transform:rotate(90deg); }
+
+  /* Feature filter chips */
+  .chip-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .fchip {
+    border:1.5px solid #D6DEEB; background:#fff; border-radius:20px;
+    padding:5px 12px; font-size:11.5px; font-weight:800; color:#475569;
+    cursor:pointer; transition:all .12s; white-space:nowrap;
+  }
+  .fchip:hover { border-color:#1565C0; color:#1565C0; }
+  .fchip.on { background:#1565C0; border-color:#1565C0; color:#fff; }
+  .fchip .cnt { opacity:.65; margin-left:3px; }
+
+  /* Sticky save bar (appears only when something changed) */
+  #save-bar {
+    position:sticky; bottom:12px; z-index:30; display:none;
+    background:#1A1A2E; color:#fff; border-radius:12px;
+    padding:11px 18px; margin-top:14px;
+    box-shadow:0 8px 24px rgba(15,30,70,.35);
+    align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+  #save-bar.show { display:flex; }
+  .switcher { min-width:210px; }
+  #feat-no-match { display:none; }
 </style>
 </head>
 <body>
@@ -20,7 +51,8 @@
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
       <div>
-        <h1>🚀 {{ client.name }}</h1>
+        <div class="crumb"><a href="{% url 'implementation_dashboard' %}">🚀 Implementation</a> › {{ client.name }}</div>
+        <h1>{{ client.name }}</h1>
         <div class="head-chips">
           <span class="badge {{ stage_badge }}">{{ onboarding.get_stage_display }}</span>
           {% if onboarding.po_received %}
@@ -37,24 +69,40 @@
           {% else %}
           <span class="badge gray">Agreement pending</span>
           {% endif %}
+          {% if onboarding.engineer %}<span class="badge blue">👷 {{ onboarding.engineer }}</span>{% endif %}
         </div>
       </div>
-      <div style="text-align:right; min-width:180px;">
-        <div class="bar" style="margin-top:6px;"><div class="bar-fill {% if progress.pct < 50 %}warn{% endif %}" style="width:{{ progress.pct }}%;"></div></div>
+      <div style="text-align:right; min-width:220px;">
+        <select class="switcher" onchange="if(this.value) window.location=this.value;">
+          <option value="">↕ Jump to another client…</option>
+          {% for c in all_clients %}
+          {% if c.pk != client.pk %}<option value="{% url 'client_implementation' c.pk %}">{{ c.name }}</option>{% endif %}
+          {% endfor %}
+        </select>
+        <div class="bar" style="margin-top:10px;"><div class="bar-fill {% if progress.pct < 50 %}warn{% endif %}" style="width:{{ progress.pct }}%;"></div></div>
         <div class="bar-lbl">{{ progress.live }} of {{ progress.applicable }} applicable features live ({{ progress.pct }}%)</div>
-        <div style="margin-top:8px;"><a class="btn small secondary" href="{% url 'income_client_detail' client.pk %}">← Billing &amp; payments</a></div>
+        <div style="margin-top:8px; display:flex; gap:8px; justify-content:flex-end;">
+          <a class="btn small secondary" href="{% url 'income_client_detail' client.pk %}">💰 Billing &amp; payments</a>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="card">
-    <h2>🏫 Onboarding, PO &amp; agreement</h2>
+  <details class="fold card" {% if details_open %}open{% endif %}>
+    <summary>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <h2 style="margin-bottom:0;"><span class="arrow">▶</span> 🏫 Onboarding, PO &amp; agreement</h2>
+        <span class="muted">
+          {% if onboarding.contact_person %}{{ onboarding.contact_person }}{% if onboarding.contact_phone %} · {{ onboarding.contact_phone }}{% endif %}{% else %}Click to fill in client details{% endif %}
+        </span>
+      </div>
+    </summary>
     {% if form.errors %}
-    <div class="msg error">
+    <div class="msg error" style="margin-top:12px;">
       {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
     </div>
     {% endif %}
-    <form method="post">
+    <form method="post" style="margin-top:8px;">
       {% csrf_token %}
       <input type="hidden" name="action" value="save_onboarding" />
       <div class="grid">
@@ -96,7 +144,7 @@
         <button class="btn" type="submit">Save Details</button>
       </div>
     </form>
-  </div>
+  </details>
 
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
@@ -109,36 +157,50 @@
     </div>
 
     {% if feature_rows %}
-    <form method="post">
+    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
+      <input type="text" id="feat-search" placeholder="🔍 Filter features…" style="max-width:230px;" oninput="featFilter()" autocomplete="off" />
+      <div class="chip-row">
+        <button type="button" class="fchip on" data-status="" onclick="featChip(this)">All <span class="cnt">{{ feature_rows|length }}</span></button>
+        {% for s in status_filters %}
+        {% if s.count %}<button type="button" class="fchip" data-status="{{ s.key }}" onclick="featChip(this)">{{ s.label }}<span class="cnt">{{ s.count }}</span></button>{% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <form method="post" id="features-form">
       {% csrf_token %}
       <input type="hidden" name="action" value="save_features" />
       <div class="tbl-wrap">
-        <table class="feat-tbl">
+        <table class="feat-tbl" id="feat-table">
           <tr><th>#</th><th>Feature / Module</th><th>Status</th><th>Engineer</th><th>Started</th><th>Completed</th><th>Remarks</th><th></th></tr>
           {% for row in feature_rows %}
-          <tr>
+          <tr data-name="{{ row.feature.name|lower }}" data-status="{{ row.feature.status }}">
             <td class="muted">{{ forloop.counter }}</td>
-            <td><b>{{ row.feature.name }}</b><br /><span class="badge {{ row.badge }}">{{ row.feature.get_status_display }}</span></td>
+            <td style="min-width:180px;"><b>{{ row.feature.name }}</b></td>
             <td>
-              <select class="status-sel" name="status_{{ row.feature.pk }}">
+              <select class="status-sel" name="status_{{ row.feature.pk }}" onchange="paintSelect(this); markDirty();">
                 {% for value, label in status_choices %}
                 <option value="{{ value }}" {% if row.feature.status == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
               </select>
             </td>
-            <td><input class="cell-input" type="text" name="engineer_{{ row.feature.pk }}" value="{{ row.feature.engineer }}" list="engineer-options" style="min-width:110px;" /></td>
+            <td><input class="cell-input" type="text" name="engineer_{{ row.feature.pk }}" value="{{ row.feature.engineer }}" list="engineer-options" style="min-width:110px;" oninput="markDirty()" /></td>
             <td class="muted" style="white-space:nowrap;">{{ row.feature.started_on|date:"d M Y"|default:"—" }}</td>
             <td class="muted" style="white-space:nowrap;">{{ row.feature.completed_on|date:"d M Y"|default:"—" }}</td>
-            <td><input class="cell-input" type="text" name="remarks_{{ row.feature.pk }}" value="{{ row.feature.remarks }}" style="min-width:140px;" /></td>
+            <td><input class="cell-input" type="text" name="remarks_{{ row.feature.pk }}" value="{{ row.feature.remarks }}" style="min-width:140px;" oninput="markDirty()" /></td>
             <td>
-              <button class="btn small danger" type="submit" name="action" value="delete_feature"
+              <button class="btn small danger" type="submit"
                       onclick="return confirm('Remove {{ row.feature.name|escapejs }}?');"
-                      formnovalidate
                       form="del-{{ row.feature.pk }}">✕</button>
             </td>
           </tr>
           {% endfor %}
         </table>
+        <div id="feat-no-match" class="empty"><div class="big">🔍</div>No features match this filter.</div>
+      </div>
+      <div id="save-bar">
+        <span>✏️ Unsaved changes to the feature grid</span>
+        <button class="btn" type="submit" style="background:#4CAF50;">Save All Statuses</button>
       </div>
       <div style="margin-top:14px;">
         <button class="btn" type="submit">Save All Statuses</button>
@@ -170,5 +232,48 @@
     </div>
   </div>
 </div>
+
+<script>
+  // Status select colouring - instant visual feedback in the grid.
+  const STATUS_COLORS = {
+    NOT_STARTED: ["#F1F5F9", "#475569", "#CBD5E1"],
+    IN_PROGRESS: ["#DBEAFE", "#1E40AF", "#93C5FD"],
+    TESTING:     ["#FEF3C7", "#92400E", "#FCD34D"],
+    LIVE:        ["#D1FAE5", "#065F46", "#6EE7B7"],
+    ON_HOLD:     ["#FEE2E2", "#991B1B", "#FCA5A5"],
+    NA:          ["#F1F5F9", "#94A3B8", "#E2E8F0"],
+  };
+  function paintSelect(sel) {
+    const c = STATUS_COLORS[sel.value] || STATUS_COLORS.NOT_STARTED;
+    sel.style.background = c[0]; sel.style.color = c[1]; sel.style.borderColor = c[2];
+  }
+  document.querySelectorAll(".status-sel").forEach(paintSelect);
+
+  // Sticky save bar shows only once something is edited.
+  function markDirty() {
+    const bar = document.getElementById("save-bar");
+    if (bar) bar.classList.add("show");
+  }
+
+  // Feature search + status chips.
+  let activeFeatStatus = "";
+  function featChip(btn) {
+    activeFeatStatus = btn.dataset.status;
+    document.querySelectorAll(".fchip").forEach(c => c.classList.toggle("on", c === btn));
+    featFilter();
+  }
+  function featFilter() {
+    const q = (document.getElementById("feat-search")?.value || "").trim().toLowerCase();
+    let shown = 0;
+    document.querySelectorAll("#feat-table tr[data-name]").forEach(tr => {
+      const ok = (!q || tr.dataset.name.includes(q)) &&
+                 (!activeFeatStatus || tr.dataset.status === activeFeatStatus);
+      tr.style.display = ok ? "" : "none";
+      if (ok) shown++;
+    });
+    const empty = document.getElementById("feat-no-match");
+    if (empty) empty.style.display = shown ? "none" : "block";
+  }
+</script>
 </body>
 </html>
