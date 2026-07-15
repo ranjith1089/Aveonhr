@@ -505,3 +505,43 @@ def feature_progress(features) -> dict:
         "live": len(live),
         "pct": int(len(live) / total * 100) if total else 0,
     }
+
+
+# ---------------------------------------------------------------------------
+# Proposal history - every generated proposal is kept, org-scoped, with a
+# revision chain per client (regenerate -> Rev 2, Rev 3, ...). The rendered
+# HTML is stored verbatim so history shows exactly what was sent, even after
+# the catalog text changes.
+# ---------------------------------------------------------------------------
+class ProposalRecord(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="proposals")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, related_name="+")
+    client_name = models.CharField(max_length=200, db_index=True)
+    revision = models.PositiveIntegerField(default=1)
+
+    # Snapshot of the validated form (dates/decimals as strings) - prefills
+    # the builder for the next revision. client_logo is not restorable.
+    form_data = models.JSONField(default=dict, blank=True)
+    html = models.TextField()
+
+    # Denormalized for list display.
+    selection_label = models.CharField(max_length=200, blank=True, default="")
+    total_amount = models.DecimalField(max_digits=14, decimal_places=2,
+                                       null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        unique_together = [("organization", "client_name", "revision")]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.client_name} (Rev {self.revision})"
+
+
+def next_proposal_revision(organization, client_name: str) -> int:
+    agg = ProposalRecord.objects.filter(
+        organization=organization, client_name=client_name
+    ).aggregate(max_rev=models.Max("revision"))
+    return (agg["max_rev"] or 0) + 1

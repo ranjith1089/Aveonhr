@@ -95,3 +95,16 @@ class FeatureStatusAdmin(admin.ModelAdmin):
     list_display = ("client", "name", "status", "engineer", "completed_on")
     list_filter = ("status", "engineer")
     search_fields = ("client__name", "name")
+
+
+from .models import ProposalRecord
+
+
+@admin.register(ProposalRecord)
+class ProposalRecordAdmin(admin.ModelAdmin):
+    list_display = ("client_name", "revision", "organization", "selection_label",
+                    "total_amount", "created_by", "created_at")
+    list_filter = ("organization",)
+    search_fields = ("client_name",)
+    readonly_fields = ("created_at",)
+    exclude = ("html",)  # large blob - viewable via the app's history pages

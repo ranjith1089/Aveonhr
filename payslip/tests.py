@@ -26,116 +26,66 @@ def make_member(username, *, admin=False, org=None, **rights):
     return user
 
 
+# Valid payload for the CURRENT proposal form (bundle mode, DD/MM/YYYY date).
+PROPOSAL_PAYLOAD = {
+    "to_address": "The Principal",
+    "client_name": "ABC College of Arts and Science",
+    "client_address": "Coimbatore, Tamil Nadu",
+    "proposal_date": "13/02/2026",
+    "prepared_by": "Aveon Infotech Private Limited",
+    "selection_mode": "BUNDLE",
+    "bundle": "CMS_FULL",
+    "price_per_unit": "850",
+    "minimum_student_commitment": "1000",
+    "one_time_implementation_fee": "350000",
+    "gst_percent": "18",
+    "authorized_signatory_name": "Parvathi G",
+    "authorized_signatory_designation": "Chief Executive Officer",
+}
+
+
 class ProposalQuotationViewTests(TestCase):
     def setUp(self):
-        # All tools require login since the SaaS transformation.
+        # create_user auto-provisions an admin membership on first request.
         self.user = User.objects.create_user("tester", "tester@example.com", "pass12345")
         self.client.force_login(self.user)
 
     def test_get_proposal_quotation_page(self):
-        response = self.client.get(reverse('proposal_quotation'))
+        response = self.client.get(reverse("proposal_quotation"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Proposal Quotation Generator')
+        self.assertContains(response, "Proposal Builder")
 
-    def test_post_generates_complete_proposal_text(self):
-        response = self.client.post(
-            reverse('proposal_quotation'),
-            {
-                'client_name': 'ABC College of Arts and Science',
-                'client_location': 'Coimbatore, Tamil Nadu',
-                'institution_type': 'AUTONOMOUS',
-                'proposal_date': '2026-02-13',
-                'prepared_by': 'Aveon Infotech Private Limited',
-                'per_student_annual_license': '850',
-                'minimum_student_commitment': '1000',
-                'one_time_implementation_fee': '350000',
-                'gst_percent': '18',
-                'authorized_signatory_name': 'Parvathi G',
-                'authorized_signatory_designation': 'Chief Executive Officer',
-            },
-        )
-
+    def test_generate_creates_preview_download_and_history(self):
+        from decimal import Decimal
+        from payslip.models import ProposalRecord
+        response = self.client.post(reverse("proposal_quotation"), PROPOSAL_PAYLOAD)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'ABC College of Arts and Science')
-        self.assertContains(response, 'Coimbatore, Tamil Nadu')
-        self.assertContains(response, 'AUTONOMOUS')
+        self.assertIn("preview_url", response.context)
+        self.assertIn("download_url", response.context)
 
-        required_sections = [
-            '1. Executive Summary',
-            '2. About Aveon Infotech Private Limited',
-            '3. Scope of Work - Module Overview',
-            '4. Implementation Methodology',
-            '5. Project Timeline',
-            '6. Commercial Proposal',
-            '7. Support & Maintenance',
-            '8. Key Terms & Conditions',
-            '9. Why Aveon Infotech',
-            '10. Authorization',
-        ]
+        record = ProposalRecord.objects.get()
+        self.assertEqual(record.client_name, "ABC College of Arts and Science")
+        self.assertEqual(record.revision, 1)
+        self.assertEqual(record.created_by, self.user)
+        # (850 * 1000 + 350000) * 1.18 = 14,16,000
+        self.assertEqual(record.total_amount, Decimal("1416000.00"))
+        self.assertIn("ABC College of Arts and Science", record.html)
+        self.assertEqual(record.form_data["bundle"], "CMS_FULL")
+        self.assertNotIn("client_logo", record.form_data)
 
-        proposal_text = response.context['proposal_text']
-        for section in required_sections:
-            self.assertIn(section, proposal_text)
+    def test_preview_serves_generated_html(self):
+        response = self.client.post(reverse("proposal_quotation"), PROPOSAL_PAYLOAD)
+        preview = self.client.get(response.context["preview_url"])
+        self.assertEqual(preview.status_code, 200)
+        self.assertIn(b"ABC College of Arts and Science", preview.content)
 
-        self.assertIn('GST: 18% Extra', proposal_text)
-        self.assertIn('INR 3,50,000', proposal_text)
-
-
-    def test_post_download_returns_text_file(self):
-        response = self.client.post(
-            reverse('proposal_quotation'),
-            {
-                'client_name': 'ABC College of Arts and Science',
-                'client_location': 'Coimbatore, Tamil Nadu',
-                'institution_type': 'AUTONOMOUS',
-                'proposal_date': '2026-02-13',
-                'prepared_by': 'Aveon Infotech Private Limited',
-                'per_student_annual_license': '850',
-                'minimum_student_commitment': '1000',
-                'one_time_implementation_fee': '350000',
-                'gst_percent': '18',
-                'authorized_signatory_name': 'Parvathi G',
-                'authorized_signatory_designation': 'Chief Executive Officer',
-                'action': 'download',
-            },
-        )
-
+    def test_bundle_mode_requires_bundle(self):
+        from payslip.models import ProposalRecord
+        payload = {**PROPOSAL_PAYLOAD, "bundle": ""}
+        response = self.client.post(reverse("proposal_quotation"), payload)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'text/plain; charset=utf-8')
-        self.assertIn('attachment; filename="aveon_cms_erp_proposal.txt"', response['Content-Disposition'])
-        text = response.content.decode('utf-8')
-        self.assertIn('1. Executive Summary', text)
-        self.assertIn('10. Authorization', text)
-
-
-    def test_school_institution_type_is_available(self):
-        response = self.client.get(reverse('proposal_quotation'))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'SCHOOL')
-
-    def test_post_download_returns_pdf_file(self):
-        response = self.client.post(
-            reverse('proposal_quotation'),
-            {
-                'client_name': 'ABC School',
-                'client_location': 'Coimbatore, Tamil Nadu',
-                'institution_type': 'SCHOOL',
-                'proposal_date': '2026-02-13',
-                'prepared_by': 'Aveon Infotech Private Limited',
-                'per_student_annual_license': '850',
-                'minimum_student_commitment': '1000',
-                'one_time_implementation_fee': '350000',
-                'gst_percent': '18',
-                'authorized_signatory_name': 'Parvathi G',
-                'authorized_signatory_designation': 'Chief Executive Officer',
-                'action': 'download_pdf',
-            },
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response['Content-Type'], 'application/pdf')
-        self.assertIn('attachment; filename="aveon_cms_erp_proposal.pdf"', response['Content-Disposition'])
-        self.assertTrue(response.content.startswith(b'%PDF-'))
+        self.assertTrue(response.context["form"].errors)
+        self.assertEqual(ProposalRecord.objects.count(), 0)
 
 
 class IncomeModuleTests(TestCase):
@@ -597,3 +547,103 @@ class TeamPageTests(TestCase):
         second_admin_session.post(f"/team/{second_admin.pk}/toggle/")
         second_admin.refresh_from_db()
         self.assertTrue(second_admin.is_active)
+
+
+class ProposalHistoryTests(TestCase):
+    def setUp(self):
+        self.user_a = make_member("prop_a", admin=True)
+        self.org_a = self.user_a.membership.organization
+        self.user_b = make_member("prop_b", admin=True)
+        self.client.force_login(self.user_a)
+
+    def _generate(self, client_name="ABC College of Arts and Science", **overrides):
+        payload = {**PROPOSAL_PAYLOAD, "client_name": client_name, **overrides}
+        return self.client.post(reverse("proposal_quotation"), payload)
+
+    def test_revision_chain_per_client(self):
+        from payslip.models import ProposalRecord
+        self._generate()
+        self._generate()
+        self._generate(client_name="XYZ School")
+        revisions = list(
+            ProposalRecord.objects.filter(client_name="ABC College of Arts and Science")
+            .order_by("revision").values_list("revision", flat=True)
+        )
+        self.assertEqual(revisions, [1, 2])
+        xyz = ProposalRecord.objects.get(client_name="XYZ School")
+        self.assertEqual(xyz.revision, 1)
+
+    def test_history_list_and_cross_org_isolation(self):
+        from payslip.models import ProposalRecord
+        self._generate()
+        record = ProposalRecord.objects.get()
+
+        resp = self.client.get(reverse("proposal_history"))
+        self.assertContains(resp, "ABC College of Arts and Science")
+        self.assertContains(resp, "Rev 1")
+
+        # Org B sees an empty history and 404s on org A's record.
+        self.client.force_login(self.user_b)
+        resp = self.client.get(reverse("proposal_history"))
+        self.assertNotContains(resp, "ABC College of Arts and Science")
+        self.assertEqual(
+            self.client.get(reverse("proposal_record", args=[record.pk])).status_code, 404
+        )
+
+    def test_revise_prefills_form(self):
+        from payslip.models import ProposalRecord
+        self._generate()
+        record = ProposalRecord.objects.get()
+        resp = self.client.get(f"{reverse('proposal_quotation')}?from={record.pk}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Revising a proposal from history")
+        self.assertContains(resp, 'value="ABC College of Arts and Science"')
+        self.assertContains(resp, 'value="13/02/2026"')
+
+    def test_view_action_serves_stored_html(self):
+        from payslip.models import ProposalRecord
+        self._generate()
+        record = ProposalRecord.objects.get()
+        resp = self.client.post(reverse("proposal_record", args=[record.pk]),
+                                {"action": "view"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/preview/", resp["Location"])
+        preview = self.client.get(resp["Location"])
+        self.assertEqual(preview.status_code, 200)
+        self.assertIn(b"ABC College of Arts and Science", preview.content)
+
+    def test_download_action_returns_file(self):
+        from payslip.models import ProposalRecord
+        self._generate()
+        record = ProposalRecord.objects.get()
+        resp = self.client.post(reverse("proposal_record", args=[record.pk]),
+                                {"action": "download"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/download/", resp["Location"])
+        download = self.client.get(resp["Location"])
+        self.assertEqual(download.status_code, 200)
+        self.assertIn("attachment", download["Content-Disposition"])
+
+    def test_delete_action_removes_record(self):
+        from payslip.models import ProposalRecord
+        self._generate()
+        record = ProposalRecord.objects.get()
+        resp = self.client.post(reverse("proposal_record", args=[record.pk]),
+                                {"action": "delete"})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(ProposalRecord.objects.count(), 0)
+
+    def test_record_page_shows_revision_chain(self):
+        from payslip.models import ProposalRecord
+        self._generate()
+        self._generate()
+        rev2 = ProposalRecord.objects.get(revision=2)
+        resp = self.client.get(reverse("proposal_record", args=[rev2.pk]))
+        self.assertContains(resp, "Rev 1")
+        self.assertContains(resp, "Rev 2")
+        self.assertContains(resp, "Revision history")
+
+    def test_member_without_proposals_right_gets_403(self):
+        member = make_member("no_props", org=self.org_a)  # all rights False
+        self.client.force_login(member)
+        self.assertEqual(self.client.get(reverse("proposal_history")).status_code, 403)

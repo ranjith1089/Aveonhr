@@ -118,17 +118,36 @@
       <h1>📄 Proposal Builder</h1>
       <p>Pick a package, set the negotiated price, generate a ready-to-share proposal.</p>
     </div>
-    <a href="{% url 'cms_feature_list' %}" target="_blank"
-       style="display: inline-block; padding: 10px 18px; background: #1565C0; color: #fff; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600; white-space: nowrap;">
-      📋 CMS Feature List
-    </a>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <a href="{% url 'proposal_history' %}"
+         style="display: inline-block; padding: 10px 18px; background: #fff; color: #1565C0; border: 1.5px solid #1565C0; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600; white-space: nowrap;">
+        🕘 History
+      </a>
+      <a href="{% url 'cms_feature_list' %}" target="_blank"
+         style="display: inline-block; padding: 10px 18px; background: #1565C0; color: #fff; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600; white-space: nowrap;">
+        📋 CMS Feature List
+      </a>
+    </div>
   </header>
+
+  {% if revising %}
+  <section class="card" style="border-left: 4px solid #1565C0; padding: 14px 20px;">
+    ✏ <b>Revising a proposal from history</b> - the form below is pre-filled from the earlier
+    revision. Generating will save the next revision for this client.
+  </section>
+  {% endif %}
 
   {% if preview_url %}
   <section class="card pb-result">
     <h3>✓ Proposal generated for {{ form.cleaned_data.client_name }}</h3>
     <a href="{{ preview_url }}" target="_blank" class="primary">Open Preview</a>
     <a href="{{ download_url }}" class="secondary">{{ download_label }}</a>
+    {% if history_record %}
+    <p style="margin: 10px 0 0; font-size: 13.5px;">
+      🕘 Saved to history as <b>Rev {{ history_record.revision }}</b> for {{ history_record.client_name }} -
+      <a href="{% url 'proposal_record' history_record.pk %}">view revision history</a>
+    </p>
+    {% endif %}
   </section>
   {% endif %}
 

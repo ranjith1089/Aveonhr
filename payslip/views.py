@@ -432,10 +432,48 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
     }
 
 
-def _render_proposal_html(form, request: HttpRequest) -> str:
+def _render_proposal_html(ctx: dict, request: HttpRequest) -> str:
     from django.template.loader import render_to_string
-    ctx = _build_proposal_context(form, request)
     return render_to_string("payslip/proposals/base.html", ctx, request=request)
+
+
+def _proposal_form_snapshot(cleaned_data: dict) -> dict:
+    """JSON-safe copy of the validated form for the history record.
+
+    Dates and Decimals become strings; the uploaded client_logo is dropped
+    (binary, not restorable through a prefill).
+    """
+    snapshot = {}
+    for key, value in cleaned_data.items():
+        if key == "client_logo":
+            continue
+        if isinstance(value, (list, tuple)):
+            snapshot[key] = list(value)
+        elif value is None or isinstance(value, (str, int, bool)):
+            snapshot[key] = value
+        else:
+            snapshot[key] = str(value)
+    return snapshot
+
+
+def _record_proposal(request: HttpRequest, form, ctx: dict, html: str):
+    """Persist this generation in the org's proposal history."""
+    from .models import ProposalRecord, next_proposal_revision
+
+    client_name = form.cleaned_data["client_name"].strip()
+    bundle = ctx.get("bundle")
+    selection_label = (bundle["name"] if bundle
+                       else f"Custom ({len(ctx.get('modules') or [])} modules)")
+    return ProposalRecord.objects.create(
+        organization=request.organization,
+        created_by=request.user,
+        client_name=client_name,
+        revision=next_proposal_revision(request.organization, client_name),
+        form_data=_proposal_form_snapshot(form.cleaned_data),
+        html=html,
+        selection_label=selection_label,
+        total_amount=ctx["pricing"]["grand_total"],
+    )
 
 
 def _try_html_to_pdf(html: str) -> bytes | None:
@@ -487,10 +525,34 @@ def _proposal_form_context(form: ProposalQuotationForm) -> dict:
     }
 
 
+def _revise_initial(record) -> dict:
+    """Turn a history record's form snapshot back into form initials."""
+    import datetime
+    initial = dict(record.form_data)
+    raw_date = initial.get("proposal_date")
+    if raw_date:
+        try:
+            initial["proposal_date"] = datetime.date.fromisoformat(raw_date)
+        except (TypeError, ValueError):
+            initial.pop("proposal_date", None)
+    return initial
+
+
 @module_required("proposals")
 def proposal_quotation(request: HttpRequest) -> HttpResponse:
-    context = _proposal_form_context(ProposalQuotationForm(user=request.user))
     if request.method != "POST":
+        # ?from=<pk> - revise a proposal from history: prefill the builder.
+        initial = None
+        source = request.GET.get("from")
+        if source and source.isdigit():
+            from .models import ProposalRecord
+            from django.shortcuts import get_object_or_404
+            record = get_object_or_404(ProposalRecord, pk=int(source),
+                                       organization=request.organization)
+            initial = _revise_initial(record)
+        form = ProposalQuotationForm(user=request.user, initial=initial)
+        context = _proposal_form_context(form)
+        context["revising"] = bool(initial)
         return render(request, "payslip/proposal_quotation.html", context)
 
     form = ProposalQuotationForm(request.POST, request.FILES, user=request.user)
@@ -498,7 +560,10 @@ def proposal_quotation(request: HttpRequest) -> HttpResponse:
         return render(request, "payslip/proposal_quotation.html", _proposal_form_context(form))
     context = _proposal_form_context(form)
 
-    html = _render_proposal_html(form, request)
+    proposal_ctx = _build_proposal_context(form, request)
+    html = _render_proposal_html(proposal_ctx, request)
+    record = _record_proposal(request, form, proposal_ctx, html)
+    context["history_record"] = record
     safe_client = re.sub(r"[^A-Za-z0-9_\-]+", "_", form.cleaned_data["client_name"]).strip("_") or "client"
     html_filename = f"aveon_proposal_{safe_client}.html"
 

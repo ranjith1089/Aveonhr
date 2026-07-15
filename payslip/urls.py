@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import views_implementation, views_income, views_team
+from . import views_implementation, views_income, views_proposal_history, views_team
 from .views import (
     cms_feature_list,
     company_profile,
@@ -32,6 +32,8 @@ urlpatterns = [
     path("payslip/", upload_payslips, name="upload_payslips"),
     path("proposal-quotation/", proposal_quotation, name="proposal_quotation"),
     path("proposal-quotation/cms-features/", cms_feature_list, name="cms_feature_list"),
+    path("proposal-quotation/history/", views_proposal_history.proposal_history, name="proposal_history"),
+    path("proposal-quotation/history/<int:pk>/", views_proposal_history.proposal_record, name="proposal_record"),
     path("preview/<str:token>/", preview_pdf, name="preview_pdf"),
     path("download/<str:token>/", download_file, name="download_file"),
     # --- Income module (staff-only) ---
