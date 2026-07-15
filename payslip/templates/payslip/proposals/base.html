@@ -497,7 +497,11 @@
       <span class="ey-lbl" style="color:{{ hero.color }}">Commercials</span>
     </div>
     <h2 class="st">Simple, Transparent Pricing</h2>
+    {% if pricing.model == "ONE_TIME" %}
+    <p class="sd">One all-inclusive one-time payment covers every module - with a simple annual maintenance contract from the second year and no hidden charges.</p>
+    {% else %}
     <p class="sd">One all-inclusive per-student rate covers every module, every update and online support - with no hidden charges.</p>
+    {% endif %}
     {% include "payslip/proposals/partials/commercials.html" %}
   </div>
 

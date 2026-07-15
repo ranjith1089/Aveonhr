@@ -480,21 +480,62 @@ class ProposalQuotationForm(ProfilePrefillMixin, forms.Form):
     )
 
     # --- Commercial inputs -------------------------------------------------
-    # Single negotiated price — the sales team decides the per-student / per-employee
-    # rate per customer (₹250, ₹300, ₹500, etc.). No per-module breakdown is shown
-    # in the rendered proposal.
+    # Two negotiation styles: recurring per-student subscription, or a
+    # one-time payment with an AMC charged from Year 2 onwards.
+    PRICING_MODELS = [
+        ("PER_STUDENT", "Per Student / Per Year subscription"),
+        ("ONE_TIME", "One-time Payment + AMC (Year on Year)"),
+    ]
+    pricing_model = forms.ChoiceField(
+        label="Commercial Model",
+        choices=PRICING_MODELS,
+        initial="PER_STUDENT",
+        widget=forms.RadioSelect,
+    )
+
+    # Per-student mode. The sales team decides the per-student / per-employee
+    # rate per customer (₹250, ₹300, ₹500, etc.). No per-module breakdown is
+    # shown in the rendered proposal.
     price_per_unit = forms.DecimalField(
         label="Negotiated Price (INR per student/employee per year)",
         max_digits=12,
         decimal_places=2,
         initial=500,
         min_value=0,
+        required=False,
     )
     minimum_student_commitment = forms.IntegerField(
         label="Minimum Commitment (students / employees)",
         min_value=1,
         initial=1000,
+        required=False,
     )
+
+    # One-time mode. AMC can be typed directly or derived from the percent
+    # helper (amount = one-time price x percent / 100); the amount wins.
+    one_time_price = forms.DecimalField(
+        label="One-Time Payment (INR)",
+        max_digits=14,
+        decimal_places=2,
+        required=False,
+        min_value=0,
+    )
+    amc_percent = forms.DecimalField(
+        label="AMC (% of one-time payment)",
+        max_digits=5,
+        decimal_places=2,
+        initial=18,
+        required=False,
+        min_value=0,
+    )
+    amc_amount = forms.DecimalField(
+        label="AMC per year (INR)",
+        max_digits=14,
+        decimal_places=2,
+        required=False,
+        min_value=0,
+    )
+
     one_time_implementation_fee = forms.DecimalField(
         label="One-Time Implementation Fee (INR)",
         max_digits=12,
@@ -585,6 +626,35 @@ class ProposalQuotationForm(ProfilePrefillMixin, forms.Form):
 
         non_negative("one_time_implementation_fee", "One-Time Implementation Fee")
         non_negative("gst_percent", "GST (%)")
+        non_negative("one_time_price", "One-Time Payment")
+        non_negative("amc_percent", "AMC (%)")
+        non_negative("amc_amount", "AMC per year")
+
+        # Per-mode commercial requirements.
+        pricing_model = cleaned.get("pricing_model") or "PER_STUDENT"
+        if pricing_model == "PER_STUDENT":
+            if not cleaned.get("price_per_unit"):
+                self.add_error("price_per_unit", "Enter the per-student price.")
+            if not cleaned.get("minimum_student_commitment"):
+                self.add_error("minimum_student_commitment",
+                               "Enter the minimum commitment.")
+        elif pricing_model == "ONE_TIME":
+            one_time = cleaned.get("one_time_price")
+            if not one_time:
+                self.add_error("one_time_price", "Enter the one-time payment amount.")
+            # Amount wins; fall back to the percent helper (mirrors the JS).
+            if not cleaned.get("amc_amount"):
+                pct = cleaned.get("amc_percent")
+                if one_time and pct:
+                    cleaned["amc_amount"] = (
+                        Decimal(one_time) * Decimal(pct) / Decimal("100")
+                    ).quantize(Decimal("0.01"))
+                else:
+                    self.add_error("amc_amount",
+                                   "Enter the AMC amount (or an AMC percentage).")
+            # Per-student inputs are ignored in this mode.
+            cleaned["price_per_unit"] = cleaned.get("price_per_unit") or Decimal("0")
+            cleaned["minimum_student_commitment"] = cleaned.get("minimum_student_commitment") or 0
         return cleaned
 
 

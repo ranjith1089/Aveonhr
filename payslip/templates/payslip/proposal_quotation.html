@@ -211,18 +211,51 @@
         </div>
       </div>
 
-      <!-- Commercials (single price + supporting fields) -->
+      <!-- Commercials (two models: per-student subscription / one-time + AMC) -->
       <div class="pb-section">
         <h3>Commercials</h3>
 
-        <div class="pb-price-banner">
-          <label for="id_price_per_unit">Negotiated Price (per student/employee per year)</label><br>
-          {{ form.price_per_unit }}
-          <small>Change this per customer — Rs. 250, 300, 500 or whatever you've negotiated. The proposal shows just this single price; no per-module breakdown.</small>
+        <div class="pb-mode">
+          <label>
+            <input type="radio" name="pricing_model" value="PER_STUDENT"
+              {% if form.pricing_model.value == 'PER_STUDENT' or not form.pricing_model.value %}checked{% endif %}>
+            <strong>Per Student / Per Year</strong>
+            <em>Recurring subscription: rate × commitment, every year.</em>
+          </label>
+          <label>
+            <input type="radio" name="pricing_model" value="ONE_TIME"
+              {% if form.pricing_model.value == 'ONE_TIME' %}checked{% endif %}>
+            <strong>One-time Payment + AMC</strong>
+            <em>Single license payment; AMC charged from Year 2 onwards.</em>
+          </label>
+        </div>
+
+        <div id="pb-perstudent-block">
+          <div class="pb-price-banner">
+            <label for="id_price_per_unit">Negotiated Price (per student/employee per year)</label><br>
+            {{ form.price_per_unit }}
+            <small>Change this per customer — Rs. 250, 300, 500 or whatever you've negotiated. The proposal shows just this single price; no per-module breakdown.</small>
+          </div>
+          <div class="pb-grid" style="margin-top: 14px;">
+            <p><label>Minimum Commitment (students / employees)</label>{{ form.minimum_student_commitment }}</p>
+          </div>
+        </div>
+
+        <div id="pb-onetime-block" style="display: none;">
+          <div class="pb-price-banner">
+            <label for="id_one_time_price">One-Time Payment (INR)</label><br>
+            {{ form.one_time_price }}
+            <small>The single license payment for the whole institution. Year 1 is covered by this payment; the AMC below is charged from Year 2 onwards.</small>
+          </div>
+          <div class="pb-grid" style="margin-top: 14px;">
+            <p><label>AMC (% of one-time payment)</label>{{ form.amc_percent }}<br>
+              <small class="pb-help">Helper — typing here recalculates the AMC amount.</small></p>
+            <p><label>AMC per year (INR)</label>{{ form.amc_amount }}<br>
+              <small class="pb-help">The final amount shown in the proposal — edit freely.</small></p>
+          </div>
         </div>
 
         <div class="pb-grid" style="margin-top: 14px;">
-          <p><label>Minimum Commitment (students / employees)</label>{{ form.minimum_student_commitment }}</p>
           <p><label>One-Time Implementation Fee (INR)</label>{{ form.one_time_implementation_fee }}</p>
           <p><label>GST (%)</label>{{ form.gst_percent }}</p>
           <p style="display: flex; align-items: center; gap: 8px; padding-top: 22px;">
@@ -235,11 +268,11 @@
 
         <div class="pb-total">
           <div class="pb-total-cell">
-            <div class="pb-total-lbl">Annual Subscription</div>
+            <div class="pb-total-lbl" id="pb-tot-annual-lbl">Annual Subscription</div>
             <div class="pb-total-val" id="pb-tot-annual">₹0</div>
           </div>
           <div class="pb-total-cell">
-            <div class="pb-total-lbl">+ One-Time + GST</div>
+            <div class="pb-total-lbl" id="pb-tot-extras-lbl">+ One-Time + GST</div>
             <div class="pb-total-val" id="pb-tot-extras">₹0</div>
           </div>
           <div class="pb-total-cell">
@@ -341,6 +374,31 @@
     return sign + parts.join(',') + ',' + last3;
   }
 
+  function pricingModel() {
+    const checked = form.querySelector('[name=pricing_model]:checked');
+    return checked ? checked.value : 'PER_STUDENT';
+  }
+
+  function applyPricingModel() {
+    const oneTimeMode = pricingModel() === 'ONE_TIME';
+    document.getElementById('pb-perstudent-block').style.display = oneTimeMode ? 'none' : '';
+    document.getElementById('pb-onetime-block').style.display = oneTimeMode ? '' : 'none';
+    document.getElementById('pb-tot-annual-lbl').textContent =
+      oneTimeMode ? 'One-Time Payment' : 'Annual Subscription';
+    document.getElementById('pb-tot-extras-lbl').textContent =
+      oneTimeMode ? 'AMC / Year (from Yr 2, incl. GST)' : '+ One-Time + GST';
+  }
+
+  // AMC helper: typing the % (or changing the one-time price while a % is
+  // set) recalculates the amount; the amount field stays freely editable.
+  function recalcAmc() {
+    const oneTimePrice = parseFloat(form.querySelector('[name=one_time_price]').value) || 0;
+    const pct = parseFloat(form.querySelector('[name=amc_percent]').value) || 0;
+    if (oneTimePrice > 0 && pct > 0) {
+      form.querySelector('[name=amc_amount]').value = Math.round(oneTimePrice * pct / 100 * 100) / 100;
+    }
+  }
+
   function refreshTotals() {
     const students = parseFloat(form.querySelector('[name=minimum_student_commitment]').value) || 0;
     const price    = parseFloat(form.querySelector('[name=price_per_unit]').value) || 0;
@@ -354,22 +412,38 @@
       row.classList.toggle('checked', cb.checked);
     });
 
-    const annual     = price * students;
     const oneTimeEff = waive ? 0 : oneTime;
-    const subtotal   = annual + oneTimeEff;
-    const gst        = subtotal * gstPct / 100;
-    const grand      = subtotal + gst;
+
+    if (pricingModel() === 'ONE_TIME') {
+      const license = parseFloat(form.querySelector('[name=one_time_price]').value) || 0;
+      const amc     = parseFloat(form.querySelector('[name=amc_amount]').value) || 0;
+      const subtotal = license + oneTimeEff;
+      const gst      = subtotal * gstPct / 100;
+      document.getElementById('pb-tot-annual').textContent = '₹' + inrFmt(license);
+      document.getElementById('pb-tot-extras').textContent = '₹' + inrFmt(amc * (1 + gstPct / 100));
+      document.getElementById('pb-tot-grand').textContent  = '₹' + inrFmt(subtotal + gst);
+      return;
+    }
+
+    const annual   = price * students;
+    const subtotal = annual + oneTimeEff;
+    const gst      = subtotal * gstPct / 100;
 
     document.getElementById('pb-tot-annual').textContent = '₹' + inrFmt(annual);
     document.getElementById('pb-tot-extras').textContent = '₹' + inrFmt(oneTimeEff + gst);
-    document.getElementById('pb-tot-grand').textContent  = '₹' + inrFmt(grand);
+    document.getElementById('pb-tot-grand').textContent  = '₹' + inrFmt(subtotal + gst);
   }
 
   form.addEventListener('input', refreshTotals);
   form.addEventListener('change', refreshTotals);
+  form.querySelectorAll('[name=pricing_model]').forEach(r =>
+    r.addEventListener('change', () => { applyPricingModel(); refreshTotals(); }));
+  form.querySelector('[name=amc_percent]').addEventListener('input', recalcAmc);
+  form.querySelector('[name=one_time_price]').addEventListener('input', recalcAmc);
 
   applyMode();
   applyBundle();
+  applyPricingModel();
   refreshTotals();
 })();
 </script>

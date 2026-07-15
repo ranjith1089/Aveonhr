@@ -346,6 +346,7 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
         BUNDLES,
         DEFAULT_PHASES,
         DEFAULT_TERMS,
+        DEFAULT_TERMS_ONE_TIME,
         build_presentation,
         compute_pricing,
         resolve_selection,
@@ -366,6 +367,10 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
         one_time_implementation_fee=cd["one_time_implementation_fee"],
         waive_one_time=cd.get("waive_one_time_fee", False),
         gst_percent=cd["gst_percent"],
+        pricing_model=cd.get("pricing_model") or "PER_STUDENT",
+        one_time_price=cd.get("one_time_price"),
+        amc_amount=cd.get("amc_amount"),
+        amc_percent=cd.get("amc_percent"),
     )
 
     presentation = build_presentation(
@@ -420,6 +425,10 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
         "next_steps": NEXT_STEPS,
         "salutation": SALUTATION,
         "include_year1_cost": cd.get("include_year1_cost", True),
+        # One-time deals swap the license-escalation clause for the AMC one.
+        "terms": (DEFAULT_TERMS_ONE_TIME
+                  if (cd.get("pricing_model") or "PER_STUDENT") == "ONE_TIME"
+                  else DEFAULT_TERMS),
         "contact_phone": brand.phone,
         "contact_email": brand.email,
         "contact_website": brand.website,
@@ -464,6 +473,8 @@ def _record_proposal(request: HttpRequest, form, ctx: dict, html: str):
     bundle = ctx.get("bundle")
     selection_label = (bundle["name"] if bundle
                        else f"Custom ({len(ctx.get('modules') or [])} modules)")
+    if ctx["pricing"].get("model") == "ONE_TIME":
+        selection_label += " · One-time + AMC"
     return ProposalRecord.objects.create(
         organization=request.organization,
         created_by=request.user,

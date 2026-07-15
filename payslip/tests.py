@@ -35,6 +35,7 @@ PROPOSAL_PAYLOAD = {
     "prepared_by": "Aveon Infotech Private Limited",
     "selection_mode": "BUNDLE",
     "bundle": "CMS_FULL",
+    "pricing_model": "PER_STUDENT",
     "price_per_unit": "850",
     "minimum_student_commitment": "1000",
     "one_time_implementation_fee": "350000",
@@ -647,3 +648,97 @@ class ProposalHistoryTests(TestCase):
         member = make_member("no_props", org=self.org_a)  # all rights False
         self.client.force_login(member)
         self.assertEqual(self.client.get(reverse("proposal_history")).status_code, 403)
+
+
+# ONE_TIME + AMC commercial-model payload (per-student fields intentionally
+# left out - the mode must not require them).
+ONE_TIME_PAYLOAD = {
+    "to_address": "The Principal",
+    "client_name": "AMC Test College",
+    "client_address": "Coimbatore, Tamil Nadu",
+    "proposal_date": "13/02/2026",
+    "prepared_by": "Aveon Infotech Private Limited",
+    "selection_mode": "BUNDLE",
+    "bundle": "CMS_FULL",
+    "pricing_model": "ONE_TIME",
+    "one_time_price": "1000000",
+    "amc_percent": "18",
+    "amc_amount": "180000",
+    "one_time_implementation_fee": "350000",
+    "gst_percent": "18",
+    "authorized_signatory_name": "Parvathi G",
+    "authorized_signatory_designation": "Chief Executive Officer",
+}
+
+AMC_TERM = "The AMC shall remain fixed for the first three years."
+LICENSE_TERM = "The license fee shall remain fixed for the first three years."
+
+
+class ProposalPricingModelTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("amc_tester", "amc@example.com", "pass12345")
+        self.client.force_login(self.user)
+
+    def test_one_time_generates_with_amc_lines_and_terms(self):
+        from decimal import Decimal
+        from payslip.models import ProposalRecord
+        response = self.client.post(reverse("proposal_quotation"), ONE_TIME_PAYLOAD)
+        self.assertEqual(response.status_code, 200)
+        record = ProposalRecord.objects.get()
+        # Year-1 total: (10,00,000 + 3,50,000) x 1.18 (fee not waived)
+        self.assertEqual(record.total_amount, Decimal("1593000.00"))
+        self.assertIn("One-time + AMC", record.selection_label)
+        self.assertIn("One-Time License Fee", record.html)
+        self.assertIn("Annual Maintenance Contract", record.html)
+        self.assertIn("from Year 2 onwards", record.html)
+        self.assertIn(AMC_TERM, record.html)
+        self.assertNotIn(LICENSE_TERM, record.html)
+
+    def test_per_student_keeps_license_term(self):
+        from payslip.models import ProposalRecord
+        self.client.post(reverse("proposal_quotation"), PROPOSAL_PAYLOAD)
+        record = ProposalRecord.objects.get()
+        self.assertIn(LICENSE_TERM, record.html)
+        self.assertNotIn(AMC_TERM, record.html)
+        self.assertNotIn("Annual Maintenance Contract", record.html)
+        self.assertNotIn("One-time + AMC", record.selection_label)
+
+    def test_amc_amount_computed_from_percent_when_blank(self):
+        from payslip.models import ProposalRecord
+        payload = {**ONE_TIME_PAYLOAD, "amc_amount": ""}
+        response = self.client.post(reverse("proposal_quotation"), payload)
+        self.assertEqual(response.status_code, 200)
+        record = ProposalRecord.objects.get()
+        self.assertEqual(record.form_data["amc_amount"], "180000.00")
+        self.assertIn("1,80,000", record.html)
+
+    def test_one_time_requires_price_and_amc(self):
+        from payslip.models import ProposalRecord
+        payload = {**ONE_TIME_PAYLOAD, "one_time_price": "",
+                   "amc_percent": "", "amc_amount": ""}
+        response = self.client.post(reverse("proposal_quotation"), payload)
+        self.assertEqual(response.status_code, 200)
+        errors = response.context["form"].errors
+        self.assertIn("one_time_price", errors)
+        self.assertIn("amc_amount", errors)
+        self.assertEqual(ProposalRecord.objects.count(), 0)
+
+    def test_per_student_mode_still_requires_its_fields(self):
+        from payslip.models import ProposalRecord
+        payload = {**PROPOSAL_PAYLOAD, "price_per_unit": "",
+                   "minimum_student_commitment": ""}
+        response = self.client.post(reverse("proposal_quotation"), payload)
+        self.assertEqual(response.status_code, 200)
+        errors = response.context["form"].errors
+        self.assertIn("price_per_unit", errors)
+        self.assertIn("minimum_student_commitment", errors)
+        self.assertEqual(ProposalRecord.objects.count(), 0)
+
+    def test_revise_prefills_one_time_mode(self):
+        from payslip.models import ProposalRecord
+        self.client.post(reverse("proposal_quotation"), ONE_TIME_PAYLOAD)
+        record = ProposalRecord.objects.get()
+        resp = self.client.get(f"{reverse('proposal_quotation')}?from={record.pk}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertRegex(resp.content.decode(), r'value="ONE_TIME"\s+checked')
+        self.assertContains(resp, 'value="1000000"')

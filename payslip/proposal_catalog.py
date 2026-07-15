@@ -864,6 +864,13 @@ DEFAULT_TERMS: list[str] = [
     "the fourth year.",
 ]
 
+# One-time + AMC deals swap the license-escalation clause for an AMC one;
+# everything else stays identical.
+DEFAULT_TERMS_ONE_TIME: list[str] = DEFAULT_TERMS[:-1] + [
+    "The AMC shall remain fixed for the first three years. A 5% increase "
+    "will be applied every year from the beginning of the fourth year.",
+]
+
 
 # ---------------------------------------------------------------------------
 # Narrative content for the proposal sections - verbatim style from the
@@ -1196,27 +1203,26 @@ def compute_pricing(
     one_time_implementation_fee: Decimal,
     waive_one_time: bool,
     gst_percent: Decimal,
+    pricing_model: str = "PER_STUDENT",
+    one_time_price: Decimal | None = None,
+    amc_amount: Decimal | None = None,
+    amc_percent: Decimal | None = None,
 ) -> dict:
     """
-    Single-price model - the sales team negotiates one per-student/per-employee
-    rate (e.g., ₹250, ₹300, ₹500) for the bundle they're proposing. No per-module
-    breakdown is shown; the proposal lists the modules as features only.
+    Two commercial models:
 
-    Returns the two commercial rows that the originals show:
-        1. Annual subscription line  (price × commitment)
-        2. One-time setup fee        (struck-through if waived)
+    PER_STUDENT - the sales team negotiates one per-student/per-employee
+    rate (e.g., ₹250, ₹300, ₹500) for the bundle they're proposing. No
+    per-module breakdown is shown; the proposal lists the modules as
+    features only. Rows: annual subscription (price × commitment) and the
+    one-time setup fee (struck-through if waived).
+
+    ONE_TIME - a single one-time payment for the license plus an AMC
+    (annual maintenance contract) charged from Year 2 onwards. Rows:
+    one-time payment, setup fee (same waive behaviour) and the AMC line.
+    subtotal/gst/grand_total remain the YEAR-1 payable in both models.
     """
-    students = max(int(minimum_student_commitment or 0), 0)
-    price = Decimal(price_per_unit or 0)
-    annual = price * students
-
-    pres = PRESENTATIONS.get(bundle_code or "", CUSTOM_PRESENTATION)
-    annual_line = {
-        "label": pres.get("commercial_line_label") or "Annual Subscription - Per Unit / Per Year",
-        "bonus": pres.get("commercial_bonus_label"),
-        "amount": annual,
-        "per_unit": price,
-    }
+    gst_pct = Decimal(gst_percent or 0)
 
     impl_fee = Decimal(one_time_implementation_fee or 0)
     impl_line = {
@@ -1227,15 +1233,61 @@ def compute_pricing(
         "waived": waive_one_time,
     }
 
+    pres = PRESENTATIONS.get(bundle_code or "", CUSTOM_PRESENTATION)
+
+    if pricing_model == "ONE_TIME":
+        one_time = Decimal(one_time_price or 0)
+        amc = Decimal(amc_amount or 0)
+        bundle_name = (BUNDLES.get(bundle_code) or {}).get("name") if bundle_code else None
+        one_time_line = {
+            "label": (f"{bundle_name} - One-Time License Fee - Per Institution"
+                      if bundle_name else
+                      "One-Time License Fee (selected modules) - Per Institution"),
+            "bonus": pres.get("commercial_bonus_label"),
+            "amount": one_time,
+        }
+        amc_gst = amc * gst_pct / Decimal("100")
+        amc_line = {
+            "label": ("Annual Maintenance Contract (AMC) - "
+                      "from Year 2 onwards - Per Year"),
+            "amount": amc,
+            "percent": Decimal(amc_percent) if amc_percent else None,
+            "gst_amount": amc_gst,
+            "total_with_gst": amc + amc_gst,
+        }
+        subtotal = one_time + impl_line["amount"]
+        gst = subtotal * gst_pct / Decimal("100")
+        return {
+            "model": "ONE_TIME",
+            "one_time": one_time_line,
+            "implementation": impl_line,
+            "amc": amc_line,
+            "subtotal": subtotal,
+            "gst_percent": gst_pct,
+            "gst_amount": gst,
+            "grand_total": subtotal + gst,
+        }
+
+    students = max(int(minimum_student_commitment or 0), 0)
+    price = Decimal(price_per_unit or 0)
+    annual = price * students
+
+    annual_line = {
+        "label": pres.get("commercial_line_label") or "Annual Subscription - Per Unit / Per Year",
+        "bonus": pres.get("commercial_bonus_label"),
+        "amount": annual,
+        "per_unit": price,
+    }
+
     subtotal = annual_line["amount"] + impl_line["amount"]
-    gst = (subtotal * Decimal(gst_percent or 0) / Decimal("100"))
-    grand_total = subtotal + gst
+    gst = subtotal * gst_pct / Decimal("100")
 
     return {
+        "model": "PER_STUDENT",
         "annual": annual_line,
         "implementation": impl_line,
         "subtotal": subtotal,
-        "gst_percent": Decimal(gst_percent or 0),
+        "gst_percent": gst_pct,
         "gst_amount": gst,
-        "grand_total": grand_total,
+        "grand_total": subtotal + gst,
     }

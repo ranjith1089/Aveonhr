@@ -6,6 +6,54 @@
     <span style="text-align:right;">Price (Rs.)</span>
   </div>
 
+  {% if pricing.model == "ONE_TIME" %}
+  <div class="comm-row">
+    <div class="comm-n">1</div>
+    <div>
+      <div class="comm-d">{{ pricing.one_time.label }}</div>
+      {% if pricing.one_time.bonus %}
+      <div class="comm-bonus">{{ pricing.one_time.bonus }}</div>
+      {% endif %}
+    </div>
+    <div class="comm-amt-wrap">
+      <div class="comm-amt">₹{{ pricing.one_time.amount|inr }}</div>
+      <div class="comm-unit">one-time · per institution</div>
+    </div>
+  </div>
+
+  {% with impl=pricing.implementation %}
+  <div class="comm-row">
+    <div class="comm-n">2</div>
+    <div>
+      <div class="comm-d">{{ impl.label }}</div>
+    </div>
+    <div class="comm-amt-wrap">
+      {% if impl.waived %}
+      <div class="comm-amt waived">₹{{ impl.original_amount|inr }}</div>
+      <div class="comm-tag">✓ Currently Waived Off</div>
+      {% else %}
+      <div class="comm-amt">₹{{ impl.amount|inr }}</div>
+      <div class="comm-unit">one-time</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endwith %}
+
+  <div class="comm-row">
+    <div class="comm-n">3</div>
+    <div>
+      <div class="comm-d">{{ pricing.amc.label }}</div>
+      {% if pricing.amc.percent %}
+      <div class="comm-bonus">{{ pricing.amc.percent|floatformat:"-2" }}% of the one-time payment</div>
+      {% endif %}
+    </div>
+    <div class="comm-amt-wrap">
+      <div class="comm-amt">₹{{ pricing.amc.amount|inr }}</div>
+      <div class="comm-unit">per year + GST</div>
+    </div>
+  </div>
+
+  {% else %}
   <div class="comm-row">
     <div class="comm-n">1</div>
     <div>
@@ -37,22 +85,31 @@
     </div>
   </div>
   {% endwith %}
+  {% endif %}
 </div>
 
 {% if pricing.implementation.waived %}
 <div class="comm-offer">
   <span class="comm-offer-badge">Limited-Period Offer</span>
-  <span>₹{{ pricing.implementation.original_amount|inr }} one-time implementation fee - <strong>fully waived</strong>. Go live for the price of a single year&rsquo;s subscription.</span>
+  <span>₹{{ pricing.implementation.original_amount|inr }} one-time implementation fee - <strong>fully waived</strong>.
+    {% if pricing.model == "ONE_TIME" %}Go live with just the one-time license payment.{% else %}Go live for the price of a single year&rsquo;s subscription.{% endif %}</span>
 </div>
 {% endif %}
 
 {% if include_year1_cost %}
 <h3 class="comm-y1-title">Illustrative Year-1 Cost</h3>
 <div class="comm-totals">
+  {% if pricing.model == "ONE_TIME" %}
+  <div class="ct-row">
+    <span>One-time license payment</span>
+    <span>₹{{ pricing.one_time.amount|inr }}</span>
+  </div>
+  {% else %}
   <div class="ct-row">
     <span>Annual subscription ({{ minimum_student_commitment|inr }} × ₹{{ pricing.annual.per_unit|inr }})</span>
     <span>₹{{ pricing.annual.amount|inr }}</span>
   </div>
+  {% endif %}
   <div class="ct-row">
     {% if pricing.implementation.waived %}
     <span>One-time implementation (₹{{ pricing.implementation.original_amount|inr }} waived)</span>
@@ -69,5 +126,11 @@
     <span>Year-1 Total</span>
     <span>₹{{ pricing.grand_total|inr }}</span>
   </div>
+  {% if pricing.model == "ONE_TIME" %}
+  <div class="ct-row" style="border-top:1px dashed #CBD5E1;">
+    <span>From Year 2 onwards: AMC ₹{{ pricing.amc.amount|inr }} + GST ₹{{ pricing.amc.gst_amount|inr }}</span>
+    <span>₹{{ pricing.amc.total_with_gst|inr }} / year</span>
+  </div>
+  {% endif %}
 </div>
 {% endif %}
