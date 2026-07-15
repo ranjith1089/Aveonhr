@@ -18,9 +18,10 @@ TWO_DP = Decimal("0.01")
 GST = Decimal("1.18")
 
 
-def _annotated_billings():
+def _annotated_billings(org):
     return (
-        ClientBilling.objects.select_related("client")
+        ClientBilling.objects.filter(client__organization=org)
+        .select_related("client")
         .annotate(received_sum=Coalesce(
             Sum("payments__amount"), Value(Decimal("0")),
             output_field=DecimalField(max_digits=14, decimal_places=2),
@@ -34,8 +35,8 @@ def _pct(part: Decimal, whole: Decimal) -> int:
     return int(min(max(part / whole * 100, Decimal("0")), Decimal("100")))
 
 
-def build_analytics() -> dict:
-    billings = list(_annotated_billings())
+def build_analytics(org) -> dict:
+    billings = list(_annotated_billings(org))
 
     # ---- Per-FY billed / received / outstanding ----------------------------
     fy: dict[str, dict] = {}
@@ -95,7 +96,8 @@ def build_analytics() -> dict:
     # ---- Monthly received trend (dated payments only) ----------------------
     monthly = defaultdict(lambda: Decimal("0"))
     undated_total = Decimal("0")
-    for received_on, amount in PaymentReceipt.objects.values_list("received_on", "amount"):
+    payments = PaymentReceipt.objects.filter(billing__client__organization=org)
+    for received_on, amount in payments.values_list("received_on", "amount"):
         if received_on:
             monthly[received_on.strftime("%Y-%m")] += amount
         else:
@@ -112,7 +114,7 @@ def build_analytics() -> dict:
     }
 
 
-def build_forecast() -> dict:
+def build_forecast(org) -> dict:
     """Next-FY revenue forecast, two scenarios per active client.
 
     conservative: the client renews at the latest year's net amount.
@@ -121,7 +123,7 @@ def build_forecast() -> dict:
     latest rate + 18% GST. Fixed-fee or single-year clients fall back to the
     conservative figure (flagged).
     """
-    billings = list(_annotated_billings().order_by("client__name", "year_start"))
+    billings = list(_annotated_billings(org).order_by("client__name", "year_start"))
     if not billings:
         return {"target_year": "", "rows": [], "conservative_total": Decimal("0"),
                 "growth_total": Decimal("0"), "current_billed": Decimal("0"), "current_year": ""}

@@ -48,8 +48,8 @@ class ProfilePrefillMixin:
         super().__init__(*args, **kwargs)
         if user is None or not getattr(user, "is_authenticated", False):
             return
-        from .models import profile_for
-        profile = profile_for(user)
+        from .models import org_for
+        profile = org_for(user)  # org shares CompanyProfile's attribute names
         for field_name, attr in self.PROFILE_PREFILL.items():
             if field_name not in self.fields:
                 continue
@@ -594,7 +594,7 @@ class ProposalQuotationForm(ProfilePrefillMixin, forms.Form):
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
-from .models import CompanyProfile
+from .models import Organization
 
 
 class SignupForm(UserCreationForm):
@@ -633,7 +633,9 @@ class SignupForm(UserCreationForm):
         return user
 
 
-class CompanyProfileForm(forms.ModelForm):
+class OrganizationForm(forms.ModelForm):
+    """Org-wide branding/settings - the old per-user CompanyProfileForm."""
+
     logo_upload = forms.ImageField(
         label="Company Logo",
         required=False,
@@ -642,7 +644,7 @@ class CompanyProfileForm(forms.ModelForm):
     remove_logo = forms.BooleanField(label="Remove current logo", required=False)
 
     class Meta:
-        model = CompanyProfile
+        model = Organization
         fields = [
             "company_name", "tagline", "address", "city", "state", "country",
             "email", "phone", "website", "jurisdiction",
@@ -683,3 +685,39 @@ class CompanyProfileForm(forms.ModelForm):
         if commit:
             profile.save()
         return profile
+
+
+class AddMemberForm(forms.Form):
+    """Org admin creates a member account directly (no SMTP needed).
+
+    The temporary password is set here and shown once to the admin, who
+    shares it out-of-band; the member can change it after logging in.
+    """
+
+    first_name = forms.CharField(label="Name", max_length=150)
+    username = forms.CharField(label="Username", max_length=150)
+    email = forms.EmailField(label="Email")
+    password = forms.CharField(
+        label="Temporary password",
+        widget=forms.TextInput(attrs={"placeholder": "At least 8 characters"}),
+    )
+    role = forms.ChoiceField(choices=[("MEMBER", "Member"), ("ADMIN", "Admin")],
+                             initial="MEMBER")
+
+    def clean_username(self):
+        username = (self.cleaned_data.get("username") or "").strip()
+        if User.objects.filter(username__iexact=username).exists():
+            raise ValidationError("This username is already taken.")
+        return username
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise ValidationError("An account with this email already exists.")
+        return email
+
+    def clean_password(self):
+        from django.contrib.auth.password_validation import validate_password
+        password = self.cleaned_data.get("password") or ""
+        validate_password(password)
+        return password

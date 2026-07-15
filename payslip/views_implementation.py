@@ -10,9 +10,10 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
+from .decorators import module_required
 from .forms_income import ClientOnboardingForm, FeatureAddForm
 from .models import ClientOnboarding, FeatureStatus, IncomeClient, feature_progress, onboarding_for
-from .views_income import income_required, _engineer_names
+from .views_income import _engineer_names
 
 STAGE_BADGES = {
     ClientOnboarding.Stage.ONBOARDING: "blue",
@@ -37,9 +38,10 @@ def _cms_module_names() -> list[str]:
     return [MODULES[code]["name"] for code in CMS_FULL_MODULES]
 
 
-@income_required
+@module_required("implementation")
 def implementation_dashboard(request: HttpRequest) -> HttpResponse:
-    clients = list(IncomeClient.objects.prefetch_related("features", "billings")
+    clients = list(IncomeClient.objects.filter(organization=request.organization)
+                   .prefetch_related("features", "billings")
                    .select_related("onboarding"))
 
     stage_counts = {key: 0 for key, _ in ClientOnboarding.Stage.choices}
@@ -107,9 +109,9 @@ def implementation_dashboard(request: HttpRequest) -> HttpResponse:
     })
 
 
-@income_required
+@module_required("implementation")
 def client_implementation(request: HttpRequest, pk: int) -> HttpResponse:
-    client = get_object_or_404(IncomeClient, pk=pk)
+    client = get_object_or_404(IncomeClient, pk=pk, organization=request.organization)
     onboarding = onboarding_for(client)
 
     if request.method == "POST":
@@ -227,7 +229,8 @@ def client_implementation(request: HttpRequest, pk: int) -> HttpResponse:
         "status_choices": FeatureStatus.Status.choices,
         "status_filters": status_filters,
         "stage_badge": STAGE_BADGES[onboarding.stage],
-        "engineer_options": _engineer_names(),
+        "engineer_options": _engineer_names(request.organization),
         "details_open": details_open,
-        "all_clients": IncomeClient.objects.only("id", "name").order_by("name"),
+        "all_clients": IncomeClient.objects.filter(organization=request.organization)
+                       .only("id", "name").order_by("name"),
     })

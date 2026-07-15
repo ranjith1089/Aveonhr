@@ -81,9 +81,123 @@ class GeneratedFile(models.Model):
 
 
 def profile_for(user) -> CompanyProfile:
-    """The user's profile, created on first access (pre-auth users, superusers)."""
+    """The user's profile, created on first access (pre-auth users, superusers).
+
+    TRANSITIONAL: superseded by Organization/org_for - removed once the
+    org rollout completes (Deploy 2).
+    """
     profile, _ = CompanyProfile.objects.get_or_create(user=user)
     return profile
+
+
+# ---------------------------------------------------------------------------
+# Organizations - users are grouped under one org; the org owns branding and
+# the Income/Implementation ledger; org admins grant per-module rights.
+# ---------------------------------------------------------------------------
+class Organization(models.Model):
+    """A tenant. Field names intentionally mirror CompanyProfile so
+    CompanyBranding.from_profile() and ProfilePrefillMixin work unchanged."""
+
+    company_name = models.CharField(max_length=200, blank=True, default="")
+    tagline = models.CharField(max_length=200, blank=True, default="")
+    address = models.TextField(blank=True, default="")
+    city = models.CharField(max_length=100, blank=True, default="")
+    state = models.CharField(max_length=100, blank=True, default="")
+    country = models.CharField(max_length=100, blank=True, default="India")
+    email = models.EmailField(blank=True, default="")
+    phone = models.CharField(max_length=30, blank=True, default="")
+    website = models.CharField(max_length=200, blank=True, default="")
+    jurisdiction = models.CharField(max_length=200, blank=True, default="")
+    logo = models.BinaryField(null=True, blank=True, editable=True)
+    logo_content_type = models.CharField(max_length=50, blank=True, default="")
+    brand_primary = models.CharField(max_length=7, default="#1565C0")
+    brand_accent = models.CharField(max_length=7, default="#2E7D32")
+    signatory_name = models.CharField(max_length=200, blank=True, default="")
+    signatory_designation = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:  # pragma: no cover
+        return self.company_name or f"Organization #{self.pk}"
+
+    @property
+    def logo_bytes(self) -> bytes | None:
+        if not self.logo:
+            return None
+        return bytes(self.logo)  # psycopg may return memoryview
+
+
+class Membership(models.Model):
+    """A user's place in an organization: role + per-module rights.
+
+    Admins bypass the module toggles and manage the team; members only see
+    the modules an admin has switched on for them.
+    """
+
+    class Role(models.TextChoices):
+        ADMIN = "ADMIN", "Admin"
+        MEMBER = "MEMBER", "Member"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="membership"
+    )
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="memberships"
+    )
+    role = models.CharField(max_length=10, choices=Role.choices, default=Role.MEMBER)
+
+    # Document tools default on; the internal money modules default off.
+    can_payslips = models.BooleanField("Payslips", default=True)
+    can_offer_letters = models.BooleanField("Offer Letters", default=True)
+    can_experience_certificates = models.BooleanField("Experience Certificates", default=True)
+    can_travel_expense = models.BooleanField("Travel Expense", default=True)
+    can_proposals = models.BooleanField("Proposals", default=True)
+    can_income = models.BooleanField("Income", default=False)
+    can_implementation = models.BooleanField("Implementation", default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    MODULE_FIELDS = {
+        "payslips": "can_payslips",
+        "offer_letters": "can_offer_letters",
+        "experience_certificates": "can_experience_certificates",
+        "travel_expense": "can_travel_expense",
+        "proposals": "can_proposals",
+        "income": "can_income",
+        "implementation": "can_implementation",
+    }
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.user} @ {self.organization} ({self.role})"
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == self.Role.ADMIN
+
+    def has_module(self, module: str) -> bool:
+        if self.is_admin:
+            return True
+        return bool(getattr(self, self.MODULE_FIELDS[module]))
+
+
+def membership_for(user) -> Membership:
+    """The user's membership, auto-provisioned like profile_for.
+
+    Users created outside signup (createsuperuser, legacy rows, shell) get
+    their own single-member org and become its admin.
+    """
+    try:
+        return user.membership
+    except Membership.DoesNotExist:
+        org = Organization.objects.create(company_name="")
+        return Membership.objects.create(
+            user=user, organization=org, role=Membership.Role.ADMIN
+        )
+
+
+def org_for(user) -> Organization:
+    return membership_for(user).organization
 
 
 # ---------------------------------------------------------------------------
@@ -105,7 +219,13 @@ ENGINEER_CHOICES = [(n, n) for n in (
 
 
 class IncomeClient(models.Model):
-    name = models.CharField(max_length=200, unique=True)
+    # Nullable during the org rollout (Deploy 1); enforced NOT NULL in
+    # Deploy 2 after the 0008 backfill has run in production.
+    organization = models.ForeignKey(
+        Organization, on_delete=models.PROTECT, null=True,
+        related_name="income_clients",
+    )
+    name = models.CharField(max_length=200)
     agreement_status = models.CharField(max_length=200, blank=True, default="")
     is_active = models.BooleanField(default=True)  # False = client discontinued
     notes = models.TextField(blank=True, default="")
@@ -114,6 +234,7 @@ class IncomeClient(models.Model):
 
     class Meta:
         ordering = ["name"]
+        unique_together = [("organization", "name")]
 
     def __str__(self) -> str:  # pragma: no cover
         return self.name

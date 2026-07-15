@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Team - {{ org }}</title>
+{# The income style partial is generic (topbar/cards/tables/badges) - reused app-wide. #}
+{% include "payslip/income/_income_style.html" %}
+<style>
+  .rights-check { width:auto !important; accent-color:#1565C0; transform:scale(1.15); }
+  .role-sel { width:auto; padding:6px 10px; font-size:12.5px; font-weight:700; border-radius:14px; }
+  td.center, th.center { text-align:center; }
+  .member-name b { display:block; }
+  .member-name .muted { font-size:11.5px; }
+  details.fold > summary { list-style:none; cursor:pointer; }
+  details.fold > summary::-webkit-details-marker { display:none; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <a class="brand" href="{% url 'landing' %}">🏢 {{ org }}</a>
+    <div class="topnav">
+      <a href="{% url 'landing' %}">← HR Suite</a>
+      <a href="{% url 'company_profile' %}">Company Settings</a>
+      <a href="{% url 'team' %}" class="active">👥 Team</a>
+    </div>
+  </div>
+  {% if messages %}
+  <div class="messages">
+    {% for message in messages %}
+    <div class="msg {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <h1 style="margin-bottom:4px;">👥 Team</h1>
+  <p class="sub">Give each member access to exactly the modules they need. Admins can use everything and manage this page.</p>
+
+  <div class="card">
+    <h2>Members &amp; rights</h2>
+    <form method="post">
+      {% csrf_token %}
+      <div class="tbl-wrap">
+        <table>
+          <tr>
+            <th>Member</th><th>Role</th>
+            {% for f, label in right_columns %}<th class="center">{{ label }}</th>{% endfor %}
+            <th></th>
+          </tr>
+          {% for row in rows %}
+          <tr {% if not row.m.user.is_active %}style="opacity:.5;"{% endif %}>
+            <td class="member-name">
+              <b>{{ row.m.user.first_name|default:row.m.user.username }}{% if row.m.user == me %} <span class="badge blue">you</span>{% endif %}{% if not row.m.user.is_active %} <span class="badge red">deactivated</span>{% endif %}</b>
+              <span class="muted">{{ row.m.user.username }} · {{ row.m.user.email }}</span>
+            </td>
+            <td>
+              <select class="role-sel" name="role_{{ row.m.user_id }}">
+                <option value="ADMIN" {% if row.m.is_admin %}selected{% endif %}>Admin</option>
+                <option value="MEMBER" {% if not row.m.is_admin %}selected{% endif %}>Member</option>
+              </select>
+            </td>
+            {% for f, enabled in row.rights %}
+            <td class="center">
+              <input class="rights-check" type="checkbox" name="{{ f }}_{{ row.m.user_id }}" {% if enabled %}checked{% endif %} />
+            </td>
+            {% endfor %}
+            <td>
+              <button class="btn small {% if row.m.user.is_active %}danger{% else %}secondary{% endif %}"
+                      type="submit" form="toggle-{{ row.m.user_id }}"
+                      {% if row.m.user == me %}disabled title="You cannot deactivate yourself"{% endif %}>
+                {% if row.m.user.is_active %}Deactivate{% else %}Reactivate{% endif %}
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+      <div style="margin-top:14px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <button class="btn" type="submit">Save Rights</button>
+        <span class="muted">Admins always have every module - the checkboxes matter for members only.</span>
+      </div>
+    </form>
+    {% for row in rows %}
+    <form id="toggle-{{ row.m.user_id }}" method="post" action="{% url 'team_toggle_member' row.m.user_id %}" style="display:none;">
+      {% csrf_token %}
+    </form>
+    {% endfor %}
+  </div>
+
+  <details class="fold card" {% if add_form_open or add_form.errors %}open{% endif %}>
+    <summary><h2 style="margin-bottom:0;">➕ Add a member <span class="muted" style="font-weight:600; text-transform:none; letter-spacing:0;">- click to expand</span></h2></summary>
+    {% if add_form.errors %}
+    <div class="msg error" style="margin-top:12px;">
+      {% for field, errs in add_form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+    <form method="post" action="{% url 'team_add_member' %}" style="margin-top:12px;">
+      {% csrf_token %}
+      <div class="grid">
+        <p><label>Name</label>{{ add_form.first_name }}</p>
+        <p><label>Username</label>{{ add_form.username }}</p>
+        <p><label>Email</label>{{ add_form.email }}</p>
+        <p><label>Temporary password</label>{{ add_form.password }}<span class="muted">Share it with the member - they can change it after logging in.</span></p>
+        <p><label>Role</label>{{ add_form.role }}</p>
+        <p class="full">
+          <label>Module access (members only)</label>
+          <span style="display:flex; gap:16px; flex-wrap:wrap; margin-top:6px;">
+            {% for f, label in right_columns %}
+            <label style="display:inline-flex; align-items:center; gap:6px; font-weight:600;">
+              <input class="rights-check" type="checkbox" name="new_{{ f }}"
+                     {% if f != "can_income" and f != "can_implementation" %}checked{% endif %} />
+              {{ label }}
+            </label>
+            {% endfor %}
+          </span>
+        </p>
+      </div>
+      <div style="margin-top:16px;">
+        <button class="btn" type="submit">Create Account</button>
+      </div>
+    </form>
+  </details>
+</div>
+</body>
+</html>

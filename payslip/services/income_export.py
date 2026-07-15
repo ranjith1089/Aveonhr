@@ -18,12 +18,13 @@ HEADERS = [
 MONEY_COLS = {4, 5, 6, 7, 8, 9, 10, 11}  # 1-based column numbers with money format
 
 
-def build_income_workbook() -> bytes:
+def build_income_workbook(org) -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
     billings = (
-        ClientBilling.objects.select_related("client")
+        ClientBilling.objects.filter(client__organization=org)
+        .select_related("client")
         .annotate(received_sum=Coalesce(
             Sum("payments__amount"), Value(Decimal("0")),
             output_field=DecimalField(max_digits=14, decimal_places=2),

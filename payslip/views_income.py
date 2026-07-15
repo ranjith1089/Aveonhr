@@ -1,19 +1,22 @@
-"""Staff-only Aveon Income module views - the client payment follow-up sheet."""
+"""Aveon Income module views - the client payment follow-up sheet.
+
+Org-scoped: every query filters by request.organization (set by
+module_required), so each organization only ever sees its own ledger.
+Cross-org object access 404s via the organization filter in get_object_or_404.
+"""
 from __future__ import annotations
 
 from decimal import Decimal
-from functools import wraps
 
 from django.contrib import messages
-from django.contrib.auth.views import redirect_to_login
 from django.db.models import DecimalField, Sum, Value
 from django.db.models.functions import Coalesce
-from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
+from .decorators import module_required
 from .forms_income import (
     ClientBillingForm,
     IncomeClientForm,
@@ -23,36 +26,21 @@ from .forms_income import (
 from .models import ClientBilling, IncomeClient, PaymentReceipt
 
 
-def income_required(view):
-    """Login redirect for anonymous users; 403 for non-staff.
-
-    Not staff_member_required - that redirects to the admin login page
-    instead of the app's own login.
-    """
-    @wraps(view)
-    def wrapper(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect_to_login(request.get_full_path())
-        if not request.user.is_staff:
-            return HttpResponseForbidden("The Income module is restricted to staff users.")
-        return view(request, *args, **kwargs)
-    return wrapper
-
-
-def _engineer_names() -> list[str]:
+def _engineer_names(org) -> list[str]:
     """Known engineers + any new names already typed into billing rows."""
     from .models import ENGINEER_CHOICES
     base = {e[0] for e in ENGINEER_CHOICES}
     used = set(
-        ClientBilling.objects.exclude(engineer="")
+        ClientBilling.objects.filter(client__organization=org).exclude(engineer="")
         .values_list("engineer", flat=True).distinct()
     )
     return sorted(base | used)
 
 
-def _annotated_billings():
+def _annotated_billings(org):
     return (
-        ClientBilling.objects.select_related("client")
+        ClientBilling.objects.filter(client__organization=org)
+        .select_related("client")
         .annotate(received_sum=Coalesce(
             Sum("payments__amount"), Value(Decimal("0")),
             output_field=DecimalField(max_digits=14, decimal_places=2),
@@ -60,19 +48,21 @@ def _annotated_billings():
     )
 
 
-@income_required
+@module_required("income")
 def income_dashboard(request: HttpRequest) -> HttpResponse:
     from .services.income_analytics import build_analytics
 
-    billings = list(_annotated_billings())
+    org = request.organization
+    billings = list(_annotated_billings(org))
     today = timezone.localdate()
-    analytics = build_analytics()
+    analytics = build_analytics(org)
 
     followups = [b for b in billings if b.next_followup_date and b.next_followup_date <= today]
     followups.sort(key=lambda b: b.next_followup_date)
     waiting = [b for b in billings if b.invoice_status == ClientBilling.InvoiceStatus.WAITING]
     recent_payments = (
-        PaymentReceipt.objects.select_related("billing__client").order_by("-created_at")[:8]
+        PaymentReceipt.objects.filter(billing__client__organization=org)
+        .select_related("billing__client").order_by("-created_at")[:8]
     )
 
     top_clients = [r for r in analytics["client_outstanding"] if r["balance"] > 0][:8]
@@ -80,10 +70,11 @@ def income_dashboard(request: HttpRequest) -> HttpResponse:
     # Implementation alerts: agreement expiry + missing POs (one cheap query).
     from .models import ClientOnboarding
     expiring_count = 0
-    po_pending_count = IncomeClient.objects.filter(is_active=True).exclude(
-        onboarding__po_received=True
-    ).count()
-    for o in ClientOnboarding.objects.filter(agreement_signed=True,
+    po_pending_count = IncomeClient.objects.filter(
+        organization=org, is_active=True
+    ).exclude(onboarding__po_received=True).count()
+    for o in ClientOnboarding.objects.filter(client__organization=org,
+                                             agreement_signed=True,
                                              agreement_end__isnull=False):
         if o.agreement_expired or o.agreement_expiring:
             expiring_count += 1
@@ -104,19 +95,20 @@ def income_dashboard(request: HttpRequest) -> HttpResponse:
         "followups": followups,
         "waiting": waiting,
         "recent_payments": recent_payments,
-        "client_count": IncomeClient.objects.filter(is_active=True).count(),
+        "client_count": IncomeClient.objects.filter(organization=org, is_active=True).count(),
         "expiring_count": expiring_count,
         "po_pending_count": po_pending_count,
         "today": today,
     })
 
 
-@income_required
+@module_required("income")
 def income_analytics(request: HttpRequest) -> HttpResponse:
     from .services.income_analytics import build_analytics, build_forecast
 
-    analytics = build_analytics()
-    forecast = build_forecast()
+    org = request.organization
+    analytics = build_analytics(org)
+    forecast = build_forecast(org)
 
     charts = {
         "fy": {
@@ -152,14 +144,16 @@ def income_analytics(request: HttpRequest) -> HttpResponse:
     })
 
 
-@income_required
+@module_required("income")
 def income_client_list(request: HttpRequest) -> HttpResponse:
+    org = request.organization
     q = (request.GET.get("q") or "").strip()
     engineer = (request.GET.get("engineer") or "").strip()
     show = (request.GET.get("show") or "all").strip()  # all | active | balance
     sort = (request.GET.get("sort") or "balance").strip()  # balance | name
 
-    clients = list(IncomeClient.objects.prefetch_related("billings__payments").all())
+    clients = list(IncomeClient.objects.filter(organization=org)
+                   .prefetch_related("billings__payments"))
     if q:
         clients = [c for c in clients if q.lower() in c.name.lower()]
     if engineer:
@@ -191,27 +185,31 @@ def income_client_list(request: HttpRequest) -> HttpResponse:
 
     return render(request, "payslip/income/client_list.html", {
         "rows": rows, "q": q, "engineer": engineer, "show": show, "sort": sort,
-        "engineers": _engineer_names(),
+        "engineers": _engineer_names(org),
         "total_billed": total_billed, "total_received": total_received,
         "total_balance": total_balance,
     })
 
 
-@income_required
+@module_required("income")
 def income_client_create(request: HttpRequest) -> HttpResponse:
-    form = IncomeClientForm(request.POST or None)
+    org = request.organization
+    form = IncomeClientForm(request.POST or None, organization=org)
     if request.method == "POST" and form.is_valid():
-        client = form.save()
+        client = form.save(commit=False)
+        client.organization = org
+        client.save()
         messages.success(request, f"Client '{client.name}' created.")
         return redirect("income_client_detail", pk=client.pk)
     return render(request, "payslip/income/client_form.html",
                   {"form": form, "heading": "Add Client"})
 
 
-@income_required
+@module_required("income")
 def income_client_edit(request: HttpRequest, pk: int) -> HttpResponse:
-    client = get_object_or_404(IncomeClient, pk=pk)
-    form = IncomeClientForm(request.POST or None, instance=client)
+    org = request.organization
+    client = get_object_or_404(IncomeClient, pk=pk, organization=org)
+    form = IncomeClientForm(request.POST or None, instance=client, organization=org)
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, "Client updated.")
@@ -220,9 +218,12 @@ def income_client_edit(request: HttpRequest, pk: int) -> HttpResponse:
                   {"form": form, "heading": f"Edit {client.name}", "client": client})
 
 
-@income_required
+@module_required("income")
 def income_client_detail(request: HttpRequest, pk: int) -> HttpResponse:
-    client = get_object_or_404(IncomeClient.objects.prefetch_related("billings__payments"), pk=pk)
+    client = get_object_or_404(
+        IncomeClient.objects.prefetch_related("billings__payments"),
+        pk=pk, organization=request.organization,
+    )
     billings = sorted(client.billings.all(), key=lambda b: b.year_start)
     # Carry-forward mismatch badge: previous_pending vs prior year's balance.
     rows = []
@@ -248,9 +249,10 @@ def income_client_detail(request: HttpRequest, pk: int) -> HttpResponse:
     })
 
 
-@income_required
+@module_required("income")
 def income_billing_create(request: HttpRequest, pk: int) -> HttpResponse:
-    client = get_object_or_404(IncomeClient, pk=pk)
+    org = request.organization
+    client = get_object_or_404(IncomeClient, pk=pk, organization=org)
     initial = {}
     latest = max(client.billings.all(), key=lambda b: b.year_start, default=None)
     if latest:
@@ -274,12 +276,16 @@ def income_billing_create(request: HttpRequest, pk: int) -> HttpResponse:
             return redirect("income_client_detail", pk=client.pk)
     return render(request, "payslip/income/billing_form.html",
                   {"form": form, "heading": f"Add year - {client.name}", "client": client,
-                   "engineer_options": _engineer_names()})
+                   "engineer_options": _engineer_names(org)})
 
 
-@income_required
+@module_required("income")
 def income_billing_edit(request: HttpRequest, pk: int) -> HttpResponse:
-    billing = get_object_or_404(ClientBilling.objects.select_related("client"), pk=pk)
+    org = request.organization
+    billing = get_object_or_404(
+        ClientBilling.objects.select_related("client"),
+        pk=pk, client__organization=org,
+    )
     form = ClientBillingForm(request.POST or None, instance=billing)
     if request.method == "POST" and form.is_valid():
         form.save()
@@ -287,13 +293,16 @@ def income_billing_edit(request: HttpRequest, pk: int) -> HttpResponse:
         return redirect("income_client_detail", pk=billing.client_id)
     return render(request, "payslip/income/billing_form.html",
                   {"form": form, "heading": f"Edit {billing.client.name} {billing.academic_year}",
-                   "client": billing.client, "engineer_options": _engineer_names()})
+                   "client": billing.client, "engineer_options": _engineer_names(org)})
 
 
-@income_required
+@module_required("income")
 @require_POST
 def income_payment_add(request: HttpRequest, pk: int) -> HttpResponse:
-    billing = get_object_or_404(ClientBilling.objects.select_related("client"), pk=pk)
+    billing = get_object_or_404(
+        ClientBilling.objects.select_related("client"),
+        pk=pk, client__organization=request.organization,
+    )
     form = PaymentReceiptForm(request.POST)
     if form.is_valid():
         payment = form.save(commit=False)
@@ -307,21 +316,24 @@ def income_payment_add(request: HttpRequest, pk: int) -> HttpResponse:
     return redirect("income_client_detail", pk=billing.client_id)
 
 
-@income_required
+@module_required("income")
 @require_POST
 def income_payment_delete(request: HttpRequest, pk: int) -> HttpResponse:
-    payment = get_object_or_404(PaymentReceipt.objects.select_related("billing__client"), pk=pk)
+    payment = get_object_or_404(
+        PaymentReceipt.objects.select_related("billing__client"),
+        pk=pk, billing__client__organization=request.organization,
+    )
     client_pk = payment.billing.client_id
     payment.delete()
     messages.success(request, "Payment entry deleted.")
     return redirect("income_client_detail", pk=client_pk)
 
 
-@income_required
+@module_required("income")
 @require_GET
 def income_export(request: HttpRequest) -> HttpResponse:
     from .services.income_export import build_income_workbook
-    data = build_income_workbook()
+    data = build_income_workbook(request.organization)
     resp = HttpResponse(
         data,
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -332,7 +344,7 @@ def income_export(request: HttpRequest) -> HttpResponse:
     return resp
 
 
-@income_required
+@module_required("income")
 def income_import(request: HttpRequest) -> HttpResponse:
     from .services.income_import import apply_import, parse_income_workbook
     result = None
@@ -345,7 +357,7 @@ def income_import(request: HttpRequest) -> HttpResponse:
             form.add_error("file", f"Could not read the workbook: {exc}")
         else:
             if not form.cleaned_data.get("dry_run"):
-                applied = apply_import(result)
+                applied = apply_import(result, request.organization)
                 messages.success(
                     request,
                     f"Import complete: {applied['clients_created']} clients created, "

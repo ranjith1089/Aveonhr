@@ -231,15 +231,17 @@ def parse_income_workbook(file_obj) -> ImportResult:
     return result
 
 
-def apply_import(result: ImportResult) -> dict:
-    """Create clients/billings/opening payments. Re-runnable: existing
-    (client, year) rows are skipped."""
+def apply_import(result: ImportResult, organization) -> dict:
+    """Create clients/billings/opening payments for one organization.
+    Re-runnable: existing (client, year) rows are skipped."""
     created_clients = 0
     created_billings = 0
     skipped = 0
     with transaction.atomic():
         for r in result.rows:
-            client, was_created = IncomeClient.objects.get_or_create(name=r.client_name)
+            client, was_created = IncomeClient.objects.get_or_create(
+                name=r.client_name, organization=organization
+            )
             if was_created:
                 created_clients += 1
             changed = False

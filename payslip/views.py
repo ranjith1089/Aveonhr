@@ -12,8 +12,9 @@ from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.http import require_GET
 
+from .decorators import module_required, org_admin_required
 from .forms import (
-    CompanyProfileForm,
+    OrganizationForm,
     ExperienceCertificateForm,
     OfferLetterForm,
     PayslipUploadForm,
@@ -21,7 +22,7 @@ from .forms import (
     TravelExpenseForm,
     ProposalQuotationForm,
 )
-from .models import GeneratedFile, profile_for
+from .models import GeneratedFile, Membership, membership_for, org_for
 from .pdf_styles import CompanyBranding
 
 
@@ -83,25 +84,25 @@ def signup(request: HttpRequest) -> HttpResponse:
     form = SignupForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         user = form.save()
-        profile_for(user)  # create the empty company profile up front
+        membership_for(user)  # provision the organization + admin membership
         login(request, user)
         return redirect(f"{reverse('company_profile')}?welcome=1")
     return render(request, "registration/signup.html", {"form": form})
 
 
-@login_required
+@org_admin_required
 def company_profile(request: HttpRequest) -> HttpResponse:
-    profile = profile_for(request.user)
+    org = request.organization
     if request.method == "POST":
-        form = CompanyProfileForm(request.POST, request.FILES, instance=profile)
+        form = OrganizationForm(request.POST, request.FILES, instance=org)
         if form.is_valid():
             form.save()
             return redirect(f"{reverse('company_profile')}?saved=1")
     else:
-        form = CompanyProfileForm(instance=profile)
+        form = OrganizationForm(instance=org)
     return render(request, "payslip/profile.html", {
         "form": form,
-        "profile": profile,
+        "profile": org,
         "welcome": request.GET.get("welcome"),
         "saved": request.GET.get("saved"),
     })
@@ -110,13 +111,13 @@ def company_profile(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_GET
 def profile_logo(request: HttpRequest) -> HttpResponse:
-    profile = profile_for(request.user)
-    if not profile.logo:
+    org = org_for(request.user)
+    if not org.logo:
         return HttpResponse(status=404)
-    return HttpResponse(profile.logo_bytes, content_type=profile.logo_content_type or "image/png")
+    return HttpResponse(org.logo_bytes, content_type=org.logo_content_type or "image/png")
 
 
-@login_required
+@module_required("payslips")
 def upload_payslips(request: HttpRequest) -> HttpResponse:
     context = {"form": PayslipUploadForm(user=request.user)}
     if request.method != "POST":
@@ -137,7 +138,7 @@ def upload_payslips(request: HttpRequest) -> HttpResponse:
     logo_bytes = logo.read() if logo else None
     if logo_bytes is None:
         # Fall back to the saved company logo from the profile.
-        logo_bytes = profile_for(request.user).logo_bytes
+        logo_bytes = org_for(request.user).logo_bytes
 
     salary_file = form.cleaned_data["salary_file"]
     try:
@@ -161,10 +162,18 @@ def upload_payslips(request: HttpRequest) -> HttpResponse:
 
 
 def landing(request: HttpRequest) -> HttpResponse:
-    return render(request, "payslip/landing.html")
+    membership = None
+    allowed = {}
+    if request.user.is_authenticated:
+        membership = membership_for(request.user)
+        allowed = {m: membership.has_module(m) for m in Membership.MODULE_FIELDS}
+    return render(request, "payslip/landing.html", {
+        "membership": membership,
+        "allowed": allowed,
+    })
 
 
-@login_required
+@module_required("offer_letters")
 def offer_letter(request: HttpRequest) -> HttpResponse:
     context = {"form": OfferLetterForm(user=request.user)}
     if request.method != "POST":
@@ -193,7 +202,7 @@ def offer_letter(request: HttpRequest) -> HttpResponse:
     else:
         builder, base = build_offer_letter_pdf, "offer_letter"
 
-    brand = CompanyBranding.from_profile(profile_for(request.user))
+    brand = CompanyBranding.from_profile(org_for(request.user))
     pdf_letterhead = builder(pdf_data, letterhead=True, brand=brand)
     pdf_plain = builder(pdf_data, letterhead=False, brand=brand)
     filename_lh = f"{base}.pdf"
@@ -248,7 +257,7 @@ def download_file(request: HttpRequest, token: str) -> HttpResponse:
     return response
 
 
-@login_required
+@module_required("experience_certificates")
 def experience_certificate(request: HttpRequest) -> HttpResponse:
     context = {"form": ExperienceCertificateForm(user=request.user)}
     if request.method != "POST":
@@ -264,7 +273,7 @@ def experience_certificate(request: HttpRequest) -> HttpResponse:
 
     data = form.cleaned_data
     # Two versions: full digital letterhead, and plain for pre-printed paper.
-    brand = CompanyBranding.from_profile(profile_for(request.user))
+    brand = CompanyBranding.from_profile(org_for(request.user))
     pdf_letterhead = build_experience_certificate_pdf(data, letterhead=True, brand=brand)
     pdf_plain = build_experience_certificate_pdf(data, letterhead=False, brand=brand)
 
@@ -296,7 +305,7 @@ def experience_certificate(request: HttpRequest) -> HttpResponse:
 
 
 
-@login_required
+@module_required("travel_expense")
 def travel_expense(request: HttpRequest) -> HttpResponse:
     context = {"form": TravelExpenseForm(user=request.user)}
     if request.method != "POST":
@@ -377,7 +386,7 @@ def _build_proposal_context(form, request: HttpRequest) -> dict:
         WHY_AVEON,
         WHY_NOW,
     )
-    brand = CompanyBranding.from_profile(profile_for(request.user)) if request.user.is_authenticated else CompanyBranding()
+    brand = CompanyBranding.from_profile(org_for(request.user)) if request.user.is_authenticated else CompanyBranding()
     logo_data_uri = _logo_data_uri(brand)
 
     pres = PRESENTATIONS.get(bundle_code or "", CUSTOM_PRESENTATION)
@@ -478,7 +487,7 @@ def _proposal_form_context(form: ProposalQuotationForm) -> dict:
     }
 
 
-@login_required
+@module_required("proposals")
 def proposal_quotation(request: HttpRequest) -> HttpResponse:
     context = _proposal_form_context(ProposalQuotationForm(user=request.user))
     if request.method != "POST":
@@ -515,7 +524,7 @@ def proposal_quotation(request: HttpRequest) -> HttpResponse:
     return render(request, "payslip/proposal_quotation.html", context)
 
 
-@login_required
+@module_required("proposals")
 @require_GET
 def cms_feature_list(request: HttpRequest) -> HttpResponse:
     """Print-ready CMS ERP product specifications document.
@@ -526,7 +535,7 @@ def cms_feature_list(request: HttpRequest) -> HttpResponse:
     """
     from .cms_spec import CMS_SPEC
 
-    brand = CompanyBranding.from_profile(profile_for(request.user))
+    brand = CompanyBranding.from_profile(org_for(request.user))
     context = {
         "spec": CMS_SPEC,
         "logo_data_uri": _logo_data_uri(brand),

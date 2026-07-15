@@ -1,6 +1,22 @@
 from django.contrib import admin
 
-from .models import CompanyProfile, GeneratedFile
+from .models import CompanyProfile, GeneratedFile, Membership, Organization
+
+
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    list_display = ("company_name", "email", "phone", "created_at")
+    search_fields = ("company_name", "email")
+    readonly_fields = ("created_at", "updated_at")
+    exclude = ("logo",)  # binary blob - not editable in admin
+
+
+@admin.register(Membership)
+class MembershipAdmin(admin.ModelAdmin):
+    list_display = ("user", "organization", "role", "can_income",
+                    "can_implementation", "updated_at")
+    list_filter = ("role", "can_income", "can_implementation")
+    search_fields = ("user__username", "user__email", "organization__company_name")
 
 
 @admin.register(CompanyProfile)

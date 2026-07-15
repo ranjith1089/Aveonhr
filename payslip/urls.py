@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import views_implementation, views_income
+from . import views_implementation, views_income, views_team
 from .views import (
     cms_feature_list,
     company_profile,
@@ -22,6 +22,10 @@ urlpatterns = [
     path("accounts/", include("django.contrib.auth.urls")),
     path("profile/", company_profile, name="company_profile"),
     path("profile/logo/", profile_logo, name="profile_logo"),
+    # --- Team management (org admins) ---
+    path("team/", views_team.team, name="team"),
+    path("team/add/", views_team.team_add_member, name="team_add_member"),
+    path("team/<int:user_id>/toggle/", views_team.team_toggle_member, name="team_toggle_member"),
     path("offer-letter/", offer_letter, name="offer_letter"),
     path("experience-certificate/", experience_certificate, name="experience_certificate"),
     path("travel-expense/", travel_expense, name="travel_expense"),

@@ -17,6 +17,22 @@ class IncomeClientForm(forms.ModelForm):
         fields = ["name", "agreement_status", "is_active", "notes"]
         widgets = {"notes": forms.Textarea(attrs={"rows": 3})}
 
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.organization = organization or getattr(self.instance, "organization", None)
+
+    def clean_name(self):
+        # Uniqueness is per-organization now (composite constraint) - validate
+        # here so the user gets a form error instead of an IntegrityError.
+        name = (self.cleaned_data.get("name") or "").strip()
+        if self.organization is not None:
+            qs = IncomeClient.objects.filter(organization=self.organization, name__iexact=name)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError("A client with this name already exists.")
+        return name
+
 
 class ClientBillingForm(forms.ModelForm):
     class Meta:
