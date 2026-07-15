@@ -1,7 +1,8 @@
 """
-SaaS data model: per-user company profile (branding for every generated
-document) and the database-backed store for generated files (replaces the
-in-memory cache, which does not survive serverless instances).
+SaaS data model: organizations (tenant + branding for every generated
+document), memberships with per-module rights, the org-scoped income /
+implementation ledger, proposal history, and the database-backed store for
+generated files (survives serverless instances).
 """
 from __future__ import annotations
 
@@ -14,47 +15,6 @@ from django.db import models
 
 def _new_token() -> str:
     return uuid.uuid4().hex
-
-
-class CompanyProfile(models.Model):
-    """One company identity per user - prefills forms and brands PDFs.
-
-    Every field is optional: blank fields fall back to the built-in
-    (Aveon) defaults, so a half-filled profile degrades gracefully.
-    """
-
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="company_profile",
-    )
-    company_name = models.CharField(max_length=200, blank=True, default="")
-    tagline = models.CharField(max_length=200, blank=True, default="")
-    address = models.TextField(blank=True, default="")
-    city = models.CharField(max_length=100, blank=True, default="")
-    state = models.CharField(max_length=100, blank=True, default="")
-    country = models.CharField(max_length=100, blank=True, default="India")
-    email = models.EmailField(blank=True, default="")
-    phone = models.CharField(max_length=30, blank=True, default="")
-    website = models.CharField(max_length=200, blank=True, default="")
-    jurisdiction = models.CharField(max_length=200, blank=True, default="")
-    logo = models.BinaryField(null=True, blank=True, editable=True)
-    logo_content_type = models.CharField(max_length=50, blank=True, default="")
-    brand_primary = models.CharField(max_length=7, default="#1565C0")
-    brand_accent = models.CharField(max_length=7, default="#2E7D32")
-    signatory_name = models.CharField(max_length=200, blank=True, default="")
-    signatory_designation = models.CharField(max_length=200, blank=True, default="")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self) -> str:  # pragma: no cover
-        return self.company_name or f"Profile of {self.user}"
-
-    @property
-    def logo_bytes(self) -> bytes | None:
-        if not self.logo:
-            return None
-        return bytes(self.logo)  # psycopg may return memoryview
 
 
 class GeneratedFile(models.Model):
@@ -78,16 +38,6 @@ class GeneratedFile(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.filename} ({self.token[:8]})"
-
-
-def profile_for(user) -> CompanyProfile:
-    """The user's profile, created on first access (pre-auth users, superusers).
-
-    TRANSITIONAL: superseded by Organization/org_for - removed once the
-    org rollout completes (Deploy 2).
-    """
-    profile, _ = CompanyProfile.objects.get_or_create(user=user)
-    return profile
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +153,7 @@ def org_for(user) -> Organization:
 # ---------------------------------------------------------------------------
 # Aveon Income module - client payment follow-up (replaces the ODS sheet).
 #
-# NOTE: unlike CompanyProfile/GeneratedFile these models are ORG-WIDE, not
+# NOTE: unlike GeneratedFile these models are ORG-WIDE, not
 # per-user: every staff member sees the same ledger. Access is enforced at
 # the view layer (staff-only).
 # ---------------------------------------------------------------------------
@@ -219,10 +169,8 @@ ENGINEER_CHOICES = [(n, n) for n in (
 
 
 class IncomeClient(models.Model):
-    # Nullable during the org rollout (Deploy 1); enforced NOT NULL in
-    # Deploy 2 after the 0008 backfill has run in production.
     organization = models.ForeignKey(
-        Organization, on_delete=models.PROTECT, null=True,
+        Organization, on_delete=models.PROTECT,
         related_name="income_clients",
     )
     name = models.CharField(max_length=200)
