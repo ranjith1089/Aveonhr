@@ -55,8 +55,6 @@
         </div>
         <div class="nav-links">
           {% if user.is_authenticated %}
-          {% if allowed.offer_letters %}<a class="nav-link" href="/offer-letter/">Offer Letter</a>{% endif %}
-          {% if allowed.experience_certificates %}<a class="nav-link" href="/experience-certificate/">Experience Certificate</a>{% endif %}
           {% if allowed.payslips %}<a class="nav-link" href="/payslip/">Payslip</a>{% endif %}
           {% if allowed.travel_expense %}<a class="nav-link" href="/travel-expense/">Travel Expense</a>{% endif %}
           {% if allowed.proposals %}<a class="nav-link" href="/proposal-quotation/">Proposal Quotation</a>{% endif %}
@@ -131,16 +129,14 @@
       </div>
       
       <div class="grid">
-        {% if not user.is_authenticated or allowed.offer_letters %}
+        {% if not user.is_authenticated %}
         <div class="card highlight">
           <div class="card-icon">📝</div>
           <h4>Offer Letter Generator</h4>
           <p>Create and issue professional offers instantly with customizable templates</p>
           <a class="secondary" href="/offer-letter/">Launch</a>
         </div>
-        {% endif %}
 
-        {% if not user.is_authenticated or allowed.experience_certificates %}
         <div class="card highlight">
           <div class="card-icon">🎓</div>
           <h4>Experience Certificate Generator</h4>
@@ -180,7 +176,7 @@
         <div class="card highlight">
           <div class="card-icon">👥</div>
           <h4>People Registry</h4>
-          <p>Store candidate and internship student details - generate their letters in a click</p>
+          <p>Store candidates and interns, then generate offer letters, appointment orders and experience certificates in a click</p>
           <a class="secondary" href="{% url 'people_list' %}">Launch</a>
         </div>
         {% endif %}

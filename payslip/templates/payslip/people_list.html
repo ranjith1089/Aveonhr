@@ -7,15 +7,13 @@
 {# Generic app styles (topbar/cards/tables/badges) - shared app-wide. #}
 {% include "payslip/income/_income_style.html" %}
 <style>
-  .fchip {
-    border:1.5px solid #D6DEEB; background:#fff; border-radius:20px;
-    padding:6px 14px; font-size:12px; font-weight:800; color:#475569;
-    cursor:pointer; text-decoration:none; transition:all .12s; white-space:nowrap;
-  }
-  .fchip:hover { border-color:#1565C0; color:#1565C0; }
-  .fchip.on { background:#1565C0; border-color:#1565C0; color:#fff; }
-  .fchip .cnt { opacity:.65; margin-left:4px; }
   tr.row-link { cursor:pointer; }
+  .section-hdr {
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; margin-bottom:12px;
+  }
+  .section-hdr h2 { margin-bottom:0; }
+  .quick-actions { display:flex; gap:8px; flex-wrap:wrap; }
 </style>
 </head>
 <body>
@@ -24,8 +22,6 @@
     <a class="brand" href="{% url 'landing' %}">👥 People</a>
     <div class="topnav">
       <a href="{% url 'landing' %}">← HR Suite</a>
-      <a href="{% url 'offer_letter' %}">Offer Letters</a>
-      <a href="{% url 'experience_certificate' %}">Experience Certificates</a>
       <a href="{% url 'people_list' %}" class="active">👥 People</a>
     </div>
   </div>
@@ -40,39 +36,32 @@
       <h1>👥 People</h1>
       <p class="sub" style="margin:0;">Candidates, employees and internship students - stored once, letters generated in a click. Every generated letter is filed here automatically.</p>
     </div>
-    <div style="display:flex; gap:8px;">
-      <a class="btn" href="{% url 'person_create' %}?kind=CANDIDATE">+ Candidate</a>
-      <a class="btn secondary" href="{% url 'person_create' %}?kind=INTERN">+ Intern</a>
-    </div>
+    <form method="get" style="display:flex; gap:8px; align-items:center;">
+      <input type="text" name="q" value="{{ q }}" placeholder="🔍 Search name…" style="max-width:240px;" />
+      <button class="btn small secondary" type="submit">Search</button>
+      {% if q %}<a class="btn small secondary" href="{% url 'people_list' %}">Clear</a>{% endif %}
+    </form>
   </div>
 
   <div class="card">
-    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:12px;">
-      <form method="get" style="display:flex; gap:8px; align-items:center;">
-        {% if kind %}<input type="hidden" name="kind" value="{{ kind }}" />{% endif %}
-        <input type="text" name="q" value="{{ q }}" placeholder="🔍 Search name…" style="max-width:240px;" />
-        <button class="btn small secondary" type="submit">Search</button>
-      </form>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <a class="fchip {% if not kind %}on{% endif %}" href="{% url 'people_list' %}{% if q %}?q={{ q|urlencode }}{% endif %}">All<span class="cnt">{{ counts.all }}</span></a>
-        <a class="fchip {% if kind == 'CANDIDATE' %}on{% endif %}" href="{% url 'people_list' %}?kind=CANDIDATE{% if q %}&q={{ q|urlencode }}{% endif %}">Candidates<span class="cnt">{{ counts.candidates }}</span></a>
-        <a class="fchip {% if kind == 'INTERN' %}on{% endif %}" href="{% url 'people_list' %}?kind=INTERN{% if q %}&q={{ q|urlencode }}{% endif %}">Interns<span class="cnt">{{ counts.interns }}</span></a>
+    <div class="section-hdr">
+      <h2>👔 Candidates / Employees <span class="badge blue">{{ candidates|length }}</span></h2>
+      <div class="quick-actions">
+        <a class="btn small" href="{% url 'person_create' %}?kind=CANDIDATE">+ Add Candidate</a>
+        {% for a in candidate_quick_actions %}
+        <a class="btn small secondary" href="{{ a.url }}">+ {{ a.label }}</a>
+        {% endfor %}
       </div>
     </div>
 
-    {% if people %}
+    {% if candidates %}
     <div class="tbl-wrap">
       <table>
-        <tr><th>Name</th><th>Type</th><th>Role / Course</th><th>Company / College</th><th class="num">Letters</th><th>Last letter</th><th></th></tr>
-        {% for p in people %}
+        <tr><th>Name</th><th>Designation</th><th class="num">Letters</th><th>Last letter</th><th></th></tr>
+        {% for p in candidates %}
         <tr class="row-link" onclick="window.location='{% url 'person_detail' p.pk %}'">
           <td><a href="{% url 'person_detail' p.pk %}"><b>{{ p.name }}</b></a></td>
-          <td>
-            {% if p.kind == "CANDIDATE" %}<span class="badge blue">Candidate</span>
-            {% else %}<span class="badge amber">Intern</span>{% endif %}
-          </td>
-          <td>{% if p.kind == "CANDIDATE" %}{{ p.designation|default:"—" }}{% else %}{{ p.internship_role|default:p.course|default:"—" }}{% endif %}</td>
-          <td>{% if p.kind == "CANDIDATE" %}—{% else %}{{ p.college_name|default:"—" }}{% endif %}</td>
+          <td>{{ p.designation|default:"—" }}</td>
           <td class="num">{{ p.doc_count }}</td>
           <td style="white-space:nowrap;">{{ p.last_doc|date:"d M Y"|default:"—" }}</td>
           <td><a class="btn small secondary" href="{% url 'person_detail' p.pk %}">Open →</a></td>
@@ -82,8 +71,43 @@
     </div>
     {% else %}
     <div class="empty">
-      <div class="big">👥</div>
-      {% if q or kind %}No people match this filter.{% else %}No people stored yet - add one above, or just generate any offer/experience letter and the person is filed here automatically.{% endif %}
+      <div class="big">👔</div>
+      {% if q %}No candidates match "{{ q }}".{% else %}No candidates yet - add one above, or generate an offer letter / appointment order and they'll be filed here automatically.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="section-hdr">
+      <h2>🎓 Interns <span class="badge amber">{{ interns|length }}</span></h2>
+      <div class="quick-actions">
+        <a class="btn small" href="{% url 'person_create' %}?kind=INTERN">+ Add Intern</a>
+        {% for a in intern_quick_actions %}
+        <a class="btn small secondary" href="{{ a.url }}">+ {{ a.label }}</a>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if interns %}
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>Name</th><th>Role / Course</th><th>College</th><th class="num">Letters</th><th>Last letter</th><th></th></tr>
+        {% for p in interns %}
+        <tr class="row-link" onclick="window.location='{% url 'person_detail' p.pk %}'">
+          <td><a href="{% url 'person_detail' p.pk %}"><b>{{ p.name }}</b></a></td>
+          <td>{{ p.internship_role|default:p.course|default:"—" }}</td>
+          <td>{{ p.college_name|default:"—" }}</td>
+          <td class="num">{{ p.doc_count }}</td>
+          <td style="white-space:nowrap;">{{ p.last_doc|date:"d M Y"|default:"—" }}</td>
+          <td><a class="btn small secondary" href="{% url 'person_detail' p.pk %}">Open →</a></td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="big">🎓</div>
+      {% if q %}No interns match "{{ q }}".{% else %}No interns yet - add one above, or generate an internship offer letter and they'll be filed here automatically.{% endif %}
     </div>
     {% endif %}
   </div>

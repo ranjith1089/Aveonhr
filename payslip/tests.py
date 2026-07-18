@@ -894,3 +894,37 @@ class PeopleRegistryTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         person.refresh_from_db()
         self.assertEqual(person.designation, "Senior Analyst")
+
+    def test_people_list_splits_candidates_and_interns(self):
+        self.client.post(reverse("offer_letter"), APPOINTMENT_PAYLOAD)
+        self.client.post(reverse("offer_letter"), INTERNSHIP_OFFER_PAYLOAD)
+        resp = self.client.get(reverse("people_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Candidates / Employees")
+        self.assertContains(resp, "Interns")
+        self.assertContains(resp, "Suresh Kumar")   # candidate
+        self.assertContains(resp, "Kavya R")         # intern
+
+    def test_quick_generate_links_present(self):
+        resp = self.client.get(reverse("people_list"))
+        self.assertContains(resp, 'href="/offer-letter/"')
+        self.assertContains(resp, 'href="/experience-certificate/"')
+
+    def test_landing_hides_letter_menu_items_for_authenticated_user(self):
+        member = make_member("landing_check", org=self.org,
+                             offer_letters=True, experience_certificates=True,
+                             people=True)
+        self.client.force_login(member)
+        resp = self.client.get(reverse("landing"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'href="/offer-letter/"')
+        self.assertNotContains(resp, 'href="/experience-certificate/"')
+        self.assertContains(resp, "People")
+
+    def test_landing_shows_letter_cards_for_anonymous(self):
+        self.client.logout()
+        resp = self.client.get(reverse("landing"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Offer Letter Generator")
+        self.assertContains(resp, "Experience Certificate Generator")
+        self.assertContains(resp, 'href="/offer-letter/"')

@@ -38,29 +38,35 @@ DOC_BADGES = {
 }
 
 
+def _quick_generate_actions(kind) -> list[dict]:
+    """Blank-form links for one-step generation (no existing person) -
+    the same builder pages, minus ?person=, so the standalone
+    fill-and-generate-then-auto-capture flow is unchanged."""
+    return [
+        {"label": label, "url": reverse(url_name)}
+        for label, url_name, _type_key in GENERATE_ACTIONS[kind]
+    ]
+
+
 @module_required("people")
 def people_list(request: HttpRequest) -> HttpResponse:
     q = (request.GET.get("q") or "").strip()
-    kind = (request.GET.get("kind") or "").strip()
 
-    people = (Person.objects.filter(organization=request.organization)
-              .annotate(doc_count=Count("documents"),
-                        last_doc=Max("documents__created_at")))
-    counts = {
-        "all": people.count(),
-        "candidates": people.filter(kind=Person.Kind.CANDIDATE).count(),
-        "interns": people.filter(kind=Person.Kind.INTERN).count(),
-    }
+    base = Person.objects.filter(organization=request.organization).annotate(
+        doc_count=Count("documents"), last_doc=Max("documents__created_at")
+    )
     if q:
-        people = people.filter(name__icontains=q)
-    if kind in (Person.Kind.CANDIDATE, Person.Kind.INTERN):
-        people = people.filter(kind=kind)
+        base = base.filter(name__icontains=q)
+
+    candidates = list(base.filter(kind=Person.Kind.CANDIDATE))
+    interns = list(base.filter(kind=Person.Kind.INTERN))
 
     return render(request, "payslip/people_list.html", {
-        "people": list(people),
+        "candidates": candidates,
+        "interns": interns,
         "q": q,
-        "kind": kind,
-        "counts": counts,
+        "candidate_quick_actions": _quick_generate_actions(Person.Kind.CANDIDATE),
+        "intern_quick_actions": _quick_generate_actions(Person.Kind.INTERN),
     })
 
 
