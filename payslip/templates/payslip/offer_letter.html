@@ -517,6 +517,7 @@
   // ---------- localStorage draft save / restore ----------
   const DRAFT_KEY = 'offerLetterDraft.v1';
   const HAS_PREVIEW = {% if preview_url %}true{% else %}false{% endif %};
+  const HAS_PREFILL = {% if prefill_person %}true{% else %}false{% endif %};
   let saveTimer = null;
   function scheduleDraftSave() {
     if (saveTimer) clearTimeout(saveTimer);
@@ -564,10 +565,11 @@
   }
 
   // ---------- Initial paint ----------
-  // Restore draft only when we're not viewing a post-submit success page;
-  // a successful submit clears the draft below.
-  if (!HAS_PREVIEW && restoreDraft()) showDraftPill();
-  if (HAS_PREVIEW) clearDraft();
+  // Restore draft only when we're not viewing a post-submit success page and
+  // not prefilled from a stored Person - server-side data (from People or a
+  // successful submit) always wins over a stale local draft.
+  if (!HAS_PREVIEW && !HAS_PREFILL && restoreDraft()) showDraftPill();
+  if (HAS_PREVIEW || HAS_PREFILL) clearDraft();
 
   applySectionVisibility();
   refreshEndDate();

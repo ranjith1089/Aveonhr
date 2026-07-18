@@ -833,6 +833,15 @@ class PeopleRegistryTests(TestCase):
         self.assertContains(resp, "Prefilled from Kavya R")
         self.assertContains(resp, 'value="Kavya R"')
         self.assertContains(resp, 'value="21CS042"')
+        # A prefilled page must tell its JS to skip the localStorage draft
+        # restore - otherwise a stale empty draft silently wipes the name
+        # back out (the bug: "candidate name not loading").
+        self.assertContains(resp, "const HAS_PREFILL = true;")
+
+    def test_blank_offer_letter_page_does_not_skip_draft_restore(self):
+        resp = self.client.get(reverse("offer_letter"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "const HAS_PREFILL = false;")
 
     def test_cross_org_prefill_and_pages_404(self):
         from payslip.models import Person
