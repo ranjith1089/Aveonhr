@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import views_implementation, views_income, views_proposal_history, views_team
+from . import views_implementation, views_income, views_people, views_proposal_history, views_team
 from .views import (
     cms_feature_list,
     company_profile,
@@ -26,6 +26,10 @@ urlpatterns = [
     path("team/", views_team.team, name="team"),
     path("team/add/", views_team.team_add_member, name="team_add_member"),
     path("team/<int:user_id>/toggle/", views_team.team_toggle_member, name="team_toggle_member"),
+    # --- People registry (candidates & interns) ---
+    path("people/", views_people.people_list, name="people_list"),
+    path("people/new/", views_people.person_create, name="person_create"),
+    path("people/<int:pk>/", views_people.person_detail, name="person_detail"),
     path("offer-letter/", offer_letter, name="offer_letter"),
     path("experience-certificate/", experience_certificate, name="experience_certificate"),
     path("travel-expense/", travel_expense, name="travel_expense"),

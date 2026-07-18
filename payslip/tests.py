@@ -742,3 +742,155 @@ class ProposalPricingModelTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertRegex(resp.content.decode(), r'value="ONE_TIME"\s+checked')
         self.assertContains(resp, 'value="1000000"')
+
+
+INTERNSHIP_OFFER_PAYLOAD = {
+    "offer_type": "internship",
+    "name": "Kavya R",
+    "roll_number": "21CS042",
+    "course": "B.E. CSE",
+    "college_name": "ABC Engineering College",
+    "college_address": "Coimbatore",
+    "internship_role": "Full Stack Developer",
+    "start_date": "2026-08-01",
+    "duration_months": "3",
+    "intern_signatory": "Ranjith Kumar",
+    "intern_signatory_designation": "General Manager",
+}
+
+APPOINTMENT_PAYLOAD = {
+    "offer_type": "appointment",
+    "serial_no": "AV/2026/014",
+    "employee_name": "Suresh Kumar",
+    "designation": "Software Engineer",
+    "join_date": "2026-08-10",
+    "company_name": "Aveon Infotech Private Limited",
+    "signatory": "Parvathi G",
+    "signatory_designation": "CEO",
+}
+
+EXPERIENCE_EMPLOYEE_PAYLOAD = {
+    "certificate_type": "employee",
+    "gender": "male",
+    "title": "Mr.",
+    "employee_name_exp": "Suresh Kumar",
+    "employee_no": "AV104",
+    "company_name_exp": "Aveon Infotech Private Limited",
+    "join_date_exp": "2023-06-01",
+    "leaving_date": "2026-06-30",
+    "designation_exp": "Senior Software Engineer",
+    "signatory_exp": "Parvathi G",
+    "signatory_designation_exp": "CEO",
+}
+
+
+class PeopleRegistryTests(TestCase):
+    def setUp(self):
+        self.user = make_member("people_admin", admin=True)
+        self.org = self.user.membership.organization
+        self.client.force_login(self.user)
+
+    def test_internship_offer_auto_creates_intern(self):
+        from payslip.models import Person, PersonDocument
+        resp = self.client.post(reverse("offer_letter"), INTERNSHIP_OFFER_PAYLOAD)
+        self.assertEqual(resp.status_code, 200)
+        person = Person.objects.get()
+        self.assertEqual(person.kind, Person.Kind.INTERN)
+        self.assertEqual(person.name, "Kavya R")
+        self.assertEqual(person.college_name, "ABC Engineering College")
+        self.assertEqual(person.organization, self.org)
+        doc = PersonDocument.objects.get()
+        self.assertEqual(doc.doc_type, PersonDocument.DocType.INTERNSHIP_OFFER)
+        self.assertTrue(bytes(doc.pdf).startswith(b"%PDF-"))
+        self.assertTrue(bytes(doc.pdf_plain).startswith(b"%PDF-"))
+        # Regenerating for the same name reuses the person.
+        self.client.post(reverse("offer_letter"), INTERNSHIP_OFFER_PAYLOAD)
+        self.assertEqual(Person.objects.count(), 1)
+        self.assertEqual(person.documents.count(), 2)
+
+    def test_appointment_creates_candidate_and_experience_updates(self):
+        import datetime
+        from payslip.models import Person
+        self.client.post(reverse("offer_letter"), APPOINTMENT_PAYLOAD)
+        person = Person.objects.get()
+        self.assertEqual(person.kind, Person.Kind.CANDIDATE)
+        self.assertEqual(person.designation, "Software Engineer")
+        self.assertEqual(person.join_date, datetime.date(2026, 8, 10))
+        # An employee experience letter for the same name updates the record.
+        self.client.post(reverse("experience_certificate"), EXPERIENCE_EMPLOYEE_PAYLOAD)
+        person.refresh_from_db()
+        self.assertEqual(Person.objects.count(), 1)
+        self.assertEqual(person.leaving_date, datetime.date(2026, 6, 30))
+        self.assertEqual(person.designation, "Senior Software Engineer")
+        self.assertEqual(person.documents.count(), 2)
+
+    def test_person_prefill_offer_letter(self):
+        from payslip.models import Person
+        self.client.post(reverse("offer_letter"), INTERNSHIP_OFFER_PAYLOAD)
+        person = Person.objects.get()
+        resp = self.client.get(f"{reverse('offer_letter')}?person={person.pk}&type=internship")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Prefilled from Kavya R")
+        self.assertContains(resp, 'value="Kavya R"')
+        self.assertContains(resp, 'value="21CS042"')
+
+    def test_cross_org_prefill_and_pages_404(self):
+        from payslip.models import Person
+        self.client.post(reverse("offer_letter"), INTERNSHIP_OFFER_PAYLOAD)
+        person = Person.objects.get()
+        other = make_member("other_org_admin", admin=True)
+        self.client.force_login(other)
+        self.assertEqual(
+            self.client.get(f"{reverse('offer_letter')}?person={person.pk}&type=internship").status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get(reverse("person_detail", args=[person.pk])).status_code, 404
+        )
+        resp = self.client.get(reverse("people_list"))
+        self.assertNotContains(resp, "Kavya R")
+
+    def test_people_rights_gating(self):
+        member = make_member("no_people", org=self.org, offer_letters=True)
+        self.client.force_login(member)
+        self.assertEqual(self.client.get(reverse("people_list")).status_code, 403)
+        allowed = make_member("has_people", org=self.org, people=True)
+        self.client.force_login(allowed)
+        self.assertEqual(self.client.get(reverse("people_list")).status_code, 200)
+
+    def test_download_delete_doc_and_person(self):
+        from payslip.models import Person, PersonDocument
+        self.client.post(reverse("offer_letter"), INTERNSHIP_OFFER_PAYLOAD)
+        person = Person.objects.get()
+        doc = person.documents.first()
+        url = reverse("person_detail", args=[person.pk])
+
+        resp = self.client.post(url, {"action": "download_doc", "doc_id": doc.pk})
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/download/", resp["Location"])
+        dl = self.client.get(resp["Location"])
+        self.assertEqual(dl.status_code, 200)
+        self.assertTrue(dl.content.startswith(b"%PDF-"))
+
+        self.client.post(url, {"action": "delete_doc", "doc_id": doc.pk})
+        self.assertEqual(PersonDocument.objects.count(), 0)
+
+        self.client.post(url, {"action": "delete_person"})
+        self.assertEqual(Person.objects.count(), 0)
+
+    def test_manual_person_create_and_edit(self):
+        from payslip.models import Person
+        resp = self.client.post(reverse("person_create"), {
+            "kind": "CANDIDATE", "name": "Manual Candidate",
+            "designation": "Analyst",
+        })
+        self.assertEqual(resp.status_code, 302)
+        person = Person.objects.get()
+        self.assertEqual(person.organization, self.org)
+        resp = self.client.post(reverse("person_detail", args=[person.pk]), {
+            "action": "save_person", "kind": "CANDIDATE",
+            "name": "Manual Candidate", "designation": "Senior Analyst",
+        })
+        self.assertEqual(resp.status_code, 302)
+        person.refresh_from_db()
+        self.assertEqual(person.designation, "Senior Analyst")

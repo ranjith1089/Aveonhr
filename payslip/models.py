@@ -102,6 +102,7 @@ class Membership(models.Model):
     can_experience_certificates = models.BooleanField("Experience Certificates", default=True)
     can_travel_expense = models.BooleanField("Travel Expense", default=True)
     can_proposals = models.BooleanField("Proposals", default=True)
+    can_people = models.BooleanField("People", default=True)
     can_income = models.BooleanField("Income", default=False)
     can_implementation = models.BooleanField("Implementation", default=False)
 
@@ -114,6 +115,7 @@ class Membership(models.Model):
         "experience_certificates": "can_experience_certificates",
         "travel_expense": "can_travel_expense",
         "proposals": "can_proposals",
+        "people": "can_people",
         "income": "can_income",
         "implementation": "can_implementation",
     }
@@ -493,3 +495,91 @@ def next_proposal_revision(organization, client_name: str) -> int:
         organization=organization, client_name=client_name
     ).aggregate(max_rev=models.Max("revision"))
     return (agg["max_rev"] or 0) + 1
+
+
+# ---------------------------------------------------------------------------
+# People registry - candidates/employees and internship students, org-scoped.
+# Every generated letter auto-captures the person (matched by name) and logs
+# the exact PDFs issued, so details are typed once and reused.
+# ---------------------------------------------------------------------------
+class Person(models.Model):
+    class Kind(models.TextChoices):
+        CANDIDATE = "CANDIDATE", "Candidate / Employee"
+        INTERN = "INTERN", "Internship Student"
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="people")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, related_name="+")
+    kind = models.CharField(max_length=12, choices=Kind.choices)
+    name = models.CharField(max_length=200, db_index=True)
+
+    # Shared details
+    title = models.CharField(max_length=10, blank=True, default="")   # Mr./Ms./Mrs.
+    gender = models.CharField(max_length=10, blank=True, default="")
+    email = models.EmailField(blank=True, default="")
+    phone = models.CharField(max_length=30, blank=True, default="")
+    address = models.TextField(blank=True, default="")
+    notes = models.TextField(blank=True, default="")
+
+    # Candidate / employee
+    employee_no = models.CharField(max_length=100, blank=True, default="")
+    designation = models.CharField(max_length=200, blank=True, default="")
+    join_date = models.DateField(null=True, blank=True)
+    leaving_date = models.DateField(null=True, blank=True)
+
+    # Internship student
+    roll_number = models.CharField(max_length=100, blank=True, default="")
+    course = models.CharField(max_length=200, blank=True, default="")
+    college_name = models.CharField(max_length=200, blank=True, default="")
+    college_address = models.TextField(blank=True, default="")
+    internship_role = models.CharField(max_length=200, blank=True, default="")
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        unique_together = [("organization", "kind", "name")]
+        verbose_name_plural = "people"
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.name} ({self.get_kind_display()})"
+
+    @property
+    def latest_document(self):
+        return self.documents.first()  # documents ordered -created_at
+
+
+class PersonDocument(models.Model):
+    """One generated letter for a person - the exact PDFs issued."""
+
+    class DocType(models.TextChoices):
+        INTERNSHIP_OFFER = "INTERNSHIP_OFFER", "Internship Offer Letter"
+        APPOINTMENT = "APPOINTMENT", "Appointment Order"
+        EMPLOYMENT_OFFER = "EMPLOYMENT_OFFER", "Offer Letter"
+        EXPERIENCE_EMPLOYEE = "EXPERIENCE_EMPLOYEE", "Experience Letter"
+        EXPERIENCE_INTERNSHIP = "EXPERIENCE_INTERNSHIP", "Internship Experience Certificate"
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="person_documents")
+    person = models.ForeignKey(Person, on_delete=models.CASCADE,
+                               related_name="documents")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, related_name="+")
+    doc_type = models.CharField(max_length=25, choices=DocType.choices)
+    # Snapshot of the validated form - prefills the next letter of the same
+    # type (incl. the full compensation breakdown). File fields excluded.
+    form_data = models.JSONField(default=dict, blank=True)
+    pdf = models.BinaryField()               # letterhead version, as issued
+    pdf_plain = models.BinaryField(null=True, blank=True)
+    filename = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.person.name}: {self.get_doc_type_display()}"

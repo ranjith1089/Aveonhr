@@ -100,3 +100,24 @@ class ProposalRecordAdmin(admin.ModelAdmin):
     search_fields = ("client_name",)
     readonly_fields = ("created_at",)
     exclude = ("html",)  # large blob - viewable via the app's history pages
+
+
+from .models import Person, PersonDocument
+
+
+@admin.register(Person)
+class PersonAdmin(admin.ModelAdmin):
+    list_display = ("name", "kind", "organization", "designation", "college_name",
+                    "updated_at")
+    list_filter = ("kind", "organization")
+    search_fields = ("name", "email", "employee_no", "roll_number")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(PersonDocument)
+class PersonDocumentAdmin(admin.ModelAdmin):
+    list_display = ("person", "doc_type", "organization", "created_by", "created_at")
+    list_filter = ("doc_type", "organization")
+    search_fields = ("person__name",)
+    readonly_fields = ("created_at",)
+    exclude = ("pdf", "pdf_plain")  # binary blobs - download via the app

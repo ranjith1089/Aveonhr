@@ -60,6 +60,7 @@
           {% if allowed.payslips %}<a class="nav-link" href="/payslip/">Payslip</a>{% endif %}
           {% if allowed.travel_expense %}<a class="nav-link" href="/travel-expense/">Travel Expense</a>{% endif %}
           {% if allowed.proposals %}<a class="nav-link" href="/proposal-quotation/">Proposal Quotation</a>{% endif %}
+          {% if allowed.people %}<a class="nav-link" href="{% url 'people_list' %}">👥 People</a>{% endif %}
           {% if allowed.income %}<a class="nav-link" href="{% url 'income_dashboard' %}" style="font-weight:700;">💰 Income</a>{% endif %}
           {% if membership.is_admin %}
           <a class="nav-link" href="{% url 'team' %}" style="font-weight:700;">👥 Team</a>
@@ -172,6 +173,15 @@
           <h4>Proposal Quotation Generator</h4>
           <p>Create tender-ready institutional ERP proposals in plain text format</p>
           <a class="secondary" href="/proposal-quotation/">Launch</a>
+        </div>
+        {% endif %}
+
+        {% if allowed.people %}
+        <div class="card highlight">
+          <div class="card-icon">👥</div>
+          <h4>People Registry</h4>
+          <p>Store candidate and internship student details - generate their letters in a click</p>
+          <a class="secondary" href="{% url 'people_list' %}">Launch</a>
         </div>
         {% endif %}
 

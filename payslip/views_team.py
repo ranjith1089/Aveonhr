@@ -20,6 +20,7 @@ RIGHT_LABELS = {
     "can_experience_certificates": "Experience Certs",
     "can_travel_expense": "Travel Expense",
     "can_proposals": "Proposals",
+    "can_people": "People",
     "can_income": "Income",
     "can_implementation": "Implementation",
 }

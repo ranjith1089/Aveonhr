@@ -94,10 +94,23 @@
 <div class="container">
   <a href="/" class="back-button">← Back to Home</a>
 
-  <header class="card" style="margin-bottom: 16px;">
-    <h1>📜 Experience Certificate Builder</h1>
-    <p>Issue a polished, world-class experience or internship certificate in seconds.</p>
+  <header class="card" style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+    <div>
+      <h1>📜 Experience Certificate Builder</h1>
+      <p>Issue a polished, world-class experience or internship certificate in seconds.</p>
+    </div>
+    <a href="{% url 'people_list' %}"
+       style="display: inline-block; padding: 10px 18px; background: #fff; color: #1565C0; border: 1.5px solid #1565C0; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600; white-space: nowrap;">
+      👥 People
+    </a>
   </header>
+
+  {% if prefill_person %}
+  <section class="card" style="border-left: 4px solid #1565C0; padding: 14px 20px; margin-bottom: 16px;">
+    👥 <b>Prefilled from {{ prefill_person.name }}</b> — review the details below; generating will
+    log the certificate to their record.
+  </section>
+  {% endif %}
 
   {% if preview_url %}
   <section class="card pb-result">
@@ -108,6 +121,12 @@
     <p class="pb-help" style="margin-top: 8px;">
       Use “plain” when printing on paper that already has your company letterhead.
     </p>
+    {% if captured_person %}
+    <p style="margin-top: 8px; font-size: 13.5px;">
+      👥 Saved to <b>{{ captured_person.name }}</b>'s record —
+      <a href="{% url 'person_detail' captured_person.pk %}">open their page</a>
+    </p>
+    {% endif %}
   </section>
   {% endif %}
 

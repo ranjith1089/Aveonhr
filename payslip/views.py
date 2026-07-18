@@ -173,10 +173,31 @@ def landing(request: HttpRequest) -> HttpResponse:
     })
 
 
+def _person_prefill(request, type_map: dict):
+    """?person=<pk>&type=<key> support for the letter pages.
+
+    Returns (initial, person) - (None, None) when not prefilling.
+    """
+    pk = request.GET.get("person")
+    doc_type = type_map.get(request.GET.get("type") or "")
+    if not (pk and pk.isdigit() and doc_type):
+        return None, None
+    from django.shortcuts import get_object_or_404
+    from .models import Person
+    from .people_sync import person_initial
+    person = get_object_or_404(Person, pk=int(pk), organization=request.organization)
+    return person_initial(person, doc_type), person
+
+
 @module_required("offer_letters")
 def offer_letter(request: HttpRequest) -> HttpResponse:
     context = {"form": OfferLetterForm(user=request.user)}
     if request.method != "POST":
+        from .people_sync import OFFER_TYPE_TO_DOC
+        initial, person = _person_prefill(request, OFFER_TYPE_TO_DOC)
+        if initial is not None:
+            context["form"] = OfferLetterForm(user=request.user, initial=initial)
+            context["prefill_person"] = person
         return render(request, "payslip/offer_letter.html", context)
 
     form = OfferLetterForm(request.POST, user=request.user)
@@ -217,6 +238,12 @@ def offer_letter(request: HttpRequest) -> HttpResponse:
     context["download_label"] = "Download PDF"
     context["download_filename"] = filename_lh
     context["download_plain_name"] = filename_plain
+
+    # Auto-capture into the People registry (person matched by name).
+    from .people_sync import capture_offer_letter
+    context["captured_person"] = capture_offer_letter(
+        request, form, pdf=pdf_letterhead, pdf_plain=pdf_plain, filename=filename_lh
+    )
     return render(request, "payslip/offer_letter.html", context)
 
 
@@ -261,6 +288,11 @@ def download_file(request: HttpRequest, token: str) -> HttpResponse:
 def experience_certificate(request: HttpRequest) -> HttpResponse:
     context = {"form": ExperienceCertificateForm(user=request.user)}
     if request.method != "POST":
+        from .people_sync import CERT_TYPE_TO_DOC
+        initial, person = _person_prefill(request, CERT_TYPE_TO_DOC)
+        if initial is not None:
+            context["form"] = ExperienceCertificateForm(user=request.user, initial=initial)
+            context["prefill_person"] = person
         return render(request, "payslip/experience_certificate.html", context)
 
     form = ExperienceCertificateForm(request.POST, user=request.user)
@@ -299,6 +331,12 @@ def experience_certificate(request: HttpRequest) -> HttpResponse:
     context["download_label"] = "Download PDF"
     context["download_filename"] = filename_lh
     context["download_plain_name"] = filename_plain
+
+    # Auto-capture into the People registry (person matched by name).
+    from .people_sync import capture_experience
+    context["captured_person"] = capture_experience(
+        request, form, pdf=pdf_letterhead, pdf_plain=pdf_plain, filename=filename_lh
+    )
     return render(request, "payslip/experience_certificate.html", context)
 
 
