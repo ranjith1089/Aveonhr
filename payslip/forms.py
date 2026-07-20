@@ -61,61 +61,6 @@ class ProfilePrefillMixin:
                 self.fields[field_name].initial = value
 
 
-class PayslipUploadForm(ProfilePrefillMixin, forms.Form):
-    PROFILE_PREFILL = {
-        "company_name": "company_name",
-        "company_address": "address",
-        "company_email": "email",
-        "company_phone": "phone",
-    }
-    company_name = forms.CharField(
-        label="Company Name", 
-        max_length=200,
-        widget=forms.TextInput(attrs={"placeholder": "Enter company name", "class": "form-input"})
-    )
-    company_address = forms.CharField(
-        label="Company Address", 
-        widget=forms.Textarea(attrs={"rows": 3, "placeholder": "Enter full address", "class": "form-input"})
-    )
-    company_email = forms.EmailField(
-        label="Company Email", 
-        required=False,
-        widget=forms.EmailInput(attrs={"placeholder": "company@example.com", "class": "form-input"})
-    )
-    company_phone = forms.CharField(
-        label="Company Phone", 
-        required=False, 
-        max_length=40,
-        widget=forms.TextInput(attrs={"placeholder": "+91 00000 00000", "class": "form-input"})
-    )
-    company_logo = forms.ImageField(label="Company Logo", required=False)
-    salary_file = forms.FileField(label="Salary Statement (Excel)")
-
-    def clean_salary_file(self):
-        file = self.cleaned_data.get("salary_file")
-        if not file:
-            return file
-        filename = file.name or ""
-        ext = _extension(filename)
-        if ext in EXECUTABLE_EXTENSIONS:
-            raise ValidationError("Executable files are not allowed.")
-        if ext not in EXCEL_EXTENSIONS:
-            raise ValidationError("Please upload a valid Excel file (.xlsx or .xls).")
-        return file
-
-    def clean_company_logo(self):
-        file = self.cleaned_data.get("company_logo")
-        if not file:
-            return file
-        filename = file.name or ""
-        ext = _extension(filename)
-        if ext in EXECUTABLE_EXTENSIONS:
-            raise ValidationError("Executable files are not allowed.")
-        if ext not in IMAGE_EXTENSIONS:
-            raise ValidationError("Logo must be a PNG or JPG image.")
-        return file
-
-
 class OfferLetterForm(ProfilePrefillMixin, forms.Form):
     PROFILE_PREFILL = {
         "intern_signatory": "signatory_name",

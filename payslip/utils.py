@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from io import BytesIO
-from typing import Iterable
 from xml.sax.saxutils import escape as _xml_escape
-from zipfile import ZIP_DEFLATED, ZipFile
 
 import pandas as pd
 from datetime import date, datetime
@@ -33,72 +30,6 @@ class CompanyInfo:
     phone: str | None = None
 
 
-REQUIRED_COLUMNS = {"employee_name", "employee_id", "month"}
-
-COLUMN_ALIASES = {
-    "employee_id": {
-        "employee_id",
-        "emp_id",
-        "employeeid",
-        "emp code",
-        "employee code",
-        "employee no",
-        "employee number",
-        "emp no",
-    },
-    "employee_name": {"employee_name", "employee name", "emp_name", "emp name"},
-    "department": {"department", "dept"},
-    "designation": {"designation", "role"},
-    "gender": {"gender"},
-    "joining_date": {"joining_date", "date_of_joining", "doj", "joining date"},
-    "bank_name": {"bank_name", "bank"},
-    "account_number": {
-        "account_number",
-        "account_no",
-        "a/c",
-        "a/c #",
-        "ac no",
-        "ac_no",
-        "bank account no",
-        "bank account number",
-    },
-    "ifsc_code": {"ifsc_code", "ifsc"},
-    "pan_number": {"pan_number", "pan", "pan no", "pan number"},
-    "pf_no": {"pf_no", "pf number", "pf no"},
-    "pf_uan": {"pf_uan", "uan", "pf uan"},
-    "location": {"location"},
-    "effective_work_days": {"effective work days", "effective_work_days"},
-    "month": {"month", "pay_month", "payslip_month", "payslip for the month of"},
-    "total_working_days": {"total_working_days", "total working days"},
-    "present_days": {"present_days", "present days"},
-    "lop_days": {"lop_days", "lop days", "lwp", "loss of pay", "lop"},
-    "pay_days": {"pay_days", "pay days", "paid_days", "pay days(26)"},
-    "days_in_month": {"days_in_month", "days in month"},
-    "basic": {"basic"},
-    "da": {"da", "dearness allowance"},
-    "hra": {"hra", "house rent allowance"},
-    "transport_allowances": {"transport_allowances", "transport allowance", "ta"},
-    "food_allowances": {"food_allowances", "food allowance"},
-    "internet_allowances": {"internet_allowances", "internet allowance"},
-    "other_allowances": {"other_allowances", "other allowance"},
-    "salary_arrear_allowance": {
-        "salary_arrear_allowance",
-        "salary arrier / allowance",
-        "salary arrear allowance",
-    },
-    "gross_salary": {"gross_salary", "gross salary"},
-    "pf_employee": {"pf_employee", "pf employee", "provident fund"},
-    "pf_employer": {"pf_employer", "pf employer"},
-    "esi_employee": {"esi_employee", "esi employee"},
-    "esi_employer": {"esi_employer", "esi employer"},
-    "professional_tax": {"professional_tax", "professional tax"},
-    "salary_advance": {"salary_advance", "salary advance"},
-    "tds": {"tds"},
-    "other_deduction": {"other_deduction", "other deduction"},
-    "total_deductions": {"total_deductions", "total deductions"},
-    "net_payable": {"net_payable", "net payable", "net pay"},
-}
-
 EARNING_COLUMNS = (
     "basic",
     "da",
@@ -117,46 +48,6 @@ DEDUCTION_COLUMNS = (
     "tds",
     "other_deduction",
 )
-
-
-def _normalize_name(name: str) -> str:
-    cleaned = name.strip().lower().replace("/", " ").replace("#", " ")
-    cleaned = re.sub(r"[\(\)]", " ", cleaned)
-    cleaned = re.sub(r"[^a-z0-9]+", "_", cleaned)
-    return cleaned.strip("_")
-
-
-def _build_alias_map() -> dict[str, str]:
-    alias_map: dict[str, str] = {}
-    for canonical, aliases in COLUMN_ALIASES.items():
-        alias_map[_normalize_name(canonical)] = canonical
-        for alias in aliases:
-            alias_map[_normalize_name(alias)] = canonical
-    return alias_map
-
-
-ALIAS_MAP = _build_alias_map()
-
-
-def normalize_columns(frame: pd.DataFrame) -> pd.DataFrame:
-    frame = frame.copy()
-    normalized = []
-    for col in frame.columns:
-        key = _normalize_name(str(col))
-        normalized.append(ALIAS_MAP.get(key, key))
-    frame.columns = normalized
-    return frame
-
-
-def validate_columns(frame: pd.DataFrame) -> list[str]:
-    missing = [col for col in REQUIRED_COLUMNS if col not in frame.columns]
-    return missing
-
-
-def parse_salary_file(file_bytes: bytes) -> pd.DataFrame:
-    data = pd.read_excel(BytesIO(file_bytes), engine="openpyxl")
-    data = normalize_columns(data)
-    return data
 
 
 def safe_number(value: object) -> float:
@@ -539,14 +430,6 @@ def build_payslip_pdf(row: pd.Series, company: CompanyInfo, logo_bytes: bytes | 
     story.append(footer_bar)
 
     doc.build(story)
-    return buffer.getvalue()
-
-
-def build_zip(file_pairs: Iterable[tuple[str, bytes]]) -> bytes:
-    buffer = BytesIO()
-    with ZipFile(buffer, "w", ZIP_DEFLATED) as zip_file:
-        for filename, content in file_pairs:
-            zip_file.writestr(filename, content)
     return buffer.getvalue()
 
 

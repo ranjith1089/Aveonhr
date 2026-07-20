@@ -17,7 +17,6 @@ from .forms import (
     OrganizationForm,
     ExperienceCertificateForm,
     OfferLetterForm,
-    PayslipUploadForm,
     SignupForm,
     TravelExpenseForm,
     ProposalQuotationForm,
@@ -40,9 +39,7 @@ def _logo_data_uri(brand: CompanyBranding) -> str:
     except Exception:
         pass
     return ""
-from .services.payslip_service import generate_payslips
 from .utils import (
-    CompanyInfo,
     build_appointment_order_pdf,
     build_employment_offer_pdf,
     build_experience_certificate_pdf,
@@ -115,50 +112,6 @@ def profile_logo(request: HttpRequest) -> HttpResponse:
     if not org.logo:
         return HttpResponse(status=404)
     return HttpResponse(org.logo_bytes, content_type=org.logo_content_type or "image/png")
-
-
-@module_required("payslips")
-def upload_payslips(request: HttpRequest) -> HttpResponse:
-    context = {"form": PayslipUploadForm(user=request.user)}
-    if request.method != "POST":
-        return render(request, "payslip/upload.html", context)
-
-    form = PayslipUploadForm(request.POST, request.FILES, user=request.user)
-    if not form.is_valid():
-        context["form"] = form
-        return render(request, "payslip/upload.html", context)
-
-    company = CompanyInfo(
-        name=form.cleaned_data["company_name"],
-        address=form.cleaned_data["company_address"],
-        email=form.cleaned_data.get("company_email"),
-        phone=form.cleaned_data.get("company_phone"),
-    )
-    logo = form.cleaned_data.get("company_logo")
-    logo_bytes = logo.read() if logo else None
-    if logo_bytes is None:
-        # Fall back to the saved company logo from the profile.
-        logo_bytes = org_for(request.user).logo_bytes
-
-    salary_file = form.cleaned_data["salary_file"]
-    try:
-        result = generate_payslips(salary_file.read(), company, logo_bytes)
-    except ValueError as exc:
-        context["form"] = form
-        context["error"] = str(exc)
-        return render(request, "payslip/upload.html", context)
-
-    preview_token = _save_content(request.user, result.preview_content, "application/pdf", result.preview_filename)
-    download_token = _save_content(request.user, result.content, result.content_type, result.filename)
-
-    download_label = "Download PDF" if result.content_type == "application/pdf" else "Download ZIP"
-    download_filename = result.filename
-
-    context["preview_url"] = reverse("preview_pdf", kwargs={"token": preview_token})
-    context["download_url"] = reverse("download_file", kwargs={"token": download_token})
-    context["download_label"] = download_label
-    context["download_filename"] = download_filename
-    return render(request, "payslip/preview.html", context)
 
 
 def landing(request: HttpRequest) -> HttpResponse:

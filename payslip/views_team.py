@@ -15,7 +15,6 @@ from .models import Membership
 RIGHT_FIELDS = list(Membership.MODULE_FIELDS.values())
 
 RIGHT_LABELS = {
-    "can_payslips": "Payslips",
     "can_offer_letters": "Offer Letters",
     "can_experience_certificates": "Experience Certs",
     "can_travel_expense": "Travel Expense",

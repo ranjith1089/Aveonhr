@@ -1,4 +1,5 @@
 from django.urls import include, path
+from django.views.generic import RedirectView
 
 from . import views_implementation, views_income, views_payroll, views_people, views_proposal_history, views_team
 from .views import (
@@ -12,7 +13,6 @@ from .views import (
     profile_logo,
     signup,
     travel_expense,
-    upload_payslips,
     proposal_quotation,
 )
 
@@ -33,7 +33,7 @@ urlpatterns = [
     path("offer-letter/", offer_letter, name="offer_letter"),
     path("experience-certificate/", experience_certificate, name="experience_certificate"),
     path("travel-expense/", travel_expense, name="travel_expense"),
-    path("payslip/", upload_payslips, name="upload_payslips"),
+    path("payslip/", RedirectView.as_view(pattern_name="payroll_run_list", permanent=False), name="upload_payslips"),
     path("proposal-quotation/", proposal_quotation, name="proposal_quotation"),
     path("proposal-quotation/cms-features/", cms_feature_list, name="cms_feature_list"),
     path("proposal-quotation/history/", views_proposal_history.proposal_history, name="proposal_history"),

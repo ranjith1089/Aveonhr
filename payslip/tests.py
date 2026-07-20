@@ -6,7 +6,7 @@ from django.urls import reverse
 def make_member(username, *, admin=False, org=None, **rights):
     """Create a user with an explicit membership.
 
-    rights: short module keys (income=True, payslips=True, ...) - anything
+    rights: short module keys (income=True, payroll=True, ...) - anything
     not named defaults to False so tests stay precise. Returns the user;
     reach the org via user.membership.organization.
     """
@@ -398,29 +398,29 @@ class ModuleRightsTests(TestCase):
         self.org = self.admin.membership.organization
 
     def test_member_without_right_gets_friendly_403(self):
-        member = make_member("no_payslip", org=self.org, offer_letters=True)
+        member = make_member("no_travel", org=self.org, offer_letters=True)
         self.client.force_login(member)
-        resp = self.client.get("/payslip/")
+        resp = self.client.get("/travel-expense/")
         self.assertEqual(resp.status_code, 403)
         self.assertContains(resp, "organization admin", status_code=403)
 
     def test_member_with_right_gets_200(self):
-        member = make_member("has_payslip", org=self.org, payslips=True)
+        member = make_member("has_travel", org=self.org, travel_expense=True)
         self.client.force_login(member)
-        self.assertEqual(self.client.get("/payslip/").status_code, 200)
+        self.assertEqual(self.client.get("/travel-expense/").status_code, 200)
         # ...but proposals stays blocked
         self.assertEqual(self.client.get("/proposal-quotation/").status_code, 403)
 
     def test_admin_bypasses_toggles(self):
         from payslip.models import Membership
         Membership.objects.filter(user=self.admin).update(
-            can_payslips=False, can_income=False)
+            can_travel_expense=False, can_income=False)
         self.client.force_login(self.admin)
-        self.assertEqual(self.client.get("/payslip/").status_code, 200)
+        self.assertEqual(self.client.get("/travel-expense/").status_code, 200)
         self.assertEqual(self.client.get("/income/").status_code, 200)
 
     def test_anonymous_redirects_to_login(self):
-        r = self.client.get("/payslip/")
+        r = self.client.get("/travel-expense/")
         self.assertEqual(r.status_code, 302)
         self.assertIn("/accounts/login/", r["Location"])
 
@@ -487,42 +487,42 @@ class TeamPageTests(TestCase):
         resp = self.client.post("/team/add/", {
             "first_name": "Priya", "username": "priya", "email": "priya@x.com",
             "password": "temp-pass-9x21", "role": "MEMBER",
-            "new_can_payslips": "on",
+            "new_can_payroll": "on",
         })
         self.assertEqual(resp.status_code, 302)
         user = User.objects.get(username="priya")
         m = Membership.objects.get(user=user)
         self.assertEqual(m.organization, self.org)
-        self.assertTrue(m.can_payslips)
+        self.assertTrue(m.can_payroll)
         self.assertFalse(m.can_income)
         # Temp password works for a real login.
         fresh = self.client_class()
         self.assertTrue(fresh.login(username="priya", password="temp-pass-9x21"))
 
     def test_deactivate_blocks_next_request(self):
-        member = make_member("leaver", org=self.org, payslips=True)
+        member = make_member("leaver", org=self.org, travel_expense=True)
         member_session = self.client_class()
         member_session.force_login(member)
-        self.assertEqual(member_session.get("/payslip/").status_code, 200)
+        self.assertEqual(member_session.get("/travel-expense/").status_code, 200)
         resp = self.client.post(f"/team/{member.pk}/toggle/")
         self.assertEqual(resp.status_code, 302)
         member.refresh_from_db()
         self.assertFalse(member.is_active)
         # Their live session no longer passes module_required.
-        self.assertNotEqual(member_session.get("/payslip/").status_code, 200)
+        self.assertNotEqual(member_session.get("/travel-expense/").status_code, 200)
 
     def test_bulk_save_updates_rights(self):
         member = make_member("flipme", org=self.org)
         resp = self.client.post("/team/", {
             f"role_{self.admin.pk}": "ADMIN",
-            f"can_payslips_{self.admin.pk}": "on",
+            f"can_payroll_{self.admin.pk}": "on",
             f"role_{member.pk}": "MEMBER",
             f"can_income_{member.pk}": "on",
         })
         self.assertEqual(resp.status_code, 302)
         member.membership.refresh_from_db()
         self.assertTrue(member.membership.can_income)
-        self.assertFalse(member.membership.can_payslips)
+        self.assertFalse(member.membership.can_payroll)
 
     def test_last_admin_cannot_be_demoted(self):
         from payslip.models import Membership
@@ -1127,7 +1127,7 @@ class PayrollModuleTests(TestCase):
 
     # --- access control ------------------------------------------------------
     def test_member_without_payroll_right_gets_403(self):
-        member = make_member("payroll_no_right", org=self.org, payslips=True)
+        member = make_member("payroll_no_right", org=self.org, travel_expense=True)
         self.client.force_login(member)
         self.assertEqual(self.client.get(reverse("payroll_run_list")).status_code, 403)
         self.assertEqual(self.client.get(reverse("employee_list")).status_code, 403)

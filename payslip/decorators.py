@@ -16,7 +16,6 @@ from django.shortcuts import render
 from .models import membership_for
 
 MODULE_LABELS = {
-    "payslips": "Payslip Generator",
     "offer_letters": "Offer Letters",
     "experience_certificates": "Experience Certificates",
     "travel_expense": "Travel Expense Reports",

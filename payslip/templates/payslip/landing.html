@@ -55,7 +55,6 @@
         </div>
         <div class="nav-links">
           {% if user.is_authenticated %}
-          {% if allowed.payslips %}<a class="nav-link" href="/payslip/">Payslip</a>{% endif %}
           {% if allowed.travel_expense %}<a class="nav-link" href="/travel-expense/">Travel Expense</a>{% endif %}
           {% if allowed.proposals %}<a class="nav-link" href="/proposal-quotation/">Proposal Quotation</a>{% endif %}
           {% if allowed.people %}<a class="nav-link" href="{% url 'people_list' %}">👥 People</a>{% endif %}
@@ -146,15 +145,6 @@
         </div>
         {% endif %}
 
-        {% if not user.is_authenticated or allowed.payslips %}
-        <div class="card highlight">
-          <div class="card-icon">💰</div>
-          <h4>Payslip Generator</h4>
-          <p>Accurate, automated monthly payslips delivered as PDF or ZIP</p>
-          <a class="secondary" href="/payslip/">Launch</a>
-        </div>
-        {% endif %}
-
         {% if not user.is_authenticated or allowed.travel_expense %}
         <div class="card highlight">
           <div class="card-icon">✈️</div>
@@ -242,7 +232,7 @@
         <p class="cta-tagline">🚀 From hiring to payroll — HR made simple, smart, and fast.</p>
         <p>Start automating your HR processes today and join hundreds of companies saving time and reducing errors.</p>
         <div class="actions">
-          <a class="primary" href="/payslip/">Start Now</a>
+          <a class="primary" href="#modules">Start Now</a>
           <a class="ghost" href="#modules">Explore Modules</a>
         </div>
       </div>

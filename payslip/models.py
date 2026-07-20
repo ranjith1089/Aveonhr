@@ -97,7 +97,10 @@ class Membership(models.Model):
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.MEMBER)
 
     # Document tools default on; the internal money modules default off.
-    can_payslips = models.BooleanField("Payslips", default=True)
+    # Payroll absorbs the old standalone "Payslips" tool (removed) - it
+    # stays opt-in since, unlike that tool, it exposes every employee's
+    # salary data at once. Existing members keep equivalent access via the
+    # 0014 migration, which carries can_payslips forward into can_payroll.
     can_offer_letters = models.BooleanField("Offer Letters", default=True)
     can_experience_certificates = models.BooleanField("Experience Certificates", default=True)
     can_travel_expense = models.BooleanField("Travel Expense", default=True)
@@ -111,7 +114,6 @@ class Membership(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     MODULE_FIELDS = {
-        "payslips": "can_payslips",
         "offer_letters": "can_offer_letters",
         "experience_certificates": "can_experience_certificates",
         "travel_expense": "can_travel_expense",
