@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Income Dashboard - Aveon</title>
 {% include "payslip/income/_income_style.html" %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="container">
@@ -174,6 +173,7 @@
 </div>
 
 {{ fy_chart|json_script:"fy-chart-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
   const fyData = JSON.parse(document.getElementById('fy-chart-data').textContent);
   new Chart(document.getElementById('fyChart'), {

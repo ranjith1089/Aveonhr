@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Analytics &amp; Forecast - Aveon Income</title>
 {% include "payslip/income/_income_style.html" %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="container">
@@ -145,6 +144,7 @@
 </div>
 
 {{ charts|json_script:"charts-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
   const C = JSON.parse(document.getElementById('charts-data').textContent);
   const inr = v => '₹' + (v >= 100000 ? (v/100000).toFixed(1) + 'L' : v.toLocaleString('en-IN'));

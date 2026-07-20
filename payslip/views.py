@@ -111,7 +111,9 @@ def profile_logo(request: HttpRequest) -> HttpResponse:
     org = org_for(request.user)
     if not org.logo:
         return HttpResponse(status=404)
-    return HttpResponse(org.logo_bytes, content_type=org.logo_content_type or "image/png")
+    response = HttpResponse(org.logo_bytes, content_type=org.logo_content_type or "image/png")
+    response["Cache-Control"] = "private, max-age=300"
+    return response
 
 
 def landing(request: HttpRequest) -> HttpResponse:

@@ -62,6 +62,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "payslip_project.wsgi.application"
 
+# Signed-cookie sessions - no request.session[...] usage anywhere in the
+# app beyond Django's own small auth payload, so this avoids a
+# django_session DB round trip on every request (serverless + conn_max_age=0
+# already pays a fresh connection per request; no need to add a query too).
+SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
+
 # Postgres in production via DATABASE_URL (Neon pooled endpoint);
 # SQLite locally when DATABASE_URL is unset. conn_max_age=0 because
 # serverless instances must not hold connections - the Neon pooler
@@ -91,7 +97,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "payslip" / "static"]
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
