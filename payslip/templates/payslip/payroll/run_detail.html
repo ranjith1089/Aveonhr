@@ -47,6 +47,76 @@
   </div>
   {% endif %}
 
+  {% if comparison %}
+  <div class="card">
+    <h2>📊 vs {{ comparison.prev_run.period|date:"F Y" }}</h2>
+    <p class="sub">What changed since last month - a quick sanity check before finalizing.</p>
+    <div class="stat-grid" style="margin-top:14px;">
+      <div class="stat">
+        <div class="stat-val">₹{{ comparison.prev_net|floatformat:2 }}</div>
+        <div class="stat-lbl">{{ comparison.prev_run.period|date:"M Y" }} Net</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val blue">₹{{ comparison.curr_net|floatformat:2 }}</div>
+        <div class="stat-lbl">{{ run.period|date:"M Y" }} Net</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val {% if comparison.net_delta < 0 %}red{% else %}green{% endif %}">
+          {% if comparison.net_delta >= 0 %}+{% endif %}₹{{ comparison.net_delta|floatformat:2 }}
+        </div>
+        <div class="stat-lbl">Change</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">{{ comparison.prev_headcount }} → {{ comparison.curr_headcount }}</div>
+        <div class="stat-lbl">Headcount</div>
+      </div>
+    </div>
+
+    {% if comparison.joiners or comparison.leavers %}
+    <p class="sub" style="margin-top:14px;">
+      {% if comparison.joiners %}<b>New this month:</b>
+        {% for e in comparison.joiners %}{{ e.employee.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+      {% endif %}
+      {% if comparison.leavers %}<b>Not paid this month:</b>
+        {% for e in comparison.leavers %}{{ e.employee.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+      {% endif %}
+    </p>
+    {% endif %}
+
+    {% if comparison.rows %}
+    <div class="tbl-wrap" style="margin-top:12px;">
+      <table class="grid-tbl">
+        <tr>
+          <th>Employee</th>
+          <th>{{ comparison.prev_run.period|date:"M Y" }} Net</th>
+          <th>{{ run.period|date:"M Y" }} Net</th>
+          <th>Change</th><th>LOP Change</th>
+        </tr>
+        {% for r in comparison.rows %}
+        <tr>
+          <td><a href="{% url 'employee_detail' r.employee.pk %}">{{ r.employee.name }}</a></td>
+          <td class="computed">{{ r.prev }}</td>
+          <td class="computed">{{ r.curr }}</td>
+          <td class="computed {% if r.delta < 0 %}neg{% endif %}">
+            <b>{% if r.delta >= 0 %}+{% endif %}{{ r.delta }}</b>
+          </td>
+          <td class="computed">{% if r.lop_delta %}{% if r.lop_delta > 0 %}+{% endif %}{{ r.lop_delta }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% if comparison.more_rows %}
+    <p class="sub" style="margin-top:8px;">…and {{ comparison.more_rows }} more with smaller changes.
+      {{ comparison.unchanged }} employee{{ comparison.unchanged|pluralize }} unchanged.</p>
+    {% else %}
+    <p class="sub" style="margin-top:8px;">{{ comparison.unchanged }} employee{{ comparison.unchanged|pluralize }} unchanged.</p>
+    {% endif %}
+    {% else %}
+    <p class="sub" style="margin-top:12px;">No net-pay changes between the two months.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <div class="card">
     <h2>Attendance &amp; salary grid</h2>
     {% if not run.is_finalized %}
@@ -130,7 +200,24 @@
   {% if request.membership.is_admin %}
   <div class="card">
     {% if run.is_finalized %}
-    <h2>Reopen this run</h2>
+    <h2>Payslips &amp; editing</h2>
+    {% if missing_pdfs %}
+    <p class="sub">{{ missing_pdfs }} of {{ entries|length }} payslip{{ entries|length|pluralize }} in this run
+      {{ missing_pdfs|pluralize:"has,have" }} no PDF yet - imported runs arrive without them. Generate them without reopening:</p>
+    <form method="post" action="{% url 'payroll_generate_payslips' run.pk %}" style="margin-bottom:18px;">
+      {% csrf_token %}
+      <button class="btn" type="submit">📄 Generate {{ missing_pdfs }} Missing Payslip{{ missing_pdfs|pluralize }}</button>
+    </form>
+    {% else %}
+    <p class="sub">All {{ entries|length }} payslip{{ entries|length|pluralize }} generated - use 👁 / ⬇ in the grid above.
+      Need to rebuild them (e.g. after a company-branding change)?</p>
+    <form method="post" action="{% url 'payroll_generate_payslips' run.pk %}" style="margin-bottom:18px;"
+          onsubmit="return confirm('Regenerate all {{ entries|length }} payslip PDFs for {{ run.period|date:"F Y" }}?');">
+      {% csrf_token %}
+      <input type="hidden" name="regenerate" value="1" />
+      <button class="btn secondary" type="submit">🔄 Regenerate All Payslips</button>
+    </form>
+    {% endif %}
     <p class="sub">Reopening clears every generated payslip PDF (they'd otherwise go stale) and switches back to Draft.</p>
     <form method="post" action="{% url 'payroll_run_reopen' run.pk %}"
           onsubmit="return confirm('Reopen {{ run.period|date:"F Y" }}? All generated payslip PDFs will be cleared.');">

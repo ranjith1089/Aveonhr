@@ -1248,7 +1248,65 @@ class PayrollModuleTests(TestCase):
         resp = self.client.get(reverse("payroll_register_export", args=[run.pk]))
         self.assertEqual(resp.status_code, 200)
         wb = load_workbook(BytesIO(resp.content))
-        self.assertIn("Test Employee", [c.value for c in wb.active["A"]])
+        ws = wb.active
+        # Row 1 is the merged title banner, row 3 the headers, data from row 4.
+        self.assertEqual(ws["A1"].value, "Salary Statement For The Month Of August 2026")
+        self.assertEqual(ws["A3"].value, "S.No")
+        self.assertEqual(ws["A4"].value, 1)                  # serial number
+        self.assertIn("Test Employee", [c.value for c in ws["B"]])
+
+    def test_reopen_survives_missing_finalized_at(self):
+        """Imported runs are FINALIZED with no finalized_at/by - reopening
+        one must not blow up formatting those None values."""
+        from payslip.models import PayrollRun
+        self._make_employee()
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        run = PayrollRun.objects.get()
+        PayrollRun.objects.filter(pk=run.pk).update(
+            status=PayrollRun.Status.FINALIZED, finalized_at=None, finalized_by=None)
+
+        resp = self.client.post(reverse("payroll_run_reopen", args=[run.pk]))
+        self.assertEqual(resp.status_code, 302)
+        run.refresh_from_db()
+        self.assertEqual(run.status, PayrollRun.Status.DRAFT)
+        self.assertIn("was finalized on import", run.notes)
+
+    def test_generate_payslips_fills_missing_pdfs_on_finalized_run(self):
+        from payslip.models import PayrollRun, PayslipEntry
+        self._make_employee()
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        run = PayrollRun.objects.get()
+        PayrollRun.objects.filter(pk=run.pk).update(status=PayrollRun.Status.FINALIZED)
+        self.assertIsNone(PayslipEntry.objects.get().pdf)
+
+        resp = self.client.post(reverse("payroll_generate_payslips", args=[run.pk]))
+        self.assertEqual(resp.status_code, 302)
+        entry = PayslipEntry.objects.get()
+        self.assertTrue(bytes(entry.pdf).startswith(b"%PDF"))
+        self.assertIsNotNone(entry.pdf_generated_at)
+
+    def test_comparison_shows_previous_month_movement(self):
+        from payslip.models import PayrollRun, PayslipEntry
+        self._make_employee()
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-07"})
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        july, august = PayrollRun.objects.order_by("period")
+        # Drop July's net so August shows a rise.
+        PayslipEntry.objects.filter(run=july).update(net_payable=Decimal("1000"))
+
+        resp = self.client.get(reverse("payroll_run_detail", args=[august.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "vs July 2026")
+        self.assertEqual(resp.context["comparison"]["prev_run"], july)
+        self.assertEqual(len(resp.context["comparison"]["rows"]), 1)
+
+    def test_comparison_absent_for_earliest_run(self):
+        from payslip.models import PayrollRun
+        self._make_employee()
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        run = PayrollRun.objects.get()
+        resp = self.client.get(reverse("payroll_run_detail", args=[run.pk]))
+        self.assertIsNone(resp.context["comparison"])
 
 
 class ImportPayrollCommandTests(TestCase):

@@ -240,10 +240,68 @@ def payroll_run_detail(request: HttpRequest, pk: int) -> HttpResponse:
         "deductions": sum((e.total_deductions for e in entries), Decimal("0")),
         "net": sum((e.net_payable for e in entries), Decimal("0")),
     }
+    missing_pdfs = sum(1 for e in entries if not e.pdf)
     return render(request, "payslip/payroll/run_detail.html", {
         "run": run, "entries": entries, "totals": totals,
         "negative_count": negative_count,
+        "missing_pdfs": missing_pdfs,
+        "comparison": _build_comparison(org, run, entries),
     })
+
+
+def _build_comparison(org, run, entries) -> dict | None:
+    """This run vs the previous month: totals, joiners/leavers, per-employee
+    net-pay movement. Returns None when there's no earlier run to compare."""
+    prev_run = (PayrollRun.objects
+                .filter(organization=org, period__lt=run.period)
+                .order_by("-period").first())
+    if prev_run is None:
+        return None
+
+    prev_entries = list(prev_run.entries.select_related("employee"))
+    prev_net = sum((e.net_payable for e in prev_entries), Decimal("0"))
+    curr_net = sum((e.net_payable for e in entries), Decimal("0"))
+
+    unmatched = {e.employee_id: e for e in prev_entries}
+    rows, joiners = [], []
+    for e in entries:
+        prev = unmatched.pop(e.employee_id, None)
+        if prev is None:
+            joiners.append(e)
+            continue
+        delta = e.net_payable - prev.net_payable
+        if delta:
+            rows.append({"employee": e.employee, "prev": prev.net_payable,
+                         "curr": e.net_payable, "delta": delta,
+                         "lop_delta": e.lop_days - prev.lop_days})
+    # Whatever is left was paid last month but has no row this month.
+    leavers = sorted(unmatched.values(), key=lambda e: e.employee.name)
+    rows.sort(key=lambda r: abs(r["delta"]), reverse=True)
+
+    return {
+        "prev_run": prev_run,
+        "prev_net": prev_net, "curr_net": curr_net,
+        "net_delta": curr_net - prev_net,
+        "prev_headcount": len(prev_entries), "curr_headcount": len(entries),
+        "rows": rows[:15], "more_rows": max(0, len(rows) - 15),
+        "joiners": joiners, "leavers": leavers,
+        "unchanged": len(entries) - len(joiners) - len(rows),
+    }
+
+
+def _build_pdfs(org, entries) -> None:
+    """Render each entry's payslip PDF in place (caller saves)."""
+    from .pdf_styles import CompanyBranding
+    from .services.payroll_pdf import build_entry_pdf
+    from .utils import CompanyInfo
+
+    brand = CompanyBranding.from_profile(org)
+    company = CompanyInfo(name=brand.name, address=brand.address or "",
+                          email=brand.email, phone=brand.phone)
+    logo_bytes = brand.logo_bytes
+    for entry in entries:
+        entry.pdf = build_entry_pdf(entry, company, logo_bytes)
+        entry.pdf_generated_at = timezone.now()
 
 
 @org_admin_required
@@ -269,19 +327,8 @@ def payroll_run_finalize(request: HttpRequest, pk: int) -> HttpResponse:
         )
         return redirect("payroll_run_detail", pk=pk)
 
-    from .pdf_styles import CompanyBranding
-    from .services.payroll_pdf import build_entry_pdf
-    from .utils import CompanyInfo
-
-    brand = CompanyBranding.from_profile(org)
-    company = CompanyInfo(name=brand.name, address=brand.address or "",
-                          email=brand.email, phone=brand.phone)
-    logo_bytes = brand.logo_bytes
-
     with transaction.atomic():
-        for entry in entries:
-            entry.pdf = build_entry_pdf(entry, company, logo_bytes)
-            entry.pdf_generated_at = timezone.now()
+        _build_pdfs(org, entries)
         PayslipEntry.objects.bulk_update(entries, [
             "present_days", "pay_days", "basic", "da", "hra", "transport_allowance",
             "food_allowance", "gross_salary", "esi_employee", "esi_employer",
@@ -308,15 +355,47 @@ def payroll_run_reopen(request: HttpRequest, pk: int) -> HttpResponse:
     with transaction.atomic():
         run.entries.update(pdf=None, pdf_plain=None, pdf_generated_at=None)
         run.status = PayrollRun.Status.DRAFT
+        # Imported historical runs land as FINALIZED with no finalized_at/by,
+        # so both have to tolerate None here.
+        was = (f"{run.finalized_at:%d %b %Y}" if run.finalized_at else "on import")
         note = (f"Reopened by {request.user.username} on "
-               f"{timezone.localdate():%d %b %Y} (was finalized "
-               f"{run.finalized_at:%d %b %Y} by "
+               f"{timezone.localdate():%d %b %Y} (was finalized {was} by "
                f"{run.finalized_by.username if run.finalized_by else '—'}).")
         run.notes = f"{run.notes}\n{note}".strip()
         run.finalized_by = None
         run.finalized_at = None
         run.save(update_fields=["status", "notes", "finalized_by", "finalized_at"])
     messages.success(request, f"Payroll for {run.period:%B %Y} reopened for editing.")
+    return redirect("payroll_run_detail", pk=pk)
+
+
+@org_admin_required
+def payroll_generate_payslips(request: HttpRequest, pk: int) -> HttpResponse:
+    """Build payslip PDFs for an already-finalized run.
+
+    Imported historical runs arrive finalized but with no PDFs, so this is
+    the only way to get their payslips without reopening (which would
+    discard the imported figures' finalized state). Existing PDFs are left
+    alone unless ?regenerate=1 is posted.
+    """
+    org = request.organization
+    run = get_object_or_404(PayrollRun, pk=pk, organization=org)
+    if request.method != "POST" or not run.is_finalized:
+        return redirect("payroll_run_detail", pk=pk)
+
+    entries = list(run.entries.select_related("employee"))
+    if request.POST.get("regenerate") != "1":
+        entries = [e for e in entries if not e.pdf]
+    if not entries:
+        messages.info(request, "Every payslip in this run has already been generated.")
+        return redirect("payroll_run_detail", pk=pk)
+
+    with transaction.atomic():
+        _build_pdfs(org, entries)
+        PayslipEntry.objects.bulk_update(entries, ["pdf", "pdf_generated_at"])
+
+    messages.success(request, f"{len(entries)} payslip{'' if len(entries) == 1 else 's'} "
+                              f"generated for {run.period:%B %Y}.")
     return redirect("payroll_run_detail", pk=pk)
 
 

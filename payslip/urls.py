@@ -65,6 +65,7 @@ urlpatterns = [
     path("payroll/runs/<int:pk>/", views_payroll.payroll_run_detail, name="payroll_run_detail"),
     path("payroll/runs/<int:pk>/finalize/", views_payroll.payroll_run_finalize, name="payroll_run_finalize"),
     path("payroll/runs/<int:pk>/reopen/", views_payroll.payroll_run_reopen, name="payroll_run_reopen"),
+    path("payroll/runs/<int:pk>/generate-payslips/", views_payroll.payroll_generate_payslips, name="payroll_generate_payslips"),
     path("payroll/runs/<int:pk>/export.xlsx", views_payroll.payroll_register_export, name="payroll_register_export"),
     path("payroll/entries/<int:pk>/<str:action>/", views_payroll.payroll_entry_pdf, name="payroll_entry_pdf"),
 ]
