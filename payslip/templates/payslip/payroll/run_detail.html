@@ -127,7 +127,7 @@
     {% endif %}
 
     {% if comparison.rows %}
-    {# Top movers stay visible; the rest sit behind an expander. #}
+    {# One continuous table - the whole section already collapses. #}
     <div class="tbl-wrap" style="margin-top:14px;">
       <table>
         <thead>
@@ -140,7 +140,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for r in comparison.top_rows %}
+          {% for r in comparison.rows %}
           <tr>
             <td><a href="{% url 'employee_detail' r.employee.pk %}">{{ r.employee.name }}</a></td>
             <td class="num">{{ r.prev|floatformat:0|intcomma }}</td>
@@ -152,40 +152,6 @@
         </tbody>
       </table>
     </div>
-
-    {% if comparison.rest_rows %}
-    <details class="fold" style="margin-top:12px;">
-      <summary>
-        <span class="chev">▼</span>
-        <span class="more-txt">Show {{ comparison.rest_rows|length }} smaller change{{ comparison.rest_rows|length|pluralize }}</span>
-        <span class="less-txt">Show less</span>
-      </summary>
-      <div class="fold-body tbl-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Employee</th>
-              <th class="num">{{ comparison.prev_run.period|date:"M Y" }}</th>
-              <th class="num">{{ run.period|date:"M Y" }}</th>
-              <th class="num">Change</th>
-              <th class="num">LOP Δ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in comparison.rest_rows %}
-            <tr>
-              <td><a href="{% url 'employee_detail' r.employee.pk %}">{{ r.employee.name }}</a></td>
-              <td class="num">{{ r.prev|floatformat:0|intcomma }}</td>
-              <td class="num">{{ r.curr|floatformat:0|intcomma }}</td>
-              <td class="num"><span class="delta {% if r.delta < 0 %}down{% else %}up{% endif %}">{% if r.delta > 0 %}+{% endif %}{{ r.delta|floatformat:0|intcomma }}</span></td>
-              <td class="num">{% if r.lop_delta %}<span class="delta {% if r.lop_delta > 0 %}down{% else %}up{% endif %}">{% if r.lop_delta > 0 %}+{% endif %}{{ r.lop_delta|floatformat:"-2" }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </details>
-    {% endif %}
 
     <p class="col-note" style="margin-top:10px;">{{ comparison.unchanged }} employee{{ comparison.unchanged|pluralize }} unchanged.</p>
     {% else %}

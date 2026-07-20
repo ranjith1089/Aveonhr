@@ -299,15 +299,12 @@ def _build_comparison(org, run, entries) -> dict | None:
     leavers = sorted(unmatched.values(), key=lambda e: e.employee.name)
     rows.sort(key=lambda r: abs(r["delta"]), reverse=True)
 
-    # Biggest movers stay on screen; the tail sits behind an expander.
-    TOP_N = 6
     return {
         "prev_run": prev_run,
         "prev_net": prev_net, "curr_net": curr_net,
         "net_delta": curr_net - prev_net,
         "prev_headcount": len(prev_entries), "curr_headcount": len(entries),
         "rows": rows,
-        "top_rows": rows[:TOP_N], "rest_rows": rows[TOP_N:],
         "changed_count": len(rows),
         "joiners": joiners, "leavers": leavers,
         "unchanged": len(entries) - len(joiners) - len(rows),
