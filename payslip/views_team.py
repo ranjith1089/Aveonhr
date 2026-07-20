@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 
 from .decorators import org_admin_required
 from .forms import AddMemberForm
-from .models import Membership
+from .models import Membership, Person
 
 RIGHT_FIELDS = list(Membership.MODULE_FIELDS.values())
 
@@ -31,7 +31,7 @@ def _members(org):
             .select_related("user").order_by("user__date_joined"))
 
 
-def _team_context(request, org, add_form, add_form_open=False):
+def _team_context(request, org, add_form, add_form_open=False, people=None, prefill_person=None):
     members = list(_members(org))
     rows = [
         {"m": m, "rights": [(f, bool(getattr(m, f))) for f in RIGHT_FIELDS]}
@@ -44,6 +44,8 @@ def _team_context(request, org, add_form, add_form_open=False):
         "add_form": add_form,
         "add_form_open": add_form_open,
         "me": request.user,
+        "people": people if people is not None else Person.objects.filter(organization=org).order_by("name"),
+        "prefill_person": prefill_person,
     }
 
 
@@ -74,8 +76,20 @@ def team(request: HttpRequest) -> HttpResponse:
             messages.success(request, "Team rights updated.")
         return redirect("team")
 
+    prefill_person = None
+    person_id = request.GET.get("person")
+    if person_id and person_id.isdigit():
+        prefill_person = Person.objects.filter(pk=person_id, organization=org).first()
+
+    initial = None
+    if prefill_person:
+        initial = {"first_name": prefill_person.name, "email": prefill_person.email}
+
+    add_form = AddMemberForm(initial=initial)
     return render(request, "payslip/team.html",
-                  _team_context(request, org, AddMemberForm()))
+                  _team_context(request, org, add_form,
+                                add_form_open=bool(prefill_person),
+                                prefill_person=prefill_person))
 
 
 @org_admin_required

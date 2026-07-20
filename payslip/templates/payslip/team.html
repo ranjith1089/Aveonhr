@@ -88,7 +88,7 @@
     {% endfor %}
   </div>
 
-  <details class="fold card" {% if add_form_open or add_form.errors %}open{% endif %}>
+  <details class="fold card" id="add-member" {% if add_form_open or add_form.errors %}open{% endif %}>
     <summary><h2 style="margin-bottom:0;">➕ Add a member <span class="muted" style="font-weight:600; text-transform:none; letter-spacing:0;">- click to expand</span></h2></summary>
     {% if add_form.errors %}
     <div class="msg error" style="margin-top:12px;">
@@ -98,6 +98,16 @@
     <form method="post" action="{% url 'team_add_member' %}" style="margin-top:12px;">
       {% csrf_token %}
       <div class="grid">
+        <p class="full">
+          <label>Prefill from People (optional)</label>
+          <select onchange="window.location.href = this.value ? '{% url 'team' %}?person=' + this.value + '#add-member' : '{% url 'team' %}#add-member';">
+            <option value="">— Select an existing candidate/intern —</option>
+            {% for p in people %}
+            <option value="{{ p.pk }}" {% if prefill_person and prefill_person.pk == p.pk %}selected{% endif %}>{{ p.name }} ({{ p.get_kind_display }})</option>
+            {% endfor %}
+          </select>
+          {% if prefill_person %}<span class="muted">Name and email prefilled from People — edit if needed, then set a username and temporary password.</span>{% endif %}
+        </p>
         <p><label>Name</label>{{ add_form.first_name }}</p>
         <p><label>Username</label>{{ add_form.username }}</p>
         <p><label>Email</label>{{ add_form.email }}</p>
