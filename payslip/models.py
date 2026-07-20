@@ -105,6 +105,7 @@ class Membership(models.Model):
     can_people = models.BooleanField("People", default=True)
     can_income = models.BooleanField("Income", default=False)
     can_implementation = models.BooleanField("Implementation", default=False)
+    can_payroll = models.BooleanField("Payroll", default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -118,6 +119,7 @@ class Membership(models.Model):
         "people": "can_people",
         "income": "can_income",
         "implementation": "can_implementation",
+        "payroll": "can_payroll",
     }
 
     def __str__(self) -> str:  # pragma: no cover
@@ -583,3 +585,216 @@ class PersonDocument(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.person.name}: {self.get_doc_type_display()}"
+
+
+# ---------------------------------------------------------------------------
+# Payroll - employee master, monthly attendance-driven salary calculation,
+# and generated/stored payslips. Replaces the manual Salary Excel register
+# as the source of truth; historical data is imported via the
+# import_payroll management command.
+# ---------------------------------------------------------------------------
+class Employee(models.Model):
+    """Payroll employee master - deliberately separate from Person (which
+    is the lightweight candidate/intern letter registry and lacks payroll
+    fields). Optionally linked back to a Person for traceability."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="employees")
+    person = models.ForeignKey(Person, on_delete=models.SET_NULL, null=True,
+                               blank=True, related_name="employee_profile")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, related_name="+")
+
+    employee_code = models.CharField(max_length=30)
+    name = models.CharField(max_length=200, db_index=True)
+    designation = models.CharField(max_length=200, blank=True, default="")
+    doj = models.DateField(null=True, blank=True)
+    relieving_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    # The sheet's "New Salary" - current monthly package, edited only at
+    # increment time. PayslipEntry snapshots this per period so a raise
+    # never retroactively changes an already-generated month.
+    current_monthly_package = models.DecimalField(max_digits=12, decimal_places=2,
+                                                   default=Decimal("0"))
+
+    bank_name = models.CharField(max_length=200, blank=True, default="")
+    bank_account_number = models.CharField(max_length=50, blank=True, default="")
+    ifsc_code = models.CharField(max_length=20, blank=True, default="")
+    pan_number = models.CharField(max_length=20, blank=True, default="")
+    pf_number = models.CharField(max_length=50, blank=True, default="")
+    pf_uan = models.CharField(max_length=50, blank=True, default="")
+    esi_number = models.CharField(max_length=50, blank=True, default="")
+
+    # ESI eligibility is a sticky, manually-set decision (confirmed against
+    # the real sheet: an employee stays ESI-covered even in a month their
+    # gross temporarily exceeds the wage ceiling due to a one-off arrear) -
+    # never re-derived automatically from a given month's gross salary.
+    is_esi_eligible = models.BooleanField(default=False)
+    # PF enrollment is likewise a sticky per-employee decision, not a
+    # universal rule - confirmed against the real sheet: only about half
+    # the roster is ever PF-enrolled (the rest carry a literal 0, never a
+    # formula, in the PF Employee column).
+    is_pf_applicable = models.BooleanField(default=False)
+
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        unique_together = [("organization", "employee_code")]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.name} ({self.employee_code})"
+
+
+class PayrollSettings(models.Model):
+    """Org-level configurable salary-split and statutory rates. Defaults
+    reproduce the source Excel's hardcoded values exactly, so a brand-new
+    organization behaves identically to today's spreadsheet until an admin
+    changes something."""
+
+    organization = models.OneToOneField(Organization, on_delete=models.CASCADE,
+                                        related_name="payroll_settings")
+
+    basic_percent_of_package = models.DecimalField(max_digits=5, decimal_places=2,
+                                                    default=Decimal("50.00"))
+    da_percent_of_basic = models.DecimalField(max_digits=5, decimal_places=2,
+                                              default=Decimal("45.00"))
+    hra_percent_of_basic = models.DecimalField(max_digits=5, decimal_places=2,
+                                               default=Decimal("25.00"))
+    transport_percent_of_basic = models.DecimalField(max_digits=5, decimal_places=2,
+                                                      default=Decimal("20.00"))
+    food_percent_of_basic = models.DecimalField(max_digits=5, decimal_places=2,
+                                                default=Decimal("10.00"))
+
+    esi_employee_percent = models.DecimalField(max_digits=5, decimal_places=2,
+                                               default=Decimal("0.75"))
+    esi_employer_percent = models.DecimalField(max_digits=5, decimal_places=2,
+                                               default=Decimal("3.25"))
+    esi_wage_ceiling = models.DecimalField(max_digits=10, decimal_places=2,
+                                           default=Decimal("21000.00"))
+
+    pf_employee_percent = models.DecimalField(max_digits=5, decimal_places=2,
+                                              default=Decimal("12.00"))
+    pf_employer_percent = models.DecimalField(max_digits=5, decimal_places=2,
+                                              default=Decimal("12.00"))
+    pf_wage_cap = models.DecimalField(max_digits=10, decimal_places=2,
+                                      default=Decimal("15000.00"))
+    pf_wage_factor = models.DecimalField(max_digits=5, decimal_places=2,
+                                         default=Decimal("60.00"))
+    pf_employer_matches_employee = models.BooleanField(default=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Payroll settings: {self.organization}"
+
+
+def payroll_settings_for(org) -> PayrollSettings:
+    settings_obj, _ = PayrollSettings.objects.get_or_create(organization=org)
+    return settings_obj
+
+
+class PayrollRun(models.Model):
+    """One payroll period (calendar month) header per organization."""
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        FINALIZED = "FINALIZED", "Finalized"
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="payroll_runs")
+    period = models.DateField()  # always day=1
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, related_name="+")
+    finalized_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                     null=True, blank=True, related_name="+")
+    finalized_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-period"]
+        unique_together = [("organization", "period")]
+
+    def save(self, *args, **kwargs):
+        if self.period:
+            self.period = self.period.replace(day=1)
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Payroll {self.period:%b %Y} ({self.organization})"
+
+    @property
+    def is_finalized(self) -> bool:
+        return self.status == self.Status.FINALIZED
+
+
+class PayslipEntry(models.Model):
+    """One employee's payroll row for one run. Computed columns are set
+    explicitly by services.payroll_calc.compute_entry() - never derived in
+    save() - because bulk-creating a whole roster uses bulk_create (which
+    skips save()) and because the grid needs to preview a recompute before
+    persisting."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="payslip_entries")
+    run = models.ForeignKey(PayrollRun, on_delete=models.CASCADE, related_name="entries")
+    # PROTECT, deliberately unlike Person->CASCADE: an employee with any
+    # payslip history can never be deleted, only deactivated.
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT,
+                                 related_name="payslip_entries")
+
+    # Snapshot at entry-creation time so a later increment never
+    # retroactively changes an already-generated month.
+    monthly_package = models.DecimalField(max_digits=12, decimal_places=2)
+
+    # Attendance - manual inputs, prefilled with sensible defaults.
+    total_working_days = models.PositiveSmallIntegerField()
+    cl_credit = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    emp_leave_days = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    lop_days = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    present_days = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+    pay_days = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0"))
+
+    # Rare manual one-offs.
+    internet_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+    salary_arrear_allowance = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+    salary_advance = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+    tds = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+
+    # Computed components.
+    basic = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    da = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    hra = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    transport_allowance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    food_allowance = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    gross_salary = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+
+    is_esi_eligible = models.BooleanField(default=False)
+    esi_employee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+    esi_employer = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+    is_pf_applicable = models.BooleanField(default=False)
+    pf_employee = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+    pf_employer = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+    total_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    net_payable = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+
+    remarks = models.TextField(blank=True, default="")
+    pdf = models.BinaryField(null=True, blank=True)
+    pdf_plain = models.BinaryField(null=True, blank=True)
+    pdf_generated_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["employee__name"]
+        unique_together = [("run", "employee")]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.employee.name} - {self.run.period:%b %Y}"

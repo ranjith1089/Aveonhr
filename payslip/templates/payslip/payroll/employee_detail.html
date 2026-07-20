@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{ heading }} - Payroll - Aveon HR Suite</title>
+{% include "payslip/income/_income_style.html" %}
+<style>
+  .crumb { font-size:12.5px; font-weight:700; color:#64748B; margin-bottom:4px; }
+  .crumb a { color:#1565C0; text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="container" style="max-width:900px;">
+  {% include "payslip/payroll/_payroll_nav.html" with active_page="employees" %}
+
+  <div class="card">
+    <div class="crumb"><a href="{% url 'employee_list' %}">👔 Employees</a> › {{ heading }}</div>
+    <h1>{{ heading }}
+      {% if employee %}
+      {% if employee.is_active %}<span class="badge blue" style="vertical-align:middle;">Active</span>
+      {% else %}<span class="badge red" style="vertical-align:middle;">Inactive</span>{% endif %}
+      {% endif %}
+    </h1>
+    {% if form.errors %}
+    <div class="msg error" style="margin-top:10px;">
+      {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+    <form method="post" {% if not employee %}action="{% url 'employee_create' %}"{% endif %} style="margin-top:14px;">
+      {% csrf_token %}
+      {% if employee %}<input type="hidden" name="action" value="save_employee" />{% endif %}
+      <div class="grid">
+        <p><label>Employee Code</label>{{ form.employee_code }}</p>
+        <p><label>Name</label>{{ form.name }}</p>
+        <p><label>Designation</label>{{ form.designation }}</p>
+        <p><label>Date of Joining</label>{{ form.doj }}</p>
+        <p><label>Relieving Date</label>{{ form.relieving_date }}</p>
+        <p><label>Monthly Package (₹)</label>{{ form.current_monthly_package }}
+          <span class="muted">Edit only at increment time - each payroll run snapshots this.</span></p>
+        <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
+          {{ form.is_esi_eligible }}<label style="margin:0;">ESI eligible (sticky - doesn't change month to month)</label>
+        </p>
+        <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
+          {{ form.is_pf_applicable }}<label style="margin:0;">PF applicable (sticky - not every employee is PF-enrolled)</label>
+        </p>
+        <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
+          {{ form.is_active }}<label style="margin:0;">Active</label>
+        </p>
+
+        <div style="grid-column:1/-1; font-size:12px; font-weight:800; color:#1565C0; text-transform:uppercase; letter-spacing:1px; margin:10px 0 4px; padding-bottom:6px; border-bottom:1.5px solid #E8EEF7;">Bank &amp; statutory details</div>
+        <p><label>Bank Name</label>{{ form.bank_name }}</p>
+        <p><label>Account Number</label>{{ form.bank_account_number }}</p>
+        <p><label>IFSC Code</label>{{ form.ifsc_code }}</p>
+        <p><label>PAN Number</label>{{ form.pan_number }}</p>
+        <p><label>PF Number</label>{{ form.pf_number }}</p>
+        <p><label>PF UAN</label>{{ form.pf_uan }}</p>
+        <p><label>ESI Number</label>{{ form.esi_number }}</p>
+
+        <p class="full"><label>Notes</label>{{ form.notes }}</p>
+      </div>
+      <div style="margin-top:16px; display:flex; gap:10px;">
+        <button class="btn" type="submit">{% if employee %}Save Details{% else %}Add Employee{% endif %}</button>
+        <a class="btn secondary" href="{% url 'employee_list' %}">Cancel</a>
+      </div>
+    </form>
+
+    {% if employee %}
+    <form method="post" style="margin-top:14px; padding-top:14px; border-top:1.5px dashed #E2E8F0;">
+      {% csrf_token %}
+      {% if employee.is_active %}
+      <input type="hidden" name="action" value="deactivate_employee" />
+      <button class="btn danger" type="submit"
+              onclick="return confirm('Deactivate {{ employee.name|escapejs }}? They will no longer be included in new payroll runs. Existing payslip history is kept.');">
+        Deactivate Employee
+      </button>
+      {% else %}
+      <input type="hidden" name="action" value="reactivate_employee" />
+      <button class="btn secondary" type="submit">Reactivate Employee</button>
+      {% endif %}
+    </form>
+    {% endif %}
+  </div>
+
+  {% if employee %}
+  <div class="card">
+    <h2>📁 Payslip history</h2>
+    {% if entries %}
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>Month</th><th>Status</th><th class="num">Gross (₹)</th><th class="num">Deductions (₹)</th><th class="num">Net Payable (₹)</th><th></th></tr>
+        {% for e in entries %}
+        <tr>
+          <td>{{ e.run.period|date:"F Y" }}</td>
+          <td>
+            {% if e.run.status == "FINALIZED" %}<span class="badge green">Finalized</span>
+            {% else %}<span class="badge amber">Draft</span>{% endif %}
+          </td>
+          <td class="num">{{ e.gross_salary }}</td>
+          <td class="num">{{ e.total_deductions }}</td>
+          <td class="num">{{ e.net_payable }}</td>
+          <td>
+            <a class="btn small secondary" href="{% url 'payroll_run_detail' e.run_id %}">Open run</a>
+            {% if e.pdf %}<a class="btn small secondary" href="{% url 'payroll_entry_pdf' e.pk 'view' %}">View payslip</a>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><div class="big">📁</div>No payslips yet - run payroll for a month to generate one.</div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Payroll - {{ run.period|date:"F Y" }} - Aveon HR Suite</title>
+{% include "payslip/income/_income_style.html" %}
+<style>
+  .crumb { font-size:12.5px; font-weight:700; color:#64748B; margin-bottom:4px; }
+  .crumb a { color:#1565C0; text-decoration:none; }
+  .grid-input { width:64px !important; padding:5px 6px !important; font-size:12px !important; text-align:right; }
+  .grid-input.wide { width:110px !important; text-align:left; }
+  .grid-tbl th, .grid-tbl td { padding:6px 7px; white-space:nowrap; }
+  .grid-tbl td.computed { color:#475569; font-variant-numeric:tabular-nums; text-align:right; }
+  .grid-tbl .neg { color:#C62828; font-weight:800; }
+  .action-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:16px; }
+</style>
+</head>
+<body>
+<div class="container" style="max-width:1400px;">
+  {% include "payslip/payroll/_payroll_nav.html" with active_page="runs" %}
+
+  <div class="card">
+    <div class="crumb"><a href="{% url 'payroll_run_list' %}">💵 Payroll Runs</a> › {{ run.period|date:"F Y" }}</div>
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+      <div>
+        <h1>{{ run.period|date:"F Y" }}
+          {% if run.status == "FINALIZED" %}<span class="badge green" style="vertical-align:middle;">Finalized</span>
+          {% else %}<span class="badge amber" style="vertical-align:middle;">Draft</span>{% endif %}
+        </h1>
+        <p class="sub" style="margin:6px 0 0;">{{ entries|length }} employee{{ entries|length|pluralize }}
+          {% if run.finalized_at %} · finalized {{ run.finalized_at|date:"d M Y, h:i A" }} by {{ run.finalized_by.username|default:"—" }}{% endif %}</p>
+      </div>
+      <a class="btn secondary" href="{% url 'payroll_register_export' run.pk %}">⬇ Export Register (.xlsx)</a>
+    </div>
+    <div class="stat-grid" style="margin-top:14px;">
+      <div class="stat"><div class="stat-val blue">₹{{ totals.gross }}</div><div class="stat-lbl">Total Gross</div></div>
+      <div class="stat"><div class="stat-val">₹{{ totals.deductions }}</div><div class="stat-lbl">Total Deductions</div></div>
+      <div class="stat"><div class="stat-val green">₹{{ totals.net }}</div><div class="stat-lbl">Total Net Payable</div></div>
+    </div>
+  </div>
+
+  {% if negative_count %}
+  <div class="card" style="border-left:4px solid #C62828;">
+    <h2 style="color:#C62828;">⚠️ {{ negative_count }} employee{{ negative_count|pluralize }} with negative net payable</h2>
+    <p class="sub" style="margin:0;">Large advance/TDS recovery can push net pay below zero - this is allowed, but finalizing requires an explicit confirmation below.</p>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>Attendance &amp; salary grid</h2>
+    {% if not run.is_finalized %}
+    <p class="sub">Only the highlighted columns are editable - everything else recomputes automatically from the settings in Payroll → Settings.</p>
+    <form method="post" id="grid-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_grid" />
+    {% endif %}
+      <div class="tbl-wrap">
+        <table class="grid-tbl">
+          <tr>
+            <th>Employee</th><th>TWD</th><th>CL</th><th>Emp Leave</th><th>LOP</th>
+            <th>Present</th><th>Pay Days</th>
+            <th>Basic</th><th>DA</th><th>HRA</th><th>Transport</th><th>Food</th>
+            <th>Internet</th><th>Arrear</th><th>Gross</th>
+            <th>ESI Emp</th><th>ESI Er</th><th>PF Emp</th><th>PF Er</th>
+            <th>Advance</th><th>TDS</th><th>Total Ded.</th><th>Net Payable</th>
+            <th>Remarks</th><th></th>
+          </tr>
+          {% for e in entries %}
+          <tr>
+            <td><a href="{% url 'employee_detail' e.employee_id %}">{{ e.employee.name }}</a></td>
+            {% if run.is_finalized %}
+            <td class="computed">{{ e.total_working_days }}</td>
+            <td class="computed">{{ e.cl_credit }}</td>
+            <td class="computed">{{ e.emp_leave_days }}</td>
+            <td class="computed">{{ e.lop_days }}</td>
+            {% else %}
+            <td><input class="grid-input" type="number" name="twd_{{ e.pk }}" value="{{ e.total_working_days }}" /></td>
+            <td><input class="grid-input" type="number" step="0.5" name="cl_{{ e.pk }}" value="{{ e.cl_credit }}" /></td>
+            <td><input class="grid-input" type="number" step="0.5" name="empleave_{{ e.pk }}" value="{{ e.emp_leave_days }}" /></td>
+            <td><input class="grid-input" type="number" step="0.5" name="lop_{{ e.pk }}" value="{{ e.lop_days }}" /></td>
+            {% endif %}
+            <td class="computed">{{ e.present_days }}</td>
+            <td class="computed">{{ e.pay_days }}</td>
+            <td class="computed">{{ e.basic }}</td>
+            <td class="computed">{{ e.da }}</td>
+            <td class="computed">{{ e.hra }}</td>
+            <td class="computed">{{ e.transport_allowance }}</td>
+            <td class="computed">{{ e.food_allowance }}</td>
+            {% if run.is_finalized %}
+            <td class="computed">{{ e.internet_allowance }}</td>
+            <td class="computed">{{ e.salary_arrear_allowance }}</td>
+            {% else %}
+            <td><input class="grid-input" type="number" step="0.01" name="internet_{{ e.pk }}" value="{{ e.internet_allowance }}" /></td>
+            <td><input class="grid-input" type="number" step="0.01" name="arrear_{{ e.pk }}" value="{{ e.salary_arrear_allowance }}" /></td>
+            {% endif %}
+            <td class="computed"><b>{{ e.gross_salary }}</b></td>
+            <td class="computed">{{ e.esi_employee }}</td>
+            <td class="computed">{{ e.esi_employer }}</td>
+            <td class="computed">{{ e.pf_employee }}</td>
+            <td class="computed">{{ e.pf_employer }}</td>
+            {% if run.is_finalized %}
+            <td class="computed">{{ e.salary_advance }}</td>
+            <td class="computed">{{ e.tds }}</td>
+            {% else %}
+            <td><input class="grid-input" type="number" step="0.01" name="advance_{{ e.pk }}" value="{{ e.salary_advance }}" /></td>
+            <td><input class="grid-input" type="number" step="0.01" name="tds_{{ e.pk }}" value="{{ e.tds }}" /></td>
+            {% endif %}
+            <td class="computed">{{ e.total_deductions }}</td>
+            <td class="computed {% if e.net_payable < 0 %}neg{% endif %}"><b>{{ e.net_payable }}</b></td>
+            {% if run.is_finalized %}
+            <td class="computed">{{ e.remarks|default:"—" }}</td>
+            {% else %}
+            <td><input class="grid-input wide" type="text" name="remarks_{{ e.pk }}" value="{{ e.remarks }}" /></td>
+            {% endif %}
+            <td>{% if e.pdf %}<a class="btn small secondary" href="{% url 'payroll_entry_pdf' e.pk 'view' %}">👁</a>
+                <a class="btn small secondary" href="{% url 'payroll_entry_pdf' e.pk 'download' %}">⬇</a>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </table>
+      </div>
+    {% if not run.is_finalized %}
+      <div class="action-bar">
+        <button class="btn secondary" type="submit">Save &amp; Recompute</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if request.membership.is_admin %}
+  <div class="card">
+    {% if run.is_finalized %}
+    <h2>Reopen this run</h2>
+    <p class="sub">Reopening clears every generated payslip PDF (they'd otherwise go stale) and switches back to Draft.</p>
+    <form method="post" action="{% url 'payroll_run_reopen' run.pk %}"
+          onsubmit="return confirm('Reopen {{ run.period|date:"F Y" }}? All generated payslip PDFs will be cleared.');">
+      {% csrf_token %}
+      <button class="btn danger" type="submit">Reopen for Editing</button>
+    </form>
+    {% else %}
+    <h2>Finalize &amp; generate payslips</h2>
+    <p class="sub">This recomputes every row one last time, generates each employee's payslip PDF, and locks the run.</p>
+    <form method="post" action="{% url 'payroll_run_finalize' run.pk %}">
+      {% csrf_token %}
+      {% if negative_count %}
+      <p style="margin-bottom:10px; display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" name="confirm_negative" value="1" id="confirm-negative" style="width:auto;" />
+        <label for="confirm-negative" style="margin:0; font-weight:600;">I confirm the {{ negative_count }} negative net payable amount{{ negative_count|pluralize }} above {{ negative_count|pluralize:"is,are" }} correct.</label>
+      </p>
+      {% endif %}
+      <button class="btn" type="submit">Finalize &amp; Generate Payslips</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Employees - Payroll - Aveon HR Suite</title>
+{% include "payslip/income/_income_style.html" %}
+<style>
+  tr.row-link { cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="container">
+  {% include "payslip/payroll/_payroll_nav.html" with active_page="employees" %}
+
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+    <div>
+      <h1>👔 Employees</h1>
+      <p class="sub" style="margin:0;">{{ active_count }} active of {{ employees|length }} total.</p>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <form method="get" style="display:flex; gap:8px;">
+        <input type="text" name="q" value="{{ q }}" placeholder="🔍 Search name…" style="max-width:220px;" />
+        <button class="btn small secondary" type="submit">Search</button>
+      </form>
+      <a class="btn" href="{% url 'employee_create' %}">+ Add Employee</a>
+    </div>
+  </div>
+
+  <div class="card">
+    {% if employees %}
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>Code</th><th>Name</th><th>Designation</th><th>DOJ</th><th class="num">Monthly Package (₹)</th><th>ESI</th><th>Status</th><th></th></tr>
+        {% for e in employees %}
+        <tr class="row-link" onclick="window.location='{% url 'employee_detail' e.pk %}'" {% if not e.is_active %}style="opacity:.55;"{% endif %}>
+          <td>{{ e.employee_code }}</td>
+          <td><a href="{% url 'employee_detail' e.pk %}"><b>{{ e.name }}</b></a></td>
+          <td>{{ e.designation|default:"—" }}</td>
+          <td style="white-space:nowrap;">{{ e.doj|date:"d M Y"|default:"—" }}</td>
+          <td class="num">{{ e.current_monthly_package }}</td>
+          <td>{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
+          <td>{% if e.is_active %}<span class="badge blue">Active</span>{% else %}<span class="badge red">Inactive</span>{% endif %}</td>
+          <td><a class="btn small secondary" href="{% url 'employee_detail' e.pk %}">Open →</a></td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="big">👔</div>
+      {% if q %}No employees match "{{ q }}".{% else %}No employees yet - add one to start running payroll.{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,18 @@
+<div class="topbar">
+  <a class="brand" href="{% url 'payroll_run_list' %}">💵 Payroll</a>
+  <div class="topnav">
+    <a href="{% url 'payroll_run_list' %}" {% if active_page == "runs" %}class="active"{% endif %}>Payroll Runs</a>
+    <a href="{% url 'employee_list' %}" {% if active_page == "employees" %}class="active"{% endif %}>Employees</a>
+    {% if request.membership.is_admin %}
+    <a href="{% url 'payroll_settings' %}" {% if active_page == "settings" %}class="active"{% endif %}>Settings</a>
+    {% endif %}
+    <a href="{% url 'landing' %}">← HR Suite</a>
+  </div>
+</div>
+{% if messages %}
+<div class="messages">
+  {% for message in messages %}
+  <div class="msg {{ message.tags }}">{{ message }}</div>
+  {% endfor %}
+</div>
+{% endif %}

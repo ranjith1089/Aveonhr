@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from . import views_implementation, views_income, views_people, views_proposal_history, views_team
+from . import views_implementation, views_income, views_payroll, views_people, views_proposal_history, views_team
 from .views import (
     cms_feature_list,
     company_profile,
@@ -55,5 +55,17 @@ urlpatterns = [
     path("income/clients/<int:pk>/implementation/", views_implementation.client_implementation, name="client_implementation"),
     path("income/export.xlsx", views_income.income_export, name="income_export"),
     path("income/import/", views_income.income_import, name="income_import"),
+    # --- Payroll module ---
+    path("payroll/settings/", views_payroll.payroll_settings, name="payroll_settings"),
+    path("payroll/employees/", views_payroll.employee_list, name="employee_list"),
+    path("payroll/employees/new/", views_payroll.employee_create, name="employee_create"),
+    path("payroll/employees/<int:pk>/", views_payroll.employee_detail, name="employee_detail"),
+    path("payroll/runs/", views_payroll.payroll_run_list, name="payroll_run_list"),
+    path("payroll/runs/new/", views_payroll.payroll_run_create, name="payroll_run_create"),
+    path("payroll/runs/<int:pk>/", views_payroll.payroll_run_detail, name="payroll_run_detail"),
+    path("payroll/runs/<int:pk>/finalize/", views_payroll.payroll_run_finalize, name="payroll_run_finalize"),
+    path("payroll/runs/<int:pk>/reopen/", views_payroll.payroll_run_reopen, name="payroll_run_reopen"),
+    path("payroll/runs/<int:pk>/export.xlsx", views_payroll.payroll_register_export, name="payroll_register_export"),
+    path("payroll/entries/<int:pk>/<str:action>/", views_payroll.payroll_entry_pdf, name="payroll_entry_pdf"),
 ]
 

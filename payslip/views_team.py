@@ -23,6 +23,7 @@ RIGHT_LABELS = {
     "can_people": "People",
     "can_income": "Income",
     "can_implementation": "Implementation",
+    "can_payroll": "Payroll",
 }
 
 

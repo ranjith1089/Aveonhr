@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Payroll Settings - Aveon HR Suite</title>
+{% include "payslip/income/_income_style.html" %}
+</head>
+<body>
+<div class="container">
+  {% include "payslip/payroll/_payroll_nav.html" with active_page="settings" %}
+
+  <h1>⚙️ Payroll Settings</h1>
+  <p class="sub">These rules apply to every payroll run in your organization. Defaults match the
+    original Aveon salary sheet exactly - change them only if your actual policy changes.</p>
+
+  {% if form.errors %}
+  <div class="msg error">
+    {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+
+    <div class="card">
+      <h2>Salary component split</h2>
+      <p class="sub">Basic is this % of the monthly package (prorated by attendance); the other
+        components are each a % of Basic.</p>
+      <div class="grid">
+        <p><label>Basic (% of package)</label>{{ form.basic_percent_of_package }}</p>
+        <p><label>DA (% of Basic)</label>{{ form.da_percent_of_basic }}</p>
+        <p><label>HRA (% of Basic)</label>{{ form.hra_percent_of_basic }}</p>
+        <p><label>Transport Allowance (% of Basic)</label>{{ form.transport_percent_of_basic }}</p>
+        <p><label>Food Allowance (% of Basic)</label>{{ form.food_percent_of_basic }}</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ESI</h2>
+      <p class="sub">Applied only to employees marked ESI-eligible (a sticky, manually-set flag on
+        each employee - not re-checked against a given month's gross).</p>
+      <div class="grid">
+        <p><label>Employee %</label>{{ form.esi_employee_percent }}</p>
+        <p><label>Employer %</label>{{ form.esi_employer_percent }}</p>
+        <p><label>Wage Ceiling (₹) - reference only</label>{{ form.esi_wage_ceiling }}</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Provident Fund</h2>
+      <div class="grid">
+        <p><label>Employee %</label>{{ form.pf_employee_percent }}</p>
+        <p><label>Employer %</label>{{ form.pf_employer_percent }}</p>
+        <p><label>Wage Cap (₹)</label>{{ form.pf_wage_cap }}</p>
+        <p><label>Wage Factor (% of Basic+DA used as PF wage)</label>{{ form.pf_wage_factor }}</p>
+        <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
+          {{ form.pf_employer_matches_employee }}<label style="margin:0;">Employer PF always matches Employee PF</label>
+        </p>
+      </div>
+    </div>
+
+    <button class="btn" type="submit">Save Settings</button>
+  </form>
+</div>
+</body>
+</html>

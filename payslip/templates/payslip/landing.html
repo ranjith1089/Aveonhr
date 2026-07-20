@@ -60,6 +60,7 @@
           {% if allowed.proposals %}<a class="nav-link" href="/proposal-quotation/">Proposal Quotation</a>{% endif %}
           {% if allowed.people %}<a class="nav-link" href="{% url 'people_list' %}">👥 People</a>{% endif %}
           {% if allowed.income %}<a class="nav-link" href="{% url 'income_dashboard' %}" style="font-weight:700;">💰 Income</a>{% endif %}
+          {% if allowed.payroll %}<a class="nav-link" href="{% url 'payroll_run_list' %}" style="font-weight:700;">💵 Payroll</a>{% endif %}
           {% if membership.is_admin %}
           <a class="nav-link" href="{% url 'team' %}" style="font-weight:700;">👥 Team</a>
           <a class="nav-link" href="{% url 'company_profile' %}" style="font-weight:700;">My Company</a>
@@ -187,6 +188,15 @@
           <h4>Income & Implementation</h4>
           <p>Client billing follow-ups, analytics, forecasts and delivery tracking</p>
           <a class="secondary" href="{% url 'income_dashboard' %}">Launch</a>
+        </div>
+        {% endif %}
+
+        {% if allowed.payroll %}
+        <div class="card highlight">
+          <div class="card-icon">💵</div>
+          <h4>Payroll</h4>
+          <p>Employee master, attendance-driven salary calculation, ESI/PF and payslip generation</p>
+          <a class="secondary" href="{% url 'payroll_run_list' %}">Launch</a>
         </div>
         {% endif %}
       </div>

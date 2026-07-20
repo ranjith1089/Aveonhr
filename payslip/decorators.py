@@ -24,6 +24,7 @@ MODULE_LABELS = {
     "people": "People (Candidates & Interns)",
     "income": "Income",
     "implementation": "Implementation Tracker",
+    "payroll": "Payroll & Salary",
 }
 
 

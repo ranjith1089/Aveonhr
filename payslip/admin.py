@@ -121,3 +121,34 @@ class PersonDocumentAdmin(admin.ModelAdmin):
     search_fields = ("person__name",)
     readonly_fields = ("created_at",)
     exclude = ("pdf", "pdf_plain")  # binary blobs - download via the app
+
+
+from .models import Employee, PayrollRun, PayrollSettings, PayslipEntry
+
+
+@admin.register(Employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    list_display = ("name", "employee_code", "organization", "designation",
+                    "current_monthly_package", "is_active")
+    list_filter = ("organization", "is_active", "is_esi_eligible")
+    search_fields = ("name", "employee_code")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(PayrollSettings)
+class PayrollSettingsAdmin(admin.ModelAdmin):
+    list_display = ("organization", "basic_percent_of_package", "esi_wage_ceiling", "pf_wage_cap")
+
+
+@admin.register(PayrollRun)
+class PayrollRunAdmin(admin.ModelAdmin):
+    list_display = ("organization", "period", "status", "finalized_at")
+    list_filter = ("organization", "status")
+
+
+@admin.register(PayslipEntry)
+class PayslipEntryAdmin(admin.ModelAdmin):
+    list_display = ("employee", "run", "gross_salary", "net_payable")
+    list_filter = ("run__organization", "run__status")
+    search_fields = ("employee__name",)
+    exclude = ("pdf", "pdf_plain")

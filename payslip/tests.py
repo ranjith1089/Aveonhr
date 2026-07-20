@@ -937,3 +937,407 @@ class PeopleRegistryTests(TestCase):
         self.assertContains(resp, "Offer Letter Generator")
         self.assertContains(resp, "Experience Certificate Generator")
         self.assertContains(resp, 'href="/offer-letter/"')
+
+
+class PayrollCalcTests(TestCase):
+    """Verified against the real source Salary Excel (Vijayalakshmi and
+    Raja.S rows, cross-checked cell-by-cell via openpyxl data_only=True)."""
+
+    def _settings(self):
+        from payslip.models import PayrollSettings
+        return PayrollSettings()  # unsaved instance - defaults match the sheet
+
+    def test_full_attendance_high_salary_not_esi_eligible(self):
+        from decimal import Decimal
+        from payslip.services.payroll_calc import compute_entry
+        result = compute_entry(
+            monthly_package=Decimal("37000"),
+            total_working_days=30,
+            emp_leave_days=Decimal("3"),
+            lop_days=Decimal("0"),
+            is_esi_eligible=False,
+            is_pf_applicable=True,
+            settings=self._settings(),
+        )
+        self.assertEqual(result.present_days, Decimal("27"))
+        self.assertEqual(result.pay_days, Decimal("30"))
+        self.assertEqual(result.basic, Decimal("18500"))
+        self.assertEqual(result.da, Decimal("8325.00"))
+        self.assertEqual(result.hra, Decimal("4625.00"))
+        self.assertEqual(result.transport_allowance, Decimal("3700.00"))
+        self.assertEqual(result.food_allowance, Decimal("1850.00"))
+        self.assertEqual(result.gross_salary, Decimal("37000.00"))
+        self.assertEqual(result.esi_employee, Decimal("0"))
+        self.assertEqual(result.esi_employer, Decimal("0"))
+        # PF wage base (18500+8325)*0.6 = 16095, capped at 15000.
+        self.assertEqual(result.pf_employee, Decimal("1800.00"))
+        self.assertEqual(result.pf_employer, Decimal("1800.00"))
+        self.assertEqual(result.total_deductions, Decimal("1800.00"))
+        self.assertEqual(result.net_payable, Decimal("35200.00"))
+
+    def test_esi_eligible_with_arrear_and_uncapped_pf(self):
+        from decimal import Decimal
+        from payslip.services.payroll_calc import compute_entry
+        result = compute_entry(
+            monthly_package=Decimal("20000"),
+            total_working_days=30,
+            emp_leave_days=Decimal("0"),
+            lop_days=Decimal("0"),
+            salary_arrear_allowance=Decimal("5000"),
+            is_esi_eligible=True,
+            is_pf_applicable=True,
+            settings=self._settings(),
+        )
+        self.assertEqual(result.basic, Decimal("10000"))
+        self.assertEqual(result.da, Decimal("4500.00"))
+        self.assertEqual(result.hra, Decimal("2500.00"))
+        self.assertEqual(result.transport_allowance, Decimal("2000.00"))
+        self.assertEqual(result.food_allowance, Decimal("1000.00"))
+        # Gross includes the one-off arrear; ESI base does not.
+        self.assertEqual(result.gross_salary, Decimal("25000.00"))
+        self.assertEqual(result.esi_employee, Decimal("150"))
+        self.assertEqual(result.esi_employer, Decimal("650"))
+        # PF wage base (10000+4500)*0.6 = 8700, uncapped.
+        self.assertEqual(result.pf_employee, Decimal("1044.00"))
+        self.assertEqual(result.pf_employer, Decimal("1044.00"))
+        self.assertEqual(result.total_deductions, Decimal("1194.00"))
+        self.assertEqual(result.net_payable, Decimal("23806.00"))
+
+    def test_esi_eligibility_is_a_flag_not_derived_from_gross(self):
+        """A large one-off arrear can push gross above the ESI wage ceiling
+        without losing coverage - eligibility must be passed in, not
+        recomputed from that month's gross (confirmed against Raja.S)."""
+        from decimal import Decimal
+        from payslip.services.payroll_calc import compute_entry
+        settings = self._settings()
+        eligible = compute_entry(
+            monthly_package=Decimal("20000"), total_working_days=30,
+            salary_arrear_allowance=Decimal("5000"),  # gross 25000 > 21000 ceiling
+            is_esi_eligible=True, settings=settings,
+        )
+        not_eligible = compute_entry(
+            monthly_package=Decimal("20000"), total_working_days=30,
+            salary_arrear_allowance=Decimal("5000"),
+            is_esi_eligible=False, settings=settings,
+        )
+        self.assertGreater(eligible.esi_employee, Decimal("0"))
+        self.assertEqual(not_eligible.esi_employee, Decimal("0"))
+
+    def test_pf_applicability_is_a_flag_not_universal(self):
+        """Confirmed against the real sheet: only about half the roster is
+        ever PF-enrolled - the PF Employee cell is a literal 0 (never a
+        formula) for everyone else. PF must be gated the same way ESI is."""
+        from decimal import Decimal
+        from payslip.services.payroll_calc import compute_entry
+        settings = self._settings()
+        applicable = compute_entry(
+            monthly_package=Decimal("18000"), total_working_days=30,
+            is_pf_applicable=True, settings=settings,
+        )
+        not_applicable = compute_entry(
+            monthly_package=Decimal("18000"), total_working_days=30,
+            is_pf_applicable=False, settings=settings,
+        )
+        self.assertGreater(applicable.pf_employee, Decimal("0"))
+        self.assertEqual(applicable.pf_employer, applicable.pf_employee)
+        self.assertEqual(not_applicable.pf_employee, Decimal("0"))
+        self.assertEqual(not_applicable.pf_employer, Decimal("0"))
+        # PF being off doesn't touch gross - only deductions/net.
+        self.assertEqual(applicable.gross_salary, not_applicable.gross_salary)
+
+    def test_partial_attendance_prorates_basic(self):
+        from decimal import Decimal
+        from payslip.services.payroll_calc import compute_entry
+        result = compute_entry(
+            monthly_package=Decimal("18500"), total_working_days=30,
+            lop_days=Decimal("2"),  # pay_days = 28
+            is_esi_eligible=False, settings=self._settings(),
+        )
+        self.assertEqual(result.pay_days, Decimal("28"))
+        # ROUND(((18500*0.5)/30)*28, 0) = ROUND(8633.33..., 0) = 8633
+        self.assertEqual(result.basic, Decimal("8633"))
+
+    def test_gross_equals_package_at_full_attendance_no_extras(self):
+        """DA%+HRA%+Transport%+Food% always sum to 100% of Basic, so Gross
+        equals the monthly package exactly whenever attendance is full and
+        there's no internet/arrear allowance - a structural invariant."""
+        from decimal import Decimal
+        from payslip.services.payroll_calc import compute_entry
+        for package in (Decimal("15000"), Decimal("22000"), Decimal("45000")):
+            result = compute_entry(
+                monthly_package=package, total_working_days=31,
+                is_esi_eligible=False, settings=self._settings(),
+            )
+            self.assertEqual(result.gross_salary, package.quantize(Decimal("0.01")))
+
+
+import datetime
+from decimal import Decimal
+
+
+class PayrollModuleTests(TestCase):
+    def setUp(self):
+        self.admin = make_member("payroll_admin", admin=True, payroll=True)
+        self.org = self.admin.membership.organization
+        self.client.force_login(self.admin)
+
+    def _make_employee(self, **overrides):
+        from payslip.models import Employee
+        defaults = dict(organization=self.org, employee_code="EMP-0001",
+                        name="Test Employee", current_monthly_package=Decimal("30000"))
+        defaults.update(overrides)
+        return Employee.objects.create(**defaults)
+
+    # --- model constraints -------------------------------------------------
+    def test_employee_code_unique_per_org(self):
+        from django.db import IntegrityError
+        self._make_employee()
+        with self.assertRaises(IntegrityError):
+            self._make_employee()
+
+    def test_payroll_run_period_clamped_and_unique_per_org(self):
+        from payslip.models import PayrollRun
+        run = PayrollRun.objects.create(organization=self.org,
+                                        period=datetime.date(2026, 7, 15))
+        self.assertEqual(run.period, datetime.date(2026, 7, 1))
+        from django.db import IntegrityError
+        with self.assertRaises(IntegrityError):
+            PayrollRun.objects.create(organization=self.org, period=datetime.date(2026, 7, 1))
+
+    def test_payslip_entry_unique_per_run_and_employee(self):
+        from payslip.models import PayrollRun, PayslipEntry
+        employee = self._make_employee()
+        run = PayrollRun.objects.create(organization=self.org, period=datetime.date(2026, 7, 1))
+        PayslipEntry.objects.create(organization=self.org, run=run, employee=employee,
+                                    monthly_package=Decimal("30000"), total_working_days=31)
+        from django.db import IntegrityError
+        with self.assertRaises(IntegrityError):
+            PayslipEntry.objects.create(organization=self.org, run=run, employee=employee,
+                                        monthly_package=Decimal("30000"), total_working_days=31)
+
+    def test_employee_with_payslip_history_cannot_be_deleted(self):
+        from django.db.models import ProtectedError
+        from payslip.models import PayrollRun, PayslipEntry
+        employee = self._make_employee()
+        run = PayrollRun.objects.create(organization=self.org, period=datetime.date(2026, 7, 1))
+        PayslipEntry.objects.create(organization=self.org, run=run, employee=employee,
+                                    monthly_package=Decimal("30000"), total_working_days=31)
+        with self.assertRaises(ProtectedError):
+            employee.delete()
+
+    # --- access control ------------------------------------------------------
+    def test_member_without_payroll_right_gets_403(self):
+        member = make_member("payroll_no_right", org=self.org, payslips=True)
+        self.client.force_login(member)
+        self.assertEqual(self.client.get(reverse("payroll_run_list")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("employee_list")).status_code, 403)
+
+    def test_member_with_right_gets_200(self):
+        member = make_member("payroll_has_right", org=self.org, payroll=True)
+        self.client.force_login(member)
+        self.assertEqual(self.client.get(reverse("payroll_run_list")).status_code, 200)
+
+    def test_settings_and_finalize_require_org_admin(self):
+        member = make_member("payroll_member_only", org=self.org, payroll=True)
+        self.client.force_login(member)
+        self.assertEqual(self.client.get(reverse("payroll_settings")).status_code, 403)
+
+    def test_cross_org_employee_and_run_404(self):
+        employee = self._make_employee()
+        other_admin = make_member("payroll_other_org", admin=True, payroll=True)
+        self.client.force_login(other_admin)
+        self.assertEqual(
+            self.client.get(reverse("employee_detail", args=[employee.pk])).status_code, 404
+        )
+
+    def test_anonymous_redirects_to_login(self):
+        self.client.logout()
+        r = self.client.get(reverse("payroll_run_list"))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/accounts/login/", r["Location"])
+
+    # --- run lifecycle -------------------------------------------------------
+    def test_creating_run_twice_redirects_into_same_run(self):
+        from payslip.models import PayrollRun
+        self._make_employee()
+        resp1 = self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        resp2 = self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        self.assertEqual(resp1["Location"], resp2["Location"])
+        self.assertEqual(PayrollRun.objects.filter(organization=self.org).count(), 1)
+
+    def test_run_create_bulk_populates_computed_defaults(self):
+        from payslip.models import PayslipEntry
+        self._make_employee(current_monthly_package=Decimal("37000"))
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        entry = PayslipEntry.objects.get()
+        self.assertEqual(entry.basic, Decimal("18500"))
+        self.assertEqual(entry.gross_salary, Decimal("37000.00"))
+
+    def test_finalize_blocks_on_negative_net_without_confirmation(self):
+        from payslip.models import PayrollRun
+        self._make_employee(current_monthly_package=Decimal("10000"))
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        run = PayrollRun.objects.get()
+        entry = run.entries.get()
+        # A huge TDS forces net_payable negative.
+        self.client.post(reverse("payroll_run_detail", args=[run.pk]), {
+            "action": "save_grid",
+            f"twd_{entry.pk}": "31", f"cl_{entry.pk}": "0", f"empleave_{entry.pk}": "0",
+            f"lop_{entry.pk}": "0", f"internet_{entry.pk}": "0", f"arrear_{entry.pk}": "0",
+            f"advance_{entry.pk}": "0", f"tds_{entry.pk}": "50000", f"remarks_{entry.pk}": "",
+        })
+        self.client.post(reverse("payroll_run_finalize", args=[run.pk]))
+        run.refresh_from_db()
+        self.assertEqual(run.status, PayrollRun.Status.DRAFT)
+
+        self.client.post(reverse("payroll_run_finalize", args=[run.pk]), {"confirm_negative": "1"})
+        run.refresh_from_db()
+        self.assertEqual(run.status, PayrollRun.Status.FINALIZED)
+        entry.refresh_from_db()
+        self.assertTrue(bytes(entry.pdf).startswith(b"%PDF-"))
+
+    def test_reopen_clears_pdf_and_reverts_to_draft(self):
+        from payslip.models import PayrollRun
+        self._make_employee()
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        run = PayrollRun.objects.get()
+        self.client.post(reverse("payroll_run_finalize", args=[run.pk]))
+        run.refresh_from_db()
+        self.assertEqual(run.status, PayrollRun.Status.FINALIZED)
+
+        self.client.post(reverse("payroll_run_reopen", args=[run.pk]))
+        run.refresh_from_db()
+        entry = run.entries.get()
+        self.assertEqual(run.status, PayrollRun.Status.DRAFT)
+        self.assertIsNone(entry.pdf)
+
+    def test_finalized_run_rejects_grid_edits(self):
+        from payslip.models import PayrollRun
+        self._make_employee(current_monthly_package=Decimal("37000"))
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        run = PayrollRun.objects.get()
+        entry = run.entries.get()
+        self.client.post(reverse("payroll_run_finalize", args=[run.pk]))
+        self.client.post(reverse("payroll_run_detail", args=[run.pk]), {
+            "action": "save_grid", f"twd_{entry.pk}": "1",
+        })
+        entry.refresh_from_db()
+        self.assertNotEqual(entry.total_working_days, 1)  # ignored - run is finalized
+
+    # --- PDF / export ---------------------------------------------------------
+    def test_entry_pdf_download_serves_valid_pdf(self):
+        self._make_employee(current_monthly_package=Decimal("37000"))
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        from payslip.models import PayrollRun
+        run = PayrollRun.objects.get()
+        self.client.post(reverse("payroll_run_finalize", args=[run.pk]))
+        entry = run.entries.get()
+        resp = self.client.get(reverse("payroll_entry_pdf", args=[entry.pk, "download"]))
+        self.assertEqual(resp.status_code, 302)
+        download = self.client.get(resp["Location"])
+        self.assertEqual(download.status_code, 200)
+        self.assertTrue(download.content.startswith(b"%PDF-"))
+
+    def test_register_export_returns_valid_workbook(self):
+        from openpyxl import load_workbook
+        from io import BytesIO
+        self._make_employee()
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-08"})
+        from payslip.models import PayrollRun
+        run = PayrollRun.objects.get()
+        resp = self.client.get(reverse("payroll_register_export", args=[run.pk]))
+        self.assertEqual(resp.status_code, 200)
+        wb = load_workbook(BytesIO(resp.content))
+        self.assertIn("Test Employee", [c.value for c in wb.active["A"]])
+
+
+class ImportPayrollCommandTests(TestCase):
+    """Dry-run + commit against a small synthetic in-memory workbook -
+    proves the parser, dedup, and cross-validation logic without needing
+    the real (external, not-in-repo) Salary_25_26.xlsx."""
+
+    def _build_workbook(self, tmp_path):
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Sheet1"
+        headers = ["Month", "S.No.", "Name", "Designation", "Total Working Days",
+                  "CL Credit", "Emp Leave Days", "LOP Days", "Present Days",
+                  "Pay Days", "New Salary", "Basic", "DA", "HRA", "Transport",
+                  "Food", "Internet", "Arrear", "Gross", "ESI Emp", "ESI Er",
+                  "PF Emp", "PF Er", "Advance", "TDS", "Total Ded", "Net"]
+        ws.append(headers)
+        period = datetime.date(2026, 4, 1)
+        # A clean row matching the engine exactly (full attendance, PF+ESI off).
+        ws.append([period, 1, "Import Test One", "Dev", 30, 1, 0, 0, 30, 30,
+                  20000, 10000, 4500, 2500, 2000, 1000, None, None, 20000,
+                  0, 0, 0, 0, 0, 0, 0, 20000])
+        # A blank-name row - must be skipped.
+        ws.append([period, 2, None, "Dev", 30, 0, 0, 0, 30, 30,
+                  0, 0, 0, 0, 0, 0, None, None, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+        # A duplicate (same period+name) - later row must win.
+        ws.append([period, 1, "Import Test One", "Dev", 30, 1, 0, 5, 30, 25,
+                  20000, 8333, 3750, 2083, 1667, 833, None, None, 16666,
+                  0, 0, 0, 0, 0, 0, 0, 16666])
+
+        ws4 = wb.create_sheet("Sheet4")
+        ws4["B1"] = "S.No"; ws4["C1"] = "Name"; ws4["D1"] = "Current Salary"
+        ws4["H1"] = "DOJ"; ws4["K1"] = "Remarks"
+        ws4["B2"] = 1; ws4["C2"] = "Import Test One"
+        ws4["H2"] = datetime.date(2020, 1, 1)
+
+        path = tmp_path / "test_salary.xlsx"
+        wb.save(str(path))
+        return str(path)
+
+    def test_dry_run_parses_dedups_and_reports(self):
+        import tempfile
+        from pathlib import Path
+        from io import StringIO
+        from django.core.management import call_command
+
+        make_member("import_dry_admin", admin=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._build_workbook(Path(tmp))
+            out = StringIO()
+            call_command("import_payroll", path, username="import_dry_admin", stdout=out)
+            output = out.getvalue()
+            self.assertIn("Parsed 1 unique", output)  # dedup collapsed 2 rows to 1
+            self.assertIn("Dry run only", output)
+
+        from payslip.models import Employee
+        self.assertEqual(Employee.objects.count(), 0)  # dry run - nothing written
+
+    def test_commit_creates_employee_run_and_entry_with_dedup_winner(self):
+        import tempfile
+        from pathlib import Path
+        from django.core.management import call_command
+
+        make_member("import_commit_admin", admin=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._build_workbook(Path(tmp))
+            call_command("import_payroll", path, "--commit", username="import_commit_admin")
+
+        from payslip.models import Employee, PayrollRun, PayslipEntry
+        employee = Employee.objects.get(name="Import Test One")
+        self.assertEqual(employee.doj, datetime.date(2020, 1, 1))
+        self.assertEqual(PayrollRun.objects.count(), 1)
+        entry = PayslipEntry.objects.get()
+        # The LATER (duplicate) row must win: lop_days=5, net=16666.
+        self.assertEqual(entry.lop_days, Decimal("5.00"))
+        self.assertEqual(entry.net_payable, Decimal("16666.00"))
+
+    def test_commit_is_safely_rerunnable(self):
+        import tempfile
+        from pathlib import Path
+        from django.core.management import call_command
+
+        make_member("import_rerun_admin", admin=True)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._build_workbook(Path(tmp))
+            call_command("import_payroll", path, "--commit", username="import_rerun_admin")
+            call_command("import_payroll", path, "--commit", username="import_rerun_admin")
+
+        from payslip.models import PayrollRun, PayslipEntry
+        self.assertEqual(PayrollRun.objects.count(), 1)  # not duplicated
+        self.assertEqual(PayslipEntry.objects.count(), 1)

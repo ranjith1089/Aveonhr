@@ -109,7 +109,7 @@
             {% for f, label in right_columns %}
             <label style="display:inline-flex; align-items:center; gap:6px; font-weight:600;">
               <input class="rights-check" type="checkbox" name="new_{{ f }}"
-                     {% if f != "can_income" and f != "can_implementation" %}checked{% endif %} />
+                     {% if f != "can_income" and f != "can_implementation" and f != "can_payroll" %}checked{% endif %} />
               {{ label }}
             </label>
             {% endfor %}

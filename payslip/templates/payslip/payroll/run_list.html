@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Payroll Runs - Aveon HR Suite</title>
+{% include "payslip/income/_income_style.html" %}
+</head>
+<body>
+<div class="container">
+  {% include "payslip/payroll/_payroll_nav.html" with active_page="runs" %}
+
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+    <div>
+      <h1>💵 Payroll Runs</h1>
+      <p class="sub" style="margin:0;">One run per calendar month - attendance in, payslips out.</p>
+    </div>
+    <form method="post" action="{% url 'payroll_run_create' %}" style="display:flex; gap:8px; align-items:flex-end;">
+      {% csrf_token %}
+      <div>
+        <label>Run payroll for</label>
+        {{ form.period }}
+      </div>
+      <button class="btn" type="submit">Run Payroll</button>
+    </form>
+  </div>
+
+  <div class="card">
+    {% if runs %}
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>Month</th><th>Status</th><th>Created</th><th>Finalized</th><th></th></tr>
+        {% for r in runs %}
+        <tr class="row-link" style="cursor:pointer;" onclick="window.location='{% url 'payroll_run_detail' r.pk %}'">
+          <td><a href="{% url 'payroll_run_detail' r.pk %}"><b>{{ r.period|date:"F Y" }}</b></a></td>
+          <td>
+            {% if r.status == "FINALIZED" %}<span class="badge green">Finalized</span>
+            {% else %}<span class="badge amber">Draft</span>{% endif %}
+          </td>
+          <td>{{ r.created_at|date:"d M Y" }}</td>
+          <td>{{ r.finalized_at|date:"d M Y, h:i A"|default:"—" }}</td>
+          <td><a class="btn small secondary" href="{% url 'payroll_run_detail' r.pk %}">Open →</a></td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><div class="big">💵</div>No payroll runs yet - pick a month above to get started.</div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>
