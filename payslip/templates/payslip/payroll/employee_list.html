@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+{% load humanize %}<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Employees - Payroll - Aveon HR Suite</title>
-{% include "payslip/income/_income_style.html" %}
+{% include "payslip/payroll/_payroll_style.html" %}
 <style>
   tr.row-link { cursor:pointer; }
 </style>
@@ -13,12 +13,12 @@
 <div class="container">
   {% include "payslip/payroll/_payroll_nav.html" with active_page="employees" %}
 
-  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+  <div class="page-head">
     <div>
       <h1>👔 Employees</h1>
-      <p class="sub" style="margin:0;">{{ active_count }} active of {{ employees|length }} total.</p>
+      <p class="sub" style="margin:0;">The payroll master — each run picks up every active employee.</p>
     </div>
-    <div style="display:flex; gap:8px;">
+    <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
       <form method="get" style="display:flex; gap:8px;">
         <input type="text" name="q" value="{{ q }}" placeholder="🔍 Search name…" style="max-width:220px;" />
         <button class="btn small secondary" type="submit">Search</button>
@@ -27,29 +27,63 @@
     </div>
   </div>
 
+  {% if employees %}
+  <div class="kpi-grid" style="margin-bottom:16px;">
+    <div class="kpi is-primary">
+      <div class="kpi-top"><span class="kpi-ico">👥</span><span class="kpi-lbl">Active</span></div>
+      <div class="kpi-val">{{ active_count }}</div>
+      <div class="kpi-sub">{% if inactive_count %}{{ inactive_count }} inactive{% else %}Everyone on payroll{% endif %}</div>
+    </div>
+    <div class="kpi is-good">
+      <div class="kpi-top"><span class="kpi-ico">💰</span><span class="kpi-lbl">Monthly package</span></div>
+      <div class="kpi-val">₹{{ monthly_cost|floatformat:0|intcomma }}</div>
+      <div class="kpi-sub">Combined, active only</div>
+    </div>
+    <div class="kpi is-muted">
+      <div class="kpi-top"><span class="kpi-ico">🛡️</span><span class="kpi-lbl">ESI enrolled</span></div>
+      <div class="kpi-val">{{ esi_count }} / {{ active_count }}</div>
+      <div class="kpi-sub">Active employees</div>
+    </div>
+    <div class="kpi is-muted">
+      <div class="kpi-top"><span class="kpi-ico">🏛️</span><span class="kpi-lbl">PF enrolled</span></div>
+      <div class="kpi-val">{{ pf_count }} / {{ active_count }}</div>
+      <div class="kpi-sub">Active employees</div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="card">
     {% if employees %}
     <div class="tbl-wrap">
       <table>
-        <tr><th>Code</th><th>Name</th><th>Designation</th><th>DOJ</th><th class="num">Monthly Package (₹)</th><th>ESI</th><th>Status</th><th></th></tr>
+        <thead>
+          <tr>
+            <th>Code</th><th>Name</th><th>Designation</th><th>DOJ</th>
+            <th class="num">Monthly Package</th>
+            <th class="mid">ESI</th><th class="mid">PF</th><th class="mid">Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
         {% for e in employees %}
         <tr class="row-link" onclick="window.location='{% url 'employee_detail' e.pk %}'" {% if not e.is_active %}style="opacity:.55;"{% endif %}>
-          <td>{{ e.employee_code }}</td>
+          <td class="muted">{{ e.employee_code }}</td>
           <td><a href="{% url 'employee_detail' e.pk %}"><b>{{ e.name }}</b></a></td>
           <td>{{ e.designation|default:"—" }}</td>
           <td style="white-space:nowrap;">{{ e.doj|date:"d M Y"|default:"—" }}</td>
-          <td class="num">{{ e.current_monthly_package }}</td>
-          <td>{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
-          <td>{% if e.is_active %}<span class="badge blue">Active</span>{% else %}<span class="badge red">Inactive</span>{% endif %}</td>
+          <td class="num"><b>₹{{ e.current_monthly_package|floatformat:0|intcomma }}</b></td>
+          <td class="mid">{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
+          <td class="mid">{% if e.is_pf_applicable %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
+          <td class="mid">{% if e.is_active %}<span class="badge blue">Active</span>{% else %}<span class="badge red">Inactive</span>{% endif %}</td>
           <td><a class="btn small secondary" href="{% url 'employee_detail' e.pk %}">Open →</a></td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
     </div>
     {% else %}
     <div class="empty">
       <div class="big">👔</div>
-      {% if q %}No employees match "{{ q }}".{% else %}No employees yet - add one to start running payroll.{% endif %}
+      {% if q %}No employees match "{{ q }}".{% else %}No employees yet — add one to start running payroll.{% endif %}
     </div>
     {% endif %}
   </div>

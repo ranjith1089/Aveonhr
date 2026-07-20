@@ -1,0 +1,102 @@
+{# Payroll-specific layer on top of the shared income style. #}
+{% include "payslip/income/_income_style.html" %}
+<style>
+  /* ===== Page head ===== */
+  .page-head { display:flex; align-items:flex-start; justify-content:space-between;
+               gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+  .crumb { font-size:12px; font-weight:700; color:#94A3B8; margin-bottom:6px;
+           letter-spacing:.2px; }
+  .crumb a { color:#1565C0; text-decoration:none; }
+  .crumb a:hover { text-decoration:underline; }
+
+  /* ===== KPI cards ===== */
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr));
+              gap:12px; }
+  .kpi {
+    position:relative; overflow:hidden; background:#fff;
+    border:1px solid #E6EDF7; border-left:4px solid #CBD5E1; border-radius:12px;
+    padding:14px 16px; transition:transform .12s, box-shadow .12s;
+  }
+  .kpi:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(15,30,70,.09); }
+  .kpi .kpi-top { display:flex; align-items:center; gap:7px; margin-bottom:7px; }
+  .kpi .kpi-ico { font-size:14px; line-height:1; }
+  .kpi .kpi-lbl { font-size:10.5px; font-weight:800; color:#7B8798;
+                  text-transform:uppercase; letter-spacing:.7px; }
+  .kpi .kpi-val { font-size:23px; font-weight:900; color:#14213D;
+                  font-variant-numeric:tabular-nums; line-height:1.15;
+                  white-space:nowrap; }
+  .kpi .kpi-sub { font-size:11.5px; color:#94A3B8; font-weight:600; margin-top:4px; }
+  .kpi.is-primary { border-left-color:#1565C0; background:linear-gradient(135deg,#FFF,#F5F9FF); }
+  .kpi.is-primary .kpi-val { color:#1565C0; }
+  .kpi.is-good    { border-left-color:#2E7D32; }
+  .kpi.is-good    .kpi-val { color:#2E7D32; }
+  .kpi.is-bad     { border-left-color:#C62828; }
+  .kpi.is-bad     .kpi-val { color:#C62828; }
+  .kpi.is-warn    { border-left-color:#E65100; }
+  .kpi.is-warn    .kpi-val { color:#E65100; }
+  .kpi.is-muted   { border-left-color:#CBD5E1; }
+
+  /* ===== Numeric alignment - headers must match their values ===== */
+  th.num, td.num { text-align:right; font-variant-numeric:tabular-nums;
+                   white-space:nowrap; }
+  th.mid, td.mid { text-align:center; }
+
+  /* ===== Delta chips ===== */
+  .delta { display:inline-block; padding:2px 9px; border-radius:20px;
+           font-size:12px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .delta.up   { background:#E8F5EC; color:#1B5E20; }
+  .delta.down { background:#FDECEC; color:#B71C1C; }
+  .delta.flat { background:#F1F5F9; color:#64748B; }
+
+  /* ===== Collapsible section ===== */
+  details.fold > summary { list-style:none; cursor:pointer; display:inline-flex;
+    align-items:center; gap:7px; font-size:12.5px; font-weight:800; color:#1565C0;
+    padding:7px 14px; border:1.5px solid #D3E0F5; border-radius:8px;
+    background:#F5F9FF; transition:background .15s, border-color .15s;
+    user-select:none; }
+  details.fold > summary::-webkit-details-marker { display:none; }
+  details.fold > summary:hover { background:#EAF2FE; border-color:#1565C0; }
+  details.fold > summary .chev { transition:transform .18s; font-size:10px; }
+  details.fold[open] > summary .chev { transform:rotate(180deg); }
+  details.fold > summary .more-txt { display:inline; }
+  details.fold[open] > summary .more-txt { display:none; }
+  details.fold > summary .less-txt { display:none; }
+  details.fold[open] > summary .less-txt { display:inline; }
+  details.fold .fold-body { margin-top:12px; }
+
+  /* ===== Wide salary grid ===== */
+  .grid-tbl { font-size:12.5px; }
+  .grid-tbl th, .grid-tbl td { padding:7px 9px; white-space:nowrap; }
+  .grid-tbl th { background:#F7FAFF; position:sticky; top:0; z-index:2; }
+  /* Keep the employee name visible while scrolling the wide grid sideways. */
+  .grid-tbl th:first-child, .grid-tbl td:first-child {
+    position:sticky; left:0; z-index:3; background:#fff;
+    box-shadow:1px 0 0 #E8EEF7; font-weight:700;
+  }
+  .grid-tbl th:first-child { z-index:4; background:#F7FAFF; }
+  .grid-tbl tbody tr:nth-child(even) td { background:#FCFDFF; }
+  .grid-tbl tbody tr:nth-child(even) td:first-child { background:#FCFDFF; }
+  .grid-tbl tbody tr:hover td,
+  .grid-tbl tbody tr:hover td:first-child { background:#F0F6FF; }
+  .grid-tbl td.computed { color:#475569; text-align:right;
+                          font-variant-numeric:tabular-nums; }
+  .grid-tbl td.money b { color:#14213D; }
+  .grid-tbl .neg { color:#C62828; font-weight:800; }
+  .grid-input { width:60px !important; padding:4px 6px !important;
+                font-size:12px !important; text-align:right;
+                border-radius:6px !important; }
+  .grid-input:focus { border-color:#1565C0 !important; }
+  .grid-input.wide { width:120px !important; text-align:left; }
+  /* Tint the editable columns so it's obvious what can be typed in. */
+  .grid-tbl td.editable { background:#FFFDF5 !important; }
+  .grid-tbl tbody tr:hover td.editable { background:#FFF9E8 !important; }
+  .col-note { font-size:11.5px; color:#94A3B8; font-weight:600; }
+
+  .tbl-scroll { overflow:auto; max-height:70vh; border:1px solid #EEF2F8;
+                border-radius:10px; }
+
+  .action-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+                margin-top:16px; }
+  .hint { background:#F5F9FF; border:1px solid #DEEAFB; border-radius:9px;
+          padding:9px 13px; font-size:12.5px; color:#41546E; }
+</style>

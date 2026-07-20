@@ -1,21 +1,26 @@
-<!DOCTYPE html>
+{% load humanize %}<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Payroll Runs - Aveon HR Suite</title>
-{% include "payslip/income/_income_style.html" %}
+{% include "payslip/payroll/_payroll_style.html" %}
+<style>
+  tr.row-link { cursor:pointer; }
+  .run-form { display:flex; gap:10px; align-items:flex-end; background:#F5F9FF;
+              border:1px solid #DEEAFB; border-radius:11px; padding:12px 14px; }
+</style>
 </head>
 <body>
 <div class="container">
   {% include "payslip/payroll/_payroll_nav.html" with active_page="runs" %}
 
-  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+  <div class="page-head">
     <div>
       <h1>💵 Payroll Runs</h1>
-      <p class="sub" style="margin:0;">One run per calendar month - attendance in, payslips out.</p>
+      <p class="sub" style="margin:0;">One run per calendar month — attendance in, payslips out.</p>
     </div>
-    <form method="post" action="{% url 'payroll_run_create' %}" style="display:flex; gap:8px; align-items:flex-end;">
+    <form method="post" action="{% url 'payroll_run_create' %}" class="run-form">
       {% csrf_token %}
       <div>
         <label>Run payroll for</label>
@@ -25,27 +30,66 @@
     </form>
   </div>
 
+  {% if runs %}
+  <div class="kpi-grid" style="margin-bottom:16px;">
+    <div class="kpi is-primary">
+      <div class="kpi-top"><span class="kpi-ico">📅</span><span class="kpi-lbl">Months on record</span></div>
+      <div class="kpi-val">{{ runs|length }}</div>
+      <div class="kpi-sub">{{ finalized_count }} finalized · {{ draft_count }} draft</div>
+    </div>
+    {% if latest_run %}
+    <div class="kpi is-good">
+      <div class="kpi-top"><span class="kpi-ico">🏦</span><span class="kpi-lbl">{{ latest_run.period|date:"M Y" }} Net</span></div>
+      <div class="kpi-val">₹{{ latest_run.net_total|default:0|floatformat:0|intcomma }}</div>
+      <div class="kpi-sub">{{ latest_run.headcount }} employee{{ latest_run.headcount|pluralize }}</div>
+    </div>
+    {% endif %}
+    <div class="kpi is-muted">
+      <div class="kpi-top"><span class="kpi-ico">📊</span><span class="kpi-lbl">Lifetime paid</span></div>
+      <div class="kpi-val">₹{{ lifetime_net|floatformat:0|intcomma }}</div>
+      <div class="kpi-sub">Across every run</div>
+    </div>
+    {% if draft_count %}
+    <div class="kpi is-warn">
+      <div class="kpi-top"><span class="kpi-ico">✏️</span><span class="kpi-lbl">Awaiting finalize</span></div>
+      <div class="kpi-val">{{ draft_count }}</div>
+      <div class="kpi-sub">Still editable</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <div class="card">
     {% if runs %}
     <div class="tbl-wrap">
       <table>
-        <tr><th>Month</th><th>Status</th><th>Created</th><th>Finalized</th><th></th></tr>
+        <thead>
+          <tr>
+            <th>Month</th><th>Status</th>
+            <th class="num">Employees</th><th class="num">Net Payable</th>
+            <th>Created</th><th>Finalized</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
         {% for r in runs %}
-        <tr class="row-link" style="cursor:pointer;" onclick="window.location='{% url 'payroll_run_detail' r.pk %}'">
+        <tr class="row-link" onclick="window.location='{% url 'payroll_run_detail' r.pk %}'">
           <td><a href="{% url 'payroll_run_detail' r.pk %}"><b>{{ r.period|date:"F Y" }}</b></a></td>
           <td>
-            {% if r.status == "FINALIZED" %}<span class="badge green">Finalized</span>
+            {% if r.is_finalized %}<span class="badge green">Finalized</span>
             {% else %}<span class="badge amber">Draft</span>{% endif %}
           </td>
-          <td>{{ r.created_at|date:"d M Y" }}</td>
-          <td>{{ r.finalized_at|date:"d M Y, h:i A"|default:"—" }}</td>
+          <td class="num">{{ r.headcount }}</td>
+          <td class="num"><b>₹{{ r.net_total|default:0|floatformat:0|intcomma }}</b></td>
+          <td style="white-space:nowrap;">{{ r.created_at|date:"d M Y" }}</td>
+          <td style="white-space:nowrap;">{{ r.finalized_at|date:"d M Y"|default:"—" }}</td>
           <td><a class="btn small secondary" href="{% url 'payroll_run_detail' r.pk %}">Open →</a></td>
         </tr>
         {% endfor %}
+        </tbody>
       </table>
     </div>
     {% else %}
-    <div class="empty"><div class="big">💵</div>No payroll runs yet - pick a month above to get started.</div>
+    <div class="empty"><div class="big">💵</div>No payroll runs yet — pick a month above to get started.</div>
     {% endif %}
   </div>
 </div>

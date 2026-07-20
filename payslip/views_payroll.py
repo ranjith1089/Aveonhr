@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.db import transaction
+from django.db.models import Count, Sum
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -70,10 +71,15 @@ def employee_list(request: HttpRequest) -> HttpResponse:
     if q:
         employees = employees.filter(name__icontains=q)
     employees = list(employees)
+    active = [e for e in employees if e.is_active]
     return render(request, "payslip/payroll/employee_list.html", {
         "employees": employees,
         "q": q,
-        "active_count": sum(1 for e in employees if e.is_active),
+        "active_count": len(active),
+        "inactive_count": len(employees) - len(active),
+        "monthly_cost": sum((e.current_monthly_package for e in active), Decimal("0")),
+        "esi_count": sum(1 for e in active if e.is_esi_eligible),
+        "pf_count": sum(1 for e in active if e.is_pf_applicable),
     })
 
 
@@ -158,9 +164,23 @@ def _suggest_lop_days(employee: Employee, period) -> Decimal:
 
 @module_required("payroll")
 def payroll_run_list(request: HttpRequest) -> HttpResponse:
-    runs = list(PayrollRun.objects.filter(organization=request.organization))
+    # annotate() drops Meta.ordering (it conflicts with the GROUP BY), so the
+    # newest-first order has to be restated explicitly here.
+    runs = list(
+        PayrollRun.objects.filter(organization=request.organization)
+        .annotate(headcount=Count("entries"), net_total=Sum("entries__net_payable"))
+        .order_by("-period")
+    )
     form = PayrollRunCreateForm(initial={"period": timezone.localdate().replace(day=1)})
-    return render(request, "payslip/payroll/run_list.html", {"runs": runs, "form": form})
+    finalized = sum(1 for r in runs if r.is_finalized)
+    latest = runs[0] if runs else None
+    return render(request, "payslip/payroll/run_list.html", {
+        "runs": runs, "form": form,
+        "finalized_count": finalized,
+        "draft_count": len(runs) - finalized,
+        "latest_run": latest,
+        "lifetime_net": sum((r.net_total or Decimal("0") for r in runs), Decimal("0")),
+    })
 
 
 @module_required("payroll")
@@ -240,11 +260,12 @@ def payroll_run_detail(request: HttpRequest, pk: int) -> HttpResponse:
         "deductions": sum((e.total_deductions for e in entries), Decimal("0")),
         "net": sum((e.net_payable for e in entries), Decimal("0")),
     }
-    missing_pdfs = sum(1 for e in entries if not e.pdf)
+    generated_pdfs = sum(1 for e in entries if e.pdf)
     return render(request, "payslip/payroll/run_detail.html", {
         "run": run, "entries": entries, "totals": totals,
         "negative_count": negative_count,
-        "missing_pdfs": missing_pdfs,
+        "generated_pdfs": generated_pdfs,
+        "missing_pdfs": len(entries) - generated_pdfs,
         "comparison": _build_comparison(org, run, entries),
     })
 
@@ -278,12 +299,16 @@ def _build_comparison(org, run, entries) -> dict | None:
     leavers = sorted(unmatched.values(), key=lambda e: e.employee.name)
     rows.sort(key=lambda r: abs(r["delta"]), reverse=True)
 
+    # Biggest movers stay on screen; the tail sits behind an expander.
+    TOP_N = 6
     return {
         "prev_run": prev_run,
         "prev_net": prev_net, "curr_net": curr_net,
         "net_delta": curr_net - prev_net,
         "prev_headcount": len(prev_entries), "curr_headcount": len(entries),
-        "rows": rows[:15], "more_rows": max(0, len(rows) - 15),
+        "rows": rows,
+        "top_rows": rows[:TOP_N], "rest_rows": rows[TOP_N:],
+        "changed_count": len(rows),
         "joiners": joiners, "leavers": leavers,
         "unchanged": len(entries) - len(joiners) - len(rows),
     }

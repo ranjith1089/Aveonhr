@@ -1296,9 +1296,20 @@ class PayrollModuleTests(TestCase):
 
         resp = self.client.get(reverse("payroll_run_detail", args=[august.pk]))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "vs July 2026")
+        self.assertContains(resp, "Compared with July 2026")
         self.assertEqual(resp.context["comparison"]["prev_run"], july)
         self.assertEqual(len(resp.context["comparison"]["rows"]), 1)
+
+    def test_run_list_is_newest_first(self):
+        """annotate() silently drops Meta.ordering, so the run list has to
+        restate it - otherwise the 'latest run' KPI shows the oldest month."""
+        self._make_employee()
+        for period in ("2026-06", "2026-08", "2026-07"):
+            self.client.post(reverse("payroll_run_create"), {"period": period})
+        resp = self.client.get(reverse("payroll_run_list"))
+        periods = [r.period for r in resp.context["runs"]]
+        self.assertEqual(periods, sorted(periods, reverse=True))
+        self.assertEqual(resp.context["latest_run"].period, datetime.date(2026, 8, 1))
 
     def test_comparison_absent_for_earliest_run(self):
         from payslip.models import PayrollRun
