@@ -8,6 +8,13 @@ formula parsing or eval() needed.
 
 Safely re-runnable: a period that already has a PayrollRun for the target
 organization is skipped entirely on a later run.
+
+Duplicate (period, employee) rows: the first row wins. The source sheet
+has one known exact-duplicate block (identical values, order doesn't
+matter) and one known conflicting duplicate (two rows with different
+attendance figures for the same employee/month, where the first row sits
+in the correctly-positioned block and the second is a mislabeled entry
+from a different month's block) - first-row-wins resolves both correctly.
 """
 from __future__ import annotations
 
@@ -115,7 +122,7 @@ class Command(BaseCommand):
 
         ws = wb["Sheet1"]
 
-        # --- Pass 1: parse Sheet1, dedup on (period, name), last row wins ---
+        # --- Pass 1: parse Sheet1, dedup on (period, name), first row wins ---
         rows: dict[tuple[datetime.date, str], dict] = {}
         skipped_blank = 0
         for r in range(2, ws.max_row + 1):
@@ -135,7 +142,11 @@ class Command(BaseCommand):
             except (TypeError, ValueError):
                 continue  # not a real data row (e.g. a stray formula-only row)
 
-            rows[(period, name)] = {
+            key = (period, name)
+            if key in rows:
+                continue  # first row wins - see class docstring
+
+            rows[key] = {
                 "designation": (ws[f"{COL_DESIGNATION}{r}"].value or "").strip(),
                 "total_working_days": twd,
                 "cl_credit": _dec(ws[f"{COL_CL}{r}"].value),

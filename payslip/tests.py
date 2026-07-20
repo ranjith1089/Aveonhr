@@ -1275,7 +1275,7 @@ class ImportPayrollCommandTests(TestCase):
         # A blank-name row - must be skipped.
         ws.append([period, 2, None, "Dev", 30, 0, 0, 0, 30, 30,
                   0, 0, 0, 0, 0, 0, None, None, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-        # A duplicate (same period+name) - later row must win.
+        # A duplicate (same period+name) - first row must win.
         ws.append([period, 1, "Import Test One", "Dev", 30, 1, 0, 5, 30, 25,
                   20000, 8333, 3750, 2083, 1667, 833, None, None, 16666,
                   0, 0, 0, 0, 0, 0, 0, 16666])
@@ -1323,9 +1323,12 @@ class ImportPayrollCommandTests(TestCase):
         self.assertEqual(employee.doj, datetime.date(2020, 1, 1))
         self.assertEqual(PayrollRun.objects.count(), 1)
         entry = PayslipEntry.objects.get()
-        # The LATER (duplicate) row must win: lop_days=5, net=16666.
-        self.assertEqual(entry.lop_days, Decimal("5.00"))
-        self.assertEqual(entry.net_payable, Decimal("16666.00"))
+        # The FIRST (original) row must win: lop_days=0, net=20000. A real
+        # workbook has had two different rows for the same (period, name) -
+        # the first one sits in the correctly-positioned block, the second
+        # is a mislabeled duplicate - so first-row-wins is the correct rule.
+        self.assertEqual(entry.lop_days, Decimal("0.00"))
+        self.assertEqual(entry.net_payable, Decimal("20000.00"))
 
     def test_commit_is_safely_rerunnable(self):
         import tempfile
