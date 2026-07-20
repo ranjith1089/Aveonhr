@@ -60,7 +60,26 @@
 
   {% if comparison %}
   <div class="card">
-    <h2>📊 Compared with {{ comparison.prev_run.period|date:"F Y" }}</h2>
+    <details class="section">
+      <summary>
+        <h2 style="margin-bottom:0;">📊 Compared with {{ comparison.prev_run.period|date:"F Y" }}</h2>
+        {# Headline figure stays visible while the section is collapsed. #}
+        <span class="sec-peek">
+          <span class="delta {% if comparison.net_delta < 0 %}down{% elif comparison.net_delta > 0 %}up{% else %}flat{% endif %}">
+            {% if comparison.net_delta < 0 %}−₹{{ comparison.net_delta|floatformat:0|slice:"1:"|intcomma }}
+            {% elif comparison.net_delta > 0 %}+₹{{ comparison.net_delta|floatformat:0|intcomma }}
+            {% else %}No change{% endif %}
+          </span>
+          <span>{{ comparison.changed_count }} employee{{ comparison.changed_count|pluralize }} changed</span>
+        </span>
+        <span class="sec-chev">
+          <span class="ico">▼</span>
+          <span class="open-lbl">Show comparison</span>
+          <span class="close-lbl">Hide comparison</span>
+        </span>
+      </summary>
+
+      <div class="sec-body">
     <p class="sub">What moved since last month — a quick sanity check before finalizing.</p>
 
     <div class="kpi-grid">
@@ -172,6 +191,8 @@
     {% else %}
     <p class="sub" style="margin-top:12px;">No net-pay changes between the two months.</p>
     {% endif %}
+      </div>
+    </details>
   </div>
   {% endif %}
 

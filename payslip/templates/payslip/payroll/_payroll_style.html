@@ -64,6 +64,30 @@
   details.fold[open] > summary .less-txt { display:inline; }
   details.fold .fold-body { margin-top:12px; }
 
+  /* ===== Whole-card collapse: the card header doubles as the toggle ===== */
+  details.section > summary { list-style:none; cursor:pointer; display:flex;
+    align-items:center; gap:10px; flex-wrap:wrap; user-select:none;
+    margin:-2px 0 0; padding:2px 0; }
+  details.section > summary::-webkit-details-marker { display:none; }
+  details.section > summary h2 { margin-bottom:0; }
+  details.section > summary .sec-chev {
+    margin-left:auto; display:inline-flex; align-items:center; gap:6px;
+    font-size:11.5px; font-weight:800; color:#1565C0;
+    background:#F5F9FF; border:1.5px solid #D3E0F5; border-radius:8px;
+    padding:5px 11px; transition:background .15s, border-color .15s; }
+  details.section > summary:hover .sec-chev { background:#EAF2FE; border-color:#1565C0; }
+  details.section > summary .sec-chev .ico { font-size:9px; transition:transform .18s; }
+  details.section[open] > summary .sec-chev .ico { transform:rotate(180deg); }
+  details.section > summary .sec-chev .open-lbl { display:inline; }
+  details.section[open] > summary .sec-chev .open-lbl { display:none; }
+  details.section > summary .sec-chev .close-lbl { display:none; }
+  details.section[open] > summary .sec-chev .close-lbl { display:inline; }
+  /* Peek line - the headline number stays readable while collapsed. */
+  details.section > summary .sec-peek { display:inline-flex; align-items:center;
+    gap:8px; font-size:12.5px; color:#5A6478; font-weight:600; }
+  details.section[open] > summary .sec-peek { display:none; }
+  details.section > .sec-body { margin-top:14px; }
+
   /* ===== Wide salary grid ===== */
   .grid-tbl { font-size:12.5px; }
   .grid-tbl th, .grid-tbl td { padding:7px 9px; white-space:nowrap; }
