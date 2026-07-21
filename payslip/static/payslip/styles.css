@@ -1,4 +1,6 @@
-/* Fluent UI Design System - Modern Professional Look */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+/* FlyonUI-inspired design system - unified app-wide look */
 
 /* Global Date Input Styling with Teal Border & Checkmark */
 input[type="date"] {
@@ -55,12 +57,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 :root {
-  /* Fluent UI Color Palette */
-  --primary-color: #0078d4;
-  --primary-hover: #106ebe;
-  --primary-pressed: #005a9e;
-  --secondary-color: #2b88d8;
-  --accent-color: #0078d4;
+  /* FlyonUI-inspired palette (unified app-wide) */
+  --primary-color: #2563EB;
+  --primary-hover: #1D4ED8;
+  --primary-pressed: #1E40AF;
+  --secondary-color: #3B82F6;
+  --accent-color: #2563EB;
   
   /* Neutrals */
   --neutral-light: #faf9f8;
@@ -99,7 +101,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 body {
-  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', 'Helvetica Neue', sans-serif;
+  font-family: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', 'Helvetica Neue', sans-serif;
   background: var(--neutral-lighter);
   color: var(--neutral-primary);
   line-height: 1.6;

@@ -1,44 +1,44 @@
+{% include "payslip/theme/_flyon_theme.html" %}
 <style>
-  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+  /* Auth-specific layer on top of the shared FlyonUI-inspired theme. */
   body {
-    font-family:'Segoe UI', Arial, sans-serif;
-    background:linear-gradient(135deg,#EEF4FF,#F5F7FA 60%);
-    color:#1A1A2E; min-height:100vh;
-    display:flex; align-items:center; justify-content:center; padding:24px;
+    background:linear-gradient(135deg, var(--primary-soft), var(--base-200) 60%);
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
   }
   .auth-card {
-    background:#fff; border-radius:16px; padding:36px 34px;
-    width:100%; max-width:440px;
-    box-shadow:0 10px 40px rgba(15,30,70,0.12);
+    background:var(--base-100); border:1px solid var(--base-300);
+    border-radius:var(--radius-lg); padding:36px 34px;
+    width:100%; max-width:440px; box-shadow:var(--shadow-lg);
   }
   .auth-brand { display:flex; align-items:center; gap:12px; margin-bottom:22px; }
   .auth-brand img { width:44px; height:44px; object-fit:contain; }
-  .auth-brand-name { font-size:17px; font-weight:800; }
-  .auth-brand-tag { font-size:11.5px; color:#64748B; }
-  h1 { font-size:22px; font-weight:900; margin-bottom:6px; }
-  .sub { font-size:13.5px; color:#5A6478; margin-bottom:22px; line-height:1.6; }
+  .auth-brand-name { font-size:17px; font-weight:800; letter-spacing:-.2px; }
+  .auth-brand-tag { font-size:11.5px; color:var(--content-muted); }
+  h1 { font-size:22px; font-weight:800; margin-bottom:6px; letter-spacing:-.3px; }
+  .sub { font-size:13.5px; color:var(--content-muted); margin-bottom:22px; line-height:1.6; }
   form p { margin-bottom:14px; }
-  label { display:block; font-size:12.5px; font-weight:700; color:#334155; margin-bottom:5px; }
+  label { display:block; font-size:12.5px; font-weight:600; color:#334155; margin-bottom:5px; }
   input[type=text], input[type=password], input[type=email] {
-    width:100%; padding:11px 14px; border:1.5px solid #D6DEEB; border-radius:9px;
-    font-size:14px; font-family:inherit;
+    width:100%; padding:11px 14px; border:1px solid var(--base-300); border-radius:var(--radius);
+    font-size:14px; font-family:inherit; background:var(--base-100); color:var(--content);
+    transition:border-color .15s, box-shadow .15s;
   }
-  input:focus { outline:none; border-color:#1565C0; }
+  input:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
   .btn {
-    width:100%; padding:12px; border:none; border-radius:9px;
-    background:#1565C0; color:#fff; font-size:15px; font-weight:700;
+    width:100%; padding:12px; border:none; border-radius:var(--radius);
+    background:var(--primary); color:#fff; font-size:15px; font-weight:600;
     cursor:pointer; margin-top:6px; text-align:center; text-decoration:none; display:block;
   }
-  .btn:hover { background:#0F4C9A; }
-  .alt { text-align:center; font-size:13.5px; color:#5A6478; margin-top:18px; }
-  .alt a { color:#1565C0; font-weight:700; text-decoration:none; }
+  .btn:hover { background:var(--primary-hover); }
+  .alt { text-align:center; font-size:13.5px; color:var(--content-muted); margin-top:18px; }
+  .alt a { color:var(--primary); font-weight:600; text-decoration:none; }
   .errors {
-    background:#FEF2F2; border:1px solid #FECACA; border-radius:9px;
+    background:var(--error-soft); border:1px solid #FECACA; border-radius:var(--radius);
     padding:10px 14px; font-size:13px; color:#991B1B; margin-bottom:16px;
   }
   .success {
-    background:#F0FDF4; border:1px solid #BBF7D0; border-radius:9px;
+    background:var(--success-soft); border:1px solid #BBF7D0; border-radius:var(--radius);
     padding:12px 16px; font-size:13.5px; color:#166534; margin-bottom:16px; line-height:1.6;
   }
-  .back { display:block; text-align:center; margin-top:14px; font-size:12.5px; color:#94A3B8; text-decoration:none; }
+  .back { display:block; text-align:center; margin-top:14px; font-size:12.5px; color:var(--content-faint); text-decoration:none; }
 </style>

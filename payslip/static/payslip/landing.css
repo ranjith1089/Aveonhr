@@ -5,11 +5,11 @@
   --surface: #ffffff;
   --ink: #111827;
   --muted: #5b6475;
-  --primary: #5a4dff;
-  --primary-dark: #4238d5;
-  --accent: #00c2a8;
-  --ring: rgba(90, 77, 255, 0.18);
-  --hero-grad: linear-gradient(135deg, #6d63ff 0%, #b15dff 45%, #00c2a8 100%);
+  --primary: #2563EB;
+  --primary-dark: #1D4ED8;
+  --accent: #06B6D4;
+  --ring: rgba(37, 99, 235, 0.18);
+  --hero-grad: linear-gradient(135deg, #2563EB 0%, #4F46E5 45%, #06B6D4 100%);
   --radius-xl: 24px;
   --radius-lg: 16px;
   --shadow-sm: 0 4px 18px rgba(17, 24, 39, 0.08);
