@@ -347,6 +347,63 @@ def payroll_run_create(request: HttpRequest) -> HttpResponse:
     return redirect("payroll_run_detail", pk=run.pk)
 
 
+@org_admin_required
+def payroll_run_recalculate(request: HttpRequest, pk: int) -> HttpResponse:
+    """Re-sync a DRAFT run against the current roster + salary data:
+    add rows for newly-active employees, drop rows for now-inactive ones,
+    and refresh each kept row's package/flags then recompute - preserving
+    any manually-entered attendance. Finalized runs are never touched."""
+    org = request.organization
+    run = get_object_or_404(PayrollRun, pk=pk, organization=org)
+    if request.method != "POST" or run.is_finalized:
+        return redirect("payroll_run_detail", pk=pk)
+
+    structure = salary_structure_for(org, run.period)
+    days_in_month = calendar.monthrange(run.period.year, run.period.month)[1]
+    entries_by_emp = {e.employee_id: e for e in run.entries.select_related("employee")}
+    active = list(Employee.objects.filter(organization=org, is_active=True))
+    active_ids = {e.pk for e in active}
+
+    removed = [e for emp_id, e in entries_by_emp.items() if emp_id not in active_ids]
+    kept_pairs, new_pairs = [], []
+    for employee in active:
+        entry = entries_by_emp.get(employee.pk)
+        if entry is not None:
+            # Refresh master-driven fields; keep manual attendance as entered.
+            entry.monthly_package = employee.current_monthly_package
+            entry.is_esi_eligible = employee.is_esi_eligible
+            entry.is_pf_applicable = employee.is_pf_applicable
+            kept_pairs.append((entry, _recompute(entry, structure)))
+        else:
+            entry = PayslipEntry(
+                organization=org, run=run, employee=employee,
+                monthly_package=employee.current_monthly_package,
+                total_working_days=days_in_month,
+                lop_days=_suggest_lop_days(employee, run.period),
+                is_esi_eligible=employee.is_esi_eligible,
+                is_pf_applicable=employee.is_pf_applicable,
+            )
+            new_pairs.append((entry, _recompute(entry, structure)))
+
+    with transaction.atomic():
+        if removed:
+            run.entries.filter(pk__in=[e.pk for e in removed]).delete()
+        if new_pairs:
+            PayslipEntry.objects.bulk_create([e for e, _ in new_pairs])
+        if kept_pairs:
+            PayslipEntry.objects.bulk_update(
+                [e for e, _ in kept_pairs],
+                ["monthly_package", "is_esi_eligible", "is_pf_applicable", *_COMPUTED_FIELDS])
+        for entry, computation in (*kept_pairs, *new_pairs):
+            save_component_amounts(entry, computation)
+
+    messages.success(
+        request,
+        f"Recalculated {run.period:%B %Y}: +{len(new_pairs)} added, "
+        f"−{len(removed)} removed, {len(kept_pairs)} updated.")
+    return redirect("payroll_run_detail", pk=pk)
+
+
 @module_required("payroll")
 def payroll_run_detail(request: HttpRequest, pk: int) -> HttpResponse:
     org = request.organization

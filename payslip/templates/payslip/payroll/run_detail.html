@@ -303,6 +303,16 @@
       </div>
     </details>
     {% else %}
+    <h2>🔄 Recalculate roster</h2>
+    <p class="sub">Re-sync this run with the current employee list and salary structure — adds newly-active
+      employees, removes deactivated ones, and refreshes each package, ESI/PF flag and formula.
+      Your entered attendance (working days, leave, LOP, advance, TDS) is kept.</p>
+    <form method="post" action="{% url 'payroll_run_recalculate' run.pk %}" style="margin-bottom:18px;"
+          onsubmit="return confirm('Recalculate {{ run.period|date:"F Y" }}? Rows for deactivated employees will be removed.');">
+      {% csrf_token %}
+      <button class="btn secondary" type="submit">🔄 Recalculate</button>
+    </form>
+
     <h2>✅ Finalize &amp; generate payslips</h2>
     <p class="sub">This recomputes every row one last time, generates each employee's payslip PDF, and locks the run.</p>
     <form method="post" action="{% url 'payroll_run_finalize' run.pk %}">

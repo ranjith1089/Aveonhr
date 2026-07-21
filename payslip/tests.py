@@ -1638,3 +1638,76 @@ class SalaryEngineBackwardCompatTests(TestCase):
         self.client.get(reverse("payroll_run_detail", args=[run.pk]))
         entry.refresh_from_db()
         self.assertEqual(entry.net_payable, Decimal("99999"))
+
+
+class PayrollRecalculateTests(TestCase):
+    def setUp(self):
+        from decimal import Decimal
+        from payslip.models import Employee
+        self.admin = make_member("recalc_admin", admin=True, payroll=True)
+        self.org = self.admin.membership.organization
+        self.client.force_login(self.admin)
+        self.e1 = Employee.objects.create(
+            organization=self.org, employee_code="EMP-0001", name="Alpha",
+            current_monthly_package=Decimal("30000"), is_pf_applicable=True)
+        self.e2 = Employee.objects.create(
+            organization=self.org, employee_code="EMP-0002", name="Beta",
+            current_monthly_package=Decimal("20000"))
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-09"})
+        from payslip.models import PayrollRun
+        self.run = PayrollRun.objects.get()
+
+    def test_recalc_removes_deactivated_employee(self):
+        from payslip.models import PayslipEntry
+        self.assertEqual(self.run.entries.count(), 2)
+        self.e2.is_active = False
+        self.e2.save(update_fields=["is_active"])
+        self.client.post(reverse("payroll_run_recalculate", args=[self.run.pk]))
+        self.assertEqual(self.run.entries.count(), 1)
+        self.assertFalse(self.run.entries.filter(employee=self.e2).exists())
+
+    def test_recalc_adds_new_active_employee(self):
+        from decimal import Decimal
+        from payslip.models import Employee
+        Employee.objects.create(
+            organization=self.org, employee_code="EMP-0003", name="Gamma",
+            current_monthly_package=Decimal("25000"))
+        self.client.post(reverse("payroll_run_recalculate", args=[self.run.pk]))
+        self.assertEqual(self.run.entries.count(), 3)
+        added = self.run.entries.get(employee__name="Gamma")
+        self.assertGreater(added.basic, 0)
+        self.assertTrue(added.component_amounts.exists())
+
+    def test_recalc_refreshes_package_but_keeps_manual_attendance(self):
+        from decimal import Decimal
+        from payslip.models import PayslipEntry
+        entry = self.run.entries.get(employee=self.e1)
+        # Enter a manual LOP on the row, then raise the master package.
+        PayslipEntry.objects.filter(pk=entry.pk).update(lop_days=Decimal("3"),
+                                                        total_working_days=30)
+        self.e1.current_monthly_package = Decimal("36000")
+        self.e1.save(update_fields=["current_monthly_package"])
+        self.client.post(reverse("payroll_run_recalculate", args=[self.run.pk]))
+        entry.refresh_from_db()
+        self.assertEqual(entry.monthly_package, Decimal("36000"))  # refreshed
+        self.assertEqual(entry.lop_days, Decimal("3"))             # preserved
+        # Basic recomputed on the new package, prorated for 3 LOP of 30 days.
+        self.assertEqual(entry.pay_days, Decimal("27"))
+        self.assertGreater(entry.ctc, entry.gross_salary)
+
+    def test_recalc_noop_on_finalized_run(self):
+        from decimal import Decimal
+        from payslip.models import PayrollRun, PayslipEntry
+        PayslipEntry.objects.filter(run=self.run).update(net_payable=Decimal("55555"))
+        PayrollRun.objects.filter(pk=self.run.pk).update(
+            status=PayrollRun.Status.FINALIZED)
+        resp = self.client.post(reverse("payroll_run_recalculate", args=[self.run.pk]))
+        self.assertEqual(resp.status_code, 302)
+        for e in self.run.entries.all():
+            self.assertEqual(e.net_payable, Decimal("55555"))  # untouched
+
+    def test_recalc_requires_admin(self):
+        member = make_member("recalc_member", org=self.org, payroll=True)
+        self.client.force_login(member)
+        resp = self.client.post(reverse("payroll_run_recalculate", args=[self.run.pk]))
+        self.assertEqual(resp.status_code, 403)
