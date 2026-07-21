@@ -74,7 +74,7 @@
           <td class="mid">{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
           <td class="mid">{% if e.is_pf_applicable %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
           <td class="mid">{% if e.is_active %}<span class="badge blue">Active</span>{% else %}<span class="badge red">Inactive</span>{% endif %}</td>
-          <td><a class="btn small secondary" href="{% url 'employee_detail' e.pk %}">Open →</a></td>
+          <td><a class="btn small secondary" href="{% url 'employee_detail' e.pk %}">Edit →</a></td>
         </tr>
         {% endfor %}
         </tbody>

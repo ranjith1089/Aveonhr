@@ -82,7 +82,7 @@
           <td class="num"><b>₹{{ r.net_total|default:0|floatformat:0|intcomma }}</b></td>
           <td style="white-space:nowrap;">{{ r.created_at|date:"d M Y" }}</td>
           <td style="white-space:nowrap;">{{ r.finalized_at|date:"d M Y"|default:"—" }}</td>
-          <td><a class="btn small secondary" href="{% url 'payroll_run_detail' r.pk %}">Open →</a></td>
+          <td><a class="btn small secondary" href="{% url 'payroll_run_detail' r.pk %}">Edit →</a></td>
         </tr>
         {% endfor %}
         </tbody>
