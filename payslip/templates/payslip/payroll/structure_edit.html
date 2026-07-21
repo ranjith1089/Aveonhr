@@ -1,0 +1,133 @@
+{% load humanize %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Salary Structure - Payroll - Aveon HR Suite</title>
+{% include "payslip/payroll/_payroll_style.html" %}
+<style>
+  .comp-tbl td, .comp-tbl th { padding:7px 9px; }
+  .comp-tbl code { background:#F1F5F9; padding:1px 6px; border-radius:5px; font-size:12px; }
+  .kind-pill { font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:10px; }
+  .kind-EARNING { background:#E8F5EC; color:#1B5E20; }
+  .kind-DEDUCTION { background:#FDECEC; color:#B71C1C; }
+  .kind-EMPLOYER_CONTRIB { background:#EAF2FE; color:#1565C0; }
+  .kind-INFO { background:#F1F5F9; color:#475569; }
+  .formula-cell { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px; color:#334155; max-width:320px; white-space:normal; }
+  .fld { margin-bottom:10px; }
+  .fld label { display:block; font-size:11.5px; font-weight:700; color:#475569; margin-bottom:3px; }
+  .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .chips span { display:inline-block; background:#F1F5F9; color:#475569; border-radius:6px;
+                padding:2px 8px; margin:2px; font-size:11px; font-family:ui-monospace,monospace; }
+</style>
+</head>
+<body>
+<div class="container" style="max-width:1200px;">
+  {% include "payslip/payroll/_payroll_nav.html" with active_page="structure" %}
+
+  <div class="page-head">
+    <div>
+      <div class="crumb"><a href="{% url 'payroll_settings' %}">Settings</a> › Salary Structure</div>
+      <h1>🧩 Salary Structure</h1>
+      <p class="sub" style="margin:0;">Every earning, deduction and employer contribution is configured here — no code changes.
+        New draft payroll runs use this; finalized and imported months are never touched.</p>
+    </div>
+    <form method="post" onsubmit="return confirm('Reset all components to the default set derived from Payroll Settings?');">
+      {% csrf_token %}<input type="hidden" name="action" value="reset_default" />
+      <button class="btn secondary" type="submit">↺ Reset to Default</button>
+    </form>
+  </div>
+
+  {% if warning %}
+  <div class="card" style="border-left:4px solid #C62828;">
+    <h2 style="color:#C62828;">⚠️ Structure has an error</h2>
+    <p class="sub" style="margin:0;">{{ warning }} — new runs will fall back until this is fixed.</p>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>Components — {{ structure.label }} (effective {{ structure.effective_from|date:"M Y" }})</h2>
+    <div class="tbl-wrap">
+      <table class="comp-tbl">
+        <thead>
+          <tr>
+            <th>#</th><th>Code</th><th>Name</th><th>Type</th><th>Calculation</th>
+            <th>Rounding</th><th class="mid">In Gross</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in components %}
+          <tr {% if not c.is_active %}style="opacity:.5;"{% endif %}>
+            <td class="muted">{{ c.sequence }}</td>
+            <td><code>{{ c.code }}</code></td>
+            <td>{{ c.name }}</td>
+            <td><span class="kind-pill kind-{{ c.kind }}">{{ c.get_kind_display }}</span></td>
+            <td class="formula-cell">{{ c.as_expression }}</td>
+            <td class="muted">{{ c.get_rounding_display }}{% if c.rounding != "NONE" %} · {{ c.decimals }}dp{% endif %}</td>
+            <td class="mid">{% if c.include_in_gross %}✓{% else %}—{% endif %}</td>
+            <td style="white-space:nowrap;">
+              <a class="btn small secondary" href="?edit={{ c.pk }}#editor">Edit</a>
+              <form method="post" style="display:inline;" onsubmit="return confirm('Delete {{ c.code }}?');">
+                {% csrf_token %}<input type="hidden" name="action" value="delete_component" />
+                <input type="hidden" name="component_id" value="{{ c.pk }}" />
+                <button class="btn small danger" type="submit">✕</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="editor">
+    <h2>{% if form.instance.pk %}Edit component {{ form.instance.code }}{% else %}Add a component{% endif %}</h2>
+    <p class="sub">
+      Context variables you can use in a formula:
+      <span class="chips">{% for v in context_vars %}<span>{{ v }}</span>{% endfor %}</span><br />
+      Functions: <span class="chips"><span>ROUND(x,n)</span><span>ROUNDUP(x,n)</span><span>ROUNDDOWN(x,n)</span><span>MIN(…)</span><span>MAX(…)</span><span>IF(cond,a,b)</span></span>
+    </p>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_component" />
+      {% if form.instance.pk %}<input type="hidden" name="component_id" value="{{ form.instance.pk }}" />{% endif %}
+      {% if form.non_field_errors %}<div class="msg error">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="form-grid">
+        {% for field in form %}
+        <div class="fld {% if field.name == 'formula' %}full{% endif %}" {% if field.name == 'formula' %}style="grid-column:1/-1;"{% endif %}>
+          <label>{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}<div class="msg error" style="margin-top:4px; padding:6px 10px;">{{ field.errors|join:", " }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div style="margin-top:14px; display:flex; gap:10px;">
+        <button class="btn" type="submit">{% if form.instance.pk %}Save Component{% else %}Add Component{% endif %}</button>
+        {% if form.instance.pk %}<a class="btn secondary" href="{% url 'salary_structure' %}">Cancel</a>{% endif %}
+      </div>
+    </form>
+  </div>
+
+  {% if change_logs %}
+  <div class="card">
+    <h2>🕓 Change history</h2>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>When</th><th>Action</th><th>Detail</th><th>By</th></tr></thead>
+        <tbody>
+          {% for log in change_logs %}
+          <tr>
+            <td style="white-space:nowrap;">{{ log.created_at|date:"d M Y, H:i" }}</td>
+            <td>{{ log.action }}</td>
+            <td class="muted formula-cell">{{ log.detail }}</td>
+            <td>{{ log.user.username|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+</body>
+</html>

@@ -4,6 +4,7 @@
     <a href="{% url 'payroll_run_list' %}" {% if active_page == "runs" %}class="active"{% endif %}>Payroll Runs</a>
     <a href="{% url 'employee_list' %}" {% if active_page == "employees" %}class="active"{% endif %}>Employees</a>
     {% if request.membership.is_admin %}
+    <a href="{% url 'salary_structure' %}" {% if active_page == "structure" %}class="active"{% endif %}>Structure</a>
     <a href="{% url 'payroll_settings' %}" {% if active_page == "settings" %}class="active"{% endif %}>Settings</a>
     {% endif %}
     <a href="{% url 'landing' %}">← HR Suite</a>

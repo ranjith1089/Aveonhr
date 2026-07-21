@@ -1413,3 +1413,228 @@ class ImportPayrollCommandTests(TestCase):
         from payslip.models import PayrollRun, PayslipEntry
         self.assertEqual(PayrollRun.objects.count(), 1)  # not duplicated
         self.assertEqual(PayslipEntry.objects.count(), 1)
+
+
+# ===========================================================================
+# Configurable salary engine
+# ===========================================================================
+class FormulaEngineTests(TestCase):
+    """The safe AST evaluator: methods, functions, rounding, rejection of
+    unsafe input, cycle detection and dependency ordering."""
+
+    def test_fixed_percent_and_formula_methods(self):
+        from decimal import Decimal
+        from payslip.services.formula_engine import evaluate
+        ctx = {"BASIC": Decimal("10000")}
+        self.assertEqual(evaluate("5000", ctx), Decimal("5000"))
+        self.assertEqual(evaluate("BASIC * 45 / 100", ctx), Decimal("4500"))
+        self.assertEqual(evaluate("ROUND(BASIC * 0.333, 2)", ctx), Decimal("3330.00"))
+
+    def test_functions(self):
+        from decimal import Decimal
+        from payslip.services.formula_engine import evaluate
+        self.assertEqual(evaluate("ROUNDUP(100.1, 0)", {}), Decimal("101"))
+        self.assertEqual(evaluate("ROUNDDOWN(100.9, 0)", {}), Decimal("100"))
+        self.assertEqual(evaluate("MIN(3, 7, 5)", {}), Decimal("3"))
+        self.assertEqual(evaluate("MAX(3, 7, 5)", {}), Decimal("7"))
+        self.assertEqual(evaluate("IF(1, 10, 20)", {}), Decimal("10"))
+        self.assertEqual(evaluate("IF(0, 10, 20)", {}), Decimal("20"))
+        self.assertEqual(evaluate("IF(A > 5, 1, 0)", {"A": Decimal("6")}), Decimal("1"))
+
+    def test_divide_by_zero_is_zero(self):
+        from decimal import Decimal
+        from payslip.services.formula_engine import evaluate
+        self.assertEqual(evaluate("100 / TWD", {"TWD": Decimal("0")}), Decimal("0"))
+
+    def test_rejects_unsafe_input(self):
+        from payslip.services.formula_engine import FormulaError, validate_formula
+        for bad in ('__import__("os")', "x.attr", "FOO(1)", "BASIC + UNKNOWN",
+                    "[1, 2]", "lambda: 1"):
+            with self.assertRaises(FormulaError, msg=bad):
+                validate_formula(bad, {"BASIC"})
+
+    def test_context_vars_are_legal_references(self):
+        from payslip.services.formula_engine import validate_formula
+        validate_formula("PACKAGE * 0.5", set())  # PACKAGE is a context var
+
+    def test_circular_reference_detected(self):
+        from payslip.services.formula_engine import FormulaError, order_components
+        with self.assertRaises(FormulaError):
+            order_components({"A": {"B"}, "B": {"A"}})
+
+    def test_dependency_ordering(self):
+        from payslip.services.formula_engine import order_components
+        order = order_components({"A": {"B"}, "B": {"C"}, "C": set()})
+        self.assertLess(order.index("C"), order.index("B"))
+        self.assertLess(order.index("B"), order.index("A"))
+
+
+class SalaryStructureEngineTests(TestCase):
+    def setUp(self):
+        from payslip.models import Organization, payroll_settings_for
+        from payslip.services.structure_seed import seed_default_structure
+        self.org = Organization.objects.create(company_name="Structure Test Org")
+        self.settings = payroll_settings_for(self.org)
+        self.structure = seed_default_structure(self.org)
+
+    def test_matches_legacy_engine_field_for_field(self):
+        """The linchpin: default structure == compute_entry across the
+        verified worked examples."""
+        from decimal import Decimal
+        from payslip.services.payroll_calc import compute_entry
+        from payslip.services.structure_calc import compute_entry_from_structure
+        cases = [
+            dict(monthly_package=Decimal("37000"), total_working_days=30,
+                 is_pf_applicable=True),
+            dict(monthly_package=Decimal("20000"), total_working_days=30,
+                 salary_arrear_allowance=Decimal("5000"), is_esi_eligible=True,
+                 is_pf_applicable=True),
+            dict(monthly_package=Decimal("37000"), total_working_days=30,
+                 lop_days=Decimal("2"), is_pf_applicable=True),
+            dict(monthly_package=Decimal("15000"), total_working_days=31,
+                 emp_leave_days=Decimal("1"), tds=Decimal("500"),
+                 salary_advance=Decimal("1000"), is_esi_eligible=True),
+        ]
+        legacy_map = {"BASIC": "basic", "DA": "da", "HRA": "hra",
+                      "TRANSPORT": "transport_allowance", "FOOD": "food_allowance",
+                      "ESI_EMP": "esi_employee", "ESI_ER": "esi_employer",
+                      "PF_EMP": "pf_employee", "PF_ER": "pf_employer"}
+        for case in cases:
+            old = compute_entry(settings=self.settings, **case)
+            new = compute_entry_from_structure(self.structure, **case)
+            amt = {c.code: c.amount for c in new.components}
+            for code, field in legacy_map.items():
+                self.assertEqual(amt.get(code, Decimal("0")), getattr(old, field),
+                                 f"{code} for {case}")
+            for field in ("present_days", "pay_days", "gross_salary",
+                          "total_deductions", "net_payable"):
+                self.assertEqual(getattr(new, field), getattr(old, field),
+                                 f"{field} for {case}")
+
+    def test_ctc_and_employer_totals(self):
+        from decimal import Decimal
+        from payslip.services.structure_calc import compute_entry_from_structure
+        c = compute_entry_from_structure(
+            self.structure, monthly_package=Decimal("37000"),
+            total_working_days=30, is_pf_applicable=True)
+        self.assertEqual(c.employer_contributions, Decimal("1800.00"))
+        self.assertEqual(c.ctc, c.gross_salary + c.employer_contributions)
+        self.assertEqual(c.net_payable, c.gross_salary - c.total_deductions)
+
+    def test_custom_component_flows_into_gross(self):
+        from decimal import Decimal
+        from payslip.models import SalaryComponent
+        from payslip.services.structure_calc import compute_entry_from_structure
+        SalaryComponent.objects.create(
+            structure=self.structure, code="SPECIAL", name="Special Allowance",
+            kind=SalaryComponent.Kind.EARNING, calc_method=SalaryComponent.Method.FORMULA,
+            formula="ROUND(BASIC * 0.10, 2)", rounding=SalaryComponent.Rounding.HALF_UP,
+            decimals=2, include_in_gross=True, sequence=55)
+        c = compute_entry_from_structure(
+            self.structure, monthly_package=Decimal("37000"),
+            total_working_days=30, is_pf_applicable=True)
+        amt = {r.code: r.amount for r in c.components}
+        self.assertEqual(amt["SPECIAL"], Decimal("1850.00"))  # 10% of 18500 basic
+        self.assertEqual(c.gross_salary, Decimal("38850.00"))
+
+    def test_versioning_selects_structure_by_period(self):
+        import datetime
+        from payslip.models import SalaryComponent, SalaryStructure, salary_structure_for
+        v2 = SalaryStructure.objects.create(
+            organization=self.org, label="2026 revision",
+            effective_from=datetime.date(2026, 6, 1))
+        SalaryComponent.objects.create(
+            structure=v2, code="BASIC", name="Basic",
+            kind=SalaryComponent.Kind.EARNING, calc_method=SalaryComponent.Method.FORMULA,
+            formula="PACKAGE * 0.6 / TWD * PAY_DAYS",
+            rounding=SalaryComponent.Rounding.HALF_UP, decimals=0, sequence=10)
+        self.assertEqual(
+            salary_structure_for(self.org, datetime.date(2026, 5, 1)).pk,
+            self.structure.pk)
+        self.assertEqual(
+            salary_structure_for(self.org, datetime.date(2026, 6, 1)).pk, v2.pk)
+
+    def test_default_structure_autoseeds_once(self):
+        from payslip.models import SalaryStructure, salary_structure_for
+        again = salary_structure_for(self.org)
+        self.assertEqual(again.pk, self.structure.pk)
+        self.assertEqual(
+            SalaryStructure.objects.filter(organization=self.org).count(), 1)
+
+
+class SalaryStructureViewTests(TestCase):
+    def setUp(self):
+        self.admin = make_member("struct_admin", admin=True)
+        self.org = self.admin.membership.organization
+        self.client.force_login(self.admin)
+
+    def test_structure_page_seeds_and_renders(self):
+        resp = self.client.get(reverse("salary_structure"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "BASIC")
+        self.assertContains(resp, "PF_EMP")
+
+    def test_member_without_admin_cannot_open_structure(self):
+        member = make_member("struct_member", org=self.org, payroll=True)
+        self.client.force_login(member)
+        self.assertEqual(self.client.get(reverse("salary_structure")).status_code, 403)
+
+    def test_add_component_via_form(self):
+        from payslip.models import salary_structure_for
+        salary_structure_for(self.org)
+        resp = self.client.post(reverse("salary_structure"), {
+            "action": "save_component", "code": "SPECIAL", "name": "Special",
+            "kind": "EARNING", "calc_method": "FORMULA", "amount": "0",
+            "percent": "0", "base_code": "", "formula": "ROUND(BASIC * 0.05, 2)",
+            "rounding": "HALF_UP", "decimals": "2", "include_in_gross": "on",
+            "statutory_type": "NONE", "sequence": "55", "is_active": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        struct = salary_structure_for(self.org)
+        self.assertTrue(struct.components.filter(code="SPECIAL").exists())
+
+    def test_self_referential_formula_rejected_by_form(self):
+        from payslip.models import salary_structure_for
+        salary_structure_for(self.org)
+        self.client.post(reverse("salary_structure"), {
+            "action": "save_component", "code": "LOOP", "name": "Loop",
+            "kind": "EARNING", "calc_method": "FORMULA", "amount": "0",
+            "percent": "0", "base_code": "", "formula": "LOOP + 1",
+            "rounding": "HALF_UP", "decimals": "2",
+            "statutory_type": "NONE", "sequence": "60", "is_active": "on",
+        })
+        struct = salary_structure_for(self.org)
+        self.assertFalse(struct.components.filter(code="LOOP").exists())
+
+
+class SalaryEngineBackwardCompatTests(TestCase):
+    def setUp(self):
+        from decimal import Decimal
+        from payslip.models import Employee
+        self.admin = make_member("bc_admin", admin=True, payroll=True)
+        self.org = self.admin.membership.organization
+        self.client.force_login(self.admin)
+        self.employee = Employee.objects.create(
+            organization=self.org, employee_code="EMP-0001", name="BC Test",
+            current_monthly_package=Decimal("30000"), is_pf_applicable=True)
+
+    def test_new_run_populates_components_and_ctc(self):
+        from payslip.models import PayslipEntry
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-09"})
+        entry = PayslipEntry.objects.get()
+        self.assertGreater(entry.basic, 0)
+        self.assertGreater(entry.gross_salary, 0)
+        self.assertGreater(entry.ctc, entry.gross_salary)  # employer PF added
+        self.assertTrue(entry.component_amounts.filter(code="PF_ER").exists())
+
+    def test_finalized_run_is_never_recomputed(self):
+        from decimal import Decimal
+        from payslip.models import PayrollRun, PayslipEntry
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-09"})
+        run = PayrollRun.objects.get()
+        entry = PayslipEntry.objects.get()
+        PayslipEntry.objects.filter(pk=entry.pk).update(net_payable=Decimal("99999"))
+        PayrollRun.objects.filter(pk=run.pk).update(status=PayrollRun.Status.FINALIZED)
+        self.client.get(reverse("payroll_run_detail", args=[run.pk]))
+        entry.refresh_from_db()
+        self.assertEqual(entry.net_payable, Decimal("99999"))

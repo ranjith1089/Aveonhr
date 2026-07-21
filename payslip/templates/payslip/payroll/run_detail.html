@@ -43,6 +43,11 @@
         <div class="kpi-val">₹{{ totals.net|floatformat:0|intcomma }}</div>
         <div class="kpi-sub">Actually disbursed</div>
       </div>
+      <div class="kpi is-muted">
+        <div class="kpi-top"><span class="kpi-ico">🏢</span><span class="kpi-lbl">Employer Cost (CTC)</span></div>
+        <div class="kpi-val">₹{{ totals.ctc|floatformat:0|intcomma }}</div>
+        <div class="kpi-sub">incl. ₹{{ totals.employer|floatformat:0|intcomma }} employer</div>
+      </div>
       <div class="kpi {% if missing_pdfs %}is-muted{% else %}is-good{% endif %}">
         <div class="kpi-top"><span class="kpi-ico">📄</span><span class="kpi-lbl">Payslips</span></div>
         <div class="kpi-val">{{ generated_pdfs }} / {{ entries|length }}</div>
@@ -242,7 +247,9 @@
             {% else %}
             <td class="editable"><input class="grid-input wide" type="text" name="remarks_{{ e.pk }}" value="{{ e.remarks }}" /></td>
             {% endif %}
-            <td>{% if e.pdf %}<a class="btn small secondary" href="{% url 'payroll_entry_pdf' e.pk 'view' %}" title="View payslip">👁</a>
+            <td style="white-space:nowrap;">
+                <a class="btn small secondary" href="{% url 'payroll_entry_breakdown' e.pk %}" title="Salary breakdown">🧾</a>
+                {% if e.pdf %}<a class="btn small secondary" href="{% url 'payroll_entry_pdf' e.pk 'view' %}" title="View payslip">👁</a>
                 <a class="btn small secondary" href="{% url 'payroll_entry_pdf' e.pk 'download' %}" title="Download payslip">⬇</a>{% endif %}</td>
           </tr>
           {% endfor %}

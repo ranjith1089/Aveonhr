@@ -785,6 +785,10 @@ class PayslipEntry(models.Model):
     pf_employer = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
     total_deductions = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
     net_payable = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    # Employer-side totals from the configurable engine (req #7). Legacy and
+    # imported rows leave these at 0; new draft runs populate them.
+    employer_contributions = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    ctc = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
 
     remarks = models.TextField(blank=True, default="")
     pdf = models.BinaryField(null=True, blank=True)
@@ -800,3 +804,163 @@ class PayslipEntry(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.employee.name} - {self.run.period:%b %Y}"
+
+
+# ---------------------------------------------------------------------------
+# Configurable salary engine - a data-driven component master that supersedes
+# the hardcoded five-component calc for NEW draft runs. Finalized/imported
+# runs keep their stored values untouched.
+# ---------------------------------------------------------------------------
+class SalaryStructure(models.Model):
+    """A versioned, org-level set of salary components. A run for period P
+    resolves to the active structure with the greatest effective_from <= P,
+    so a revision applies from a chosen period without disturbing history."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="salary_structures")
+    label = models.CharField(max_length=120, default="Default structure")
+    effective_from = models.DateField()  # always clamped to day=1 in save()
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-effective_from"]
+        unique_together = [("organization", "effective_from")]
+
+    def save(self, *args, **kwargs):
+        if self.effective_from:
+            self.effective_from = self.effective_from.replace(day=1)
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.label} (from {self.effective_from:%b %Y}) - {self.organization}"
+
+
+class SalaryComponent(models.Model):
+    """One line in a structure. `code` is the formula variable name."""
+
+    class Kind(models.TextChoices):
+        EARNING = "EARNING", "Earning"
+        DEDUCTION = "DEDUCTION", "Employee Deduction"
+        EMPLOYER_CONTRIB = "EMPLOYER_CONTRIB", "Employer Contribution"
+        INFO = "INFO", "Informational"
+
+    class Method(models.TextChoices):
+        FIXED = "FIXED", "Fixed amount"
+        PERCENT_OF = "PERCENT_OF", "Percentage of a component"
+        FORMULA = "FORMULA", "Formula expression"
+
+    class Rounding(models.TextChoices):
+        HALF_UP = "HALF_UP", "Round (half up)"
+        CEILING = "CEILING", "Round up"
+        FLOOR = "FLOOR", "Round down"
+        NONE = "NONE", "No rounding"
+
+    class Statutory(models.TextChoices):
+        NONE = "NONE", "None"
+        PF = "PF", "Provident Fund"
+        ESI = "ESI", "ESI"
+        PT = "PT", "Professional Tax"
+        TDS = "TDS", "TDS"
+
+    structure = models.ForeignKey(SalaryStructure, on_delete=models.CASCADE,
+                                  related_name="components")
+    code = models.CharField(max_length=40)   # e.g. BASIC, HRA, PF_EMP
+    name = models.CharField(max_length=120)
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.EARNING)
+    calc_method = models.CharField(max_length=12, choices=Method.choices, default=Method.FORMULA)
+
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))  # FIXED
+    percent = models.DecimalField(max_digits=7, decimal_places=4, default=Decimal("0"))  # PERCENT_OF
+    base_code = models.CharField(max_length=40, blank=True, default="")                  # PERCENT_OF
+    formula = models.TextField(blank=True, default="")                                   # FORMULA
+
+    rounding = models.CharField(max_length=10, choices=Rounding.choices, default=Rounding.HALF_UP)
+    decimals = models.PositiveSmallIntegerField(default=2)
+
+    include_in_gross = models.BooleanField(default=True)
+    is_esi_base = models.BooleanField(default=False)
+    is_pf_base = models.BooleanField(default=False)
+    is_taxable = models.BooleanField(default=False)
+    statutory_type = models.CharField(max_length=8, choices=Statutory.choices,
+                                      default=Statutory.NONE)
+
+    sequence = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["sequence", "id"]
+        unique_together = [("structure", "code")]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.code} ({self.get_kind_display()})"
+
+    def as_expression(self) -> str:
+        """The formula this component evaluates, whatever its calc_method -
+        so the engine only ever has to evaluate expressions."""
+        if self.calc_method == self.Method.FIXED:
+            return str(self.amount)
+        if self.calc_method == self.Method.PERCENT_OF:
+            base = self.base_code or "0"
+            return f"{base} * {self.percent} / 100"
+        return self.formula or "0"
+
+
+class PayslipComponentAmount(models.Model):
+    """The resolved per-entry breakdown - also the per-calculation audit log:
+    every component's computed amount and the expression that produced it."""
+
+    entry = models.ForeignKey(PayslipEntry, on_delete=models.CASCADE,
+                              related_name="component_amounts")
+    code = models.CharField(max_length=40)
+    name = models.CharField(max_length=120)
+    kind = models.CharField(max_length=20)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    sequence = models.PositiveIntegerField(default=0)
+    source_expr = models.TextField(blank=True, default="")  # what was applied
+
+    class Meta:
+        ordering = ["sequence", "id"]
+        unique_together = [("entry", "code")]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.code}={self.amount}"
+
+
+class StructureChangeLog(models.Model):
+    """Config-change audit trail for salary structures/components."""
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="structure_change_logs")
+    structure = models.ForeignKey(SalaryStructure, on_delete=models.SET_NULL,
+                                  null=True, blank=True, related_name="change_logs")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                             null=True, related_name="+")
+    action = models.CharField(max_length=120)
+    detail = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.action} @ {self.created_at:%Y-%m-%d %H:%M}"
+
+
+def salary_structure_for(org, period=None) -> "SalaryStructure":
+    """Return the structure effective for `period` (default: today), seeding a
+    default one from PayrollSettings on first use - mirrors payroll_settings_for.
+    The default structure reproduces the legacy engine's math exactly."""
+    import datetime as _dt
+    period = (period or _dt.date.today()).replace(day=1)
+    existing = (SalaryStructure.objects
+                .filter(organization=org, is_active=True, effective_from__lte=period)
+                .order_by("-effective_from").first())
+    if existing:
+        return existing
+    # Nothing effective yet -> create the default from PayrollSettings.
+    from .services.structure_seed import seed_default_structure
+    return seed_default_structure(org)

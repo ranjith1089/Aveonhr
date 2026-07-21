@@ -1,9 +1,12 @@
 """Forms for the Payroll module."""
 from __future__ import annotations
 
+import re
+
 from django import forms
 
-from .models import Employee, PayrollSettings
+from .models import Employee, PayrollSettings, SalaryComponent
+from .services.formula_engine import FormulaError, validate_formula
 
 _DATE = forms.DateInput(attrs={"type": "date"})
 
@@ -53,6 +56,58 @@ class PayrollSettingsForm(forms.ModelForm):
             "pf_employee_percent", "pf_employer_percent", "pf_wage_cap",
             "pf_wage_factor", "pf_employer_matches_employee",
         ]
+
+
+class SalaryComponentForm(forms.ModelForm):
+    """Add/edit one component. `sibling_codes` are the other component codes
+    in the same structure, so the formula validator can resolve references."""
+
+    class Meta:
+        model = SalaryComponent
+        fields = [
+            "code", "name", "kind", "calc_method", "amount", "percent",
+            "base_code", "formula", "rounding", "decimals", "include_in_gross",
+            "is_esi_base", "is_pf_base", "is_taxable", "statutory_type",
+            "sequence", "is_active",
+        ]
+        widgets = {"formula": forms.Textarea(attrs={"rows": 2})}
+
+    def __init__(self, *args, sibling_codes=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sibling_codes = set(sibling_codes or set())
+
+    def clean_code(self):
+        code = (self.cleaned_data.get("code") or "").strip().upper()
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", code or ""):
+            raise forms.ValidationError(
+                "Code must start with a letter and use only A-Z, 0-9 and _.")
+        # A component code must not shadow a context variable name.
+        from .services.formula_engine import CONTEXT_VARS
+        if code in CONTEXT_VARS:
+            raise forms.ValidationError(
+                f"'{code}' is a reserved context variable - pick another code.")
+        return code
+
+    def clean(self):
+        cleaned = super().clean()
+        method = cleaned.get("calc_method")
+        code = cleaned.get("code")
+        known = (self.sibling_codes | ({code} if code else set())) - {None}
+        if method == SalaryComponent.Method.PERCENT_OF:
+            if not cleaned.get("base_code"):
+                self.add_error("base_code", "Choose the component this is a percentage of.")
+            elif cleaned["base_code"] not in self.sibling_codes:
+                self.add_error("base_code", "Unknown base component.")
+        elif method == SalaryComponent.Method.FORMULA:
+            formula = (cleaned.get("formula") or "").strip()
+            if not formula:
+                self.add_error("formula", "Enter a formula expression.")
+            else:
+                try:
+                    validate_formula(formula, known)
+                except FormulaError as exc:
+                    self.add_error("formula", str(exc))
+        return cleaned
 
 
 class PayrollRunCreateForm(forms.Form):

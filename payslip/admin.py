@@ -148,7 +148,45 @@ class PayrollRunAdmin(admin.ModelAdmin):
 
 @admin.register(PayslipEntry)
 class PayslipEntryAdmin(admin.ModelAdmin):
-    list_display = ("employee", "run", "gross_salary", "net_payable")
+    list_display = ("employee", "run", "gross_salary", "net_payable", "ctc")
     list_filter = ("run__organization", "run__status")
     search_fields = ("employee__name",)
     exclude = ("pdf", "pdf_plain")
+
+
+from .models import (PayslipComponentAmount, SalaryComponent, SalaryStructure,
+                     StructureChangeLog)
+
+
+class SalaryComponentInline(admin.TabularInline):
+    model = SalaryComponent
+    extra = 0
+    fields = ("sequence", "code", "name", "kind", "calc_method", "formula",
+              "rounding", "decimals", "include_in_gross", "is_active")
+
+
+@admin.register(SalaryStructure)
+class SalaryStructureAdmin(admin.ModelAdmin):
+    list_display = ("label", "organization", "effective_from", "is_active")
+    list_filter = ("organization", "is_active")
+    inlines = [SalaryComponentInline]
+
+
+@admin.register(SalaryComponent)
+class SalaryComponentAdmin(admin.ModelAdmin):
+    list_display = ("code", "name", "kind", "calc_method", "structure", "sequence")
+    list_filter = ("kind", "calc_method", "structure__organization")
+    search_fields = ("code", "name")
+
+
+@admin.register(PayslipComponentAmount)
+class PayslipComponentAmountAdmin(admin.ModelAdmin):
+    list_display = ("entry", "code", "kind", "amount")
+    search_fields = ("code", "entry__employee__name")
+
+
+@admin.register(StructureChangeLog)
+class StructureChangeLogAdmin(admin.ModelAdmin):
+    list_display = ("action", "organization", "structure", "user", "created_at")
+    list_filter = ("organization",)
+    readonly_fields = ("created_at",)

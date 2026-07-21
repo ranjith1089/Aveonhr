@@ -11,8 +11,17 @@
   {% include "payslip/payroll/_payroll_nav.html" with active_page="settings" %}
 
   <h1>⚙️ Payroll Settings</h1>
-  <p class="sub">These rules apply to every payroll run in your organization. Defaults match the
-    original Aveon salary sheet exactly - change them only if your actual policy changes.</p>
+  <p class="sub">These rates seed the default <b>Salary Structure</b> and stay available as reference.
+    For full control over components, formulas and rounding, use the structure editor.</p>
+
+  <div class="card" style="border-left:4px solid #1565C0; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+    <div>
+      <h2 style="margin-bottom:4px;">🧩 Salary Structure (configurable engine)</h2>
+      <p class="sub" style="margin:0;">Add earnings/deductions, write formulas, set per-component rounding and
+        effective dates — no code changes. New draft runs use it.</p>
+    </div>
+    <a class="btn" href="{% url 'salary_structure' %}">Open Structure Editor →</a>
+  </div>
 
   {% if form.errors %}
   <div class="msg error">

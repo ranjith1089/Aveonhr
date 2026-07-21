@@ -57,6 +57,8 @@ urlpatterns = [
     path("income/import/", views_income.income_import, name="income_import"),
     # --- Payroll module ---
     path("payroll/settings/", views_payroll.payroll_settings, name="payroll_settings"),
+    path("payroll/structure/", views_payroll.salary_structure, name="salary_structure"),
+    path("payroll/entries/<int:pk>/breakdown/", views_payroll.payroll_entry_breakdown, name="payroll_entry_breakdown"),
     path("payroll/employees/", views_payroll.employee_list, name="employee_list"),
     path("payroll/employees/new/", views_payroll.employee_create, name="employee_create"),
     path("payroll/employees/<int:pk>/", views_payroll.employee_detail, name="employee_detail"),

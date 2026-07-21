@@ -15,9 +15,22 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .decorators import module_required, org_admin_required
-from .forms_payroll import EmployeeForm, PayrollSettingsForm, PayrollRunCreateForm
-from .models import Employee, PayrollRun, PayrollSettings, PayslipEntry, payroll_settings_for
-from .services.payroll_calc import apply_computation, compute_entry
+from .forms_payroll import (EmployeeForm, PayrollSettingsForm, PayrollRunCreateForm,
+                            SalaryComponentForm)
+from .models import (Employee, PayrollRun, PayslipEntry,
+                     payroll_settings_for, salary_structure_for)
+from .services.structure_calc import (apply_structure_computation,
+                                      compute_entry_from_structure,
+                                      save_component_amounts)
+
+# Legacy PayslipEntry columns written by every recompute (kept in sync with
+# the configurable engine's output + the new employer/CTC totals).
+_COMPUTED_FIELDS = [
+    "present_days", "pay_days", "basic", "da", "hra", "transport_allowance",
+    "food_allowance", "gross_salary", "esi_employee", "esi_employer",
+    "pf_employee", "pf_employer", "total_deductions", "net_payable",
+    "employer_contributions", "ctc",
+]
 
 
 def _decimal(value, default="0") -> Decimal:
@@ -27,8 +40,12 @@ def _decimal(value, default="0") -> Decimal:
         return Decimal(default)
 
 
-def _recompute(entry: PayslipEntry, settings: PayrollSettings) -> None:
-    computation = compute_entry(
+def _recompute(entry: PayslipEntry, structure):
+    """Compute an entry via the configurable salary structure and copy the
+    results onto its legacy columns. Returns the computation so the caller
+    can persist the component breakdown (needs entry.pk) after saving."""
+    computation = compute_entry_from_structure(
+        structure,
         monthly_package=entry.monthly_package,
         total_working_days=entry.total_working_days,
         emp_leave_days=entry.emp_leave_days,
@@ -39,9 +56,9 @@ def _recompute(entry: PayslipEntry, settings: PayrollSettings) -> None:
         tds=entry.tds,
         is_esi_eligible=entry.is_esi_eligible,
         is_pf_applicable=entry.is_pf_applicable,
-        settings=settings,
     )
-    apply_computation(entry, computation)
+    apply_structure_computation(entry, computation)
+    return computation
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +76,116 @@ def payroll_settings(request: HttpRequest) -> HttpResponse:
     else:
         form = PayrollSettingsForm(instance=settings_obj)
     return render(request, "payslip/payroll/settings.html", {"form": form})
+
+
+# ---------------------------------------------------------------------------
+# Salary structure (configurable component master)
+# ---------------------------------------------------------------------------
+def _validate_structure(structure) -> str | None:
+    """Return a human error if the whole component set can't be resolved
+    (bad formula or circular reference), else None."""
+    from .services.formula_engine import (FormulaError, component_dependencies,
+                                          order_components, validate_formula)
+    comps = list(structure.components.filter(is_active=True))
+    codes = {c.code for c in comps}
+    try:
+        for c in comps:
+            validate_formula(c.as_expression(), codes)
+        order_components({c.code: component_dependencies(c.as_expression(), codes)
+                          for c in comps})
+    except FormulaError as exc:
+        return str(exc)
+    return None
+
+
+@org_admin_required
+def salary_structure(request: HttpRequest) -> HttpResponse:
+    from .models import SalaryComponent, StructureChangeLog, salary_structure_for
+    from .services.structure_seed import default_component_specs, build_components
+
+    org = request.organization
+    structure = salary_structure_for(org)  # seeds default on first use
+
+    if request.method == "POST":
+        action = request.POST.get("action", "")
+
+        if action == "reset_default":
+            build_components(structure, default_component_specs(payroll_settings_for(org)))
+            StructureChangeLog.objects.create(
+                organization=org, structure=structure, user=request.user,
+                action="Reset to default", detail="Rebuilt from payroll settings.")
+            messages.success(request, "Structure reset to the default components.")
+            return redirect("salary_structure")
+
+        if action == "delete_component":
+            comp = get_object_or_404(SalaryComponent, pk=request.POST.get("component_id"),
+                                     structure=structure)
+            code = comp.code
+            comp.delete()
+            err = _validate_structure(structure)
+            if err:  # deleting broke a dependency - put it back
+                transaction.set_rollback(True)
+            StructureChangeLog.objects.create(
+                organization=org, structure=structure, user=request.user,
+                action="Delete component", detail=code)
+            messages.success(request, f"Removed component {code}.")
+            return redirect("salary_structure")
+
+        if action == "save_component":
+            comp_id = request.POST.get("component_id")
+            instance = (get_object_or_404(SalaryComponent, pk=comp_id, structure=structure)
+                        if comp_id else SalaryComponent(structure=structure))
+            siblings = set(structure.components.exclude(pk=instance.pk or 0)
+                           .values_list("code", flat=True))
+            form = SalaryComponentForm(request.POST, instance=instance, sibling_codes=siblings)
+            if form.is_valid():
+                with transaction.atomic():
+                    comp = form.save()
+                    err = _validate_structure(structure)
+                    if err:
+                        transaction.set_rollback(True)
+                        messages.error(request, f"Not saved - {err}")
+                        return redirect("salary_structure")
+                StructureChangeLog.objects.create(
+                    organization=org, structure=structure, user=request.user,
+                    action=("Edit component" if comp_id else "Add component"),
+                    detail=f"{comp.code}: {comp.as_expression()}")
+                messages.success(request, f"Saved component {comp.code}.")
+                return redirect("salary_structure")
+            messages.error(request, "Please fix the errors in the component form.")
+        else:
+            form = SalaryComponentForm()
+    else:
+        edit_id = request.GET.get("edit")
+        editing = (SalaryComponent.objects.filter(pk=edit_id, structure=structure).first()
+                   if edit_id else None)
+        form = SalaryComponentForm(instance=editing) if editing else SalaryComponentForm()
+
+    components = list(structure.components.all())
+    warning = _validate_structure(structure)
+    return render(request, "payslip/payroll/structure_edit.html", {
+        "structure": structure, "components": components, "form": form,
+        "warning": warning,
+        "context_vars": sorted(__import__("payslip.services.formula_engine",
+                                          fromlist=["CONTEXT_VARS"]).CONTEXT_VARS),
+        "change_logs": structure.change_logs.select_related("user")[:10],
+        "kinds": SalaryComponent.Kind.choices,
+        "methods": SalaryComponent.Method.choices,
+        "roundings": SalaryComponent.Rounding.choices,
+        "statutory_types": SalaryComponent.Statutory.choices,
+    })
+
+
+@module_required("payroll")
+def payroll_entry_breakdown(request: HttpRequest, pk: int) -> HttpResponse:
+    """Per-employee salary breakdown / calculation log for one payslip entry."""
+    entry = get_object_or_404(
+        PayslipEntry.objects.select_related("employee", "run"),
+        pk=pk, organization=request.organization)
+    lines = list(entry.component_amounts.all())
+    return render(request, "payslip/payroll/entry_breakdown.html", {
+        "entry": entry, "lines": lines,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -196,10 +323,10 @@ def payroll_run_create(request: HttpRequest) -> HttpResponse:
         organization=org, period=period, defaults={"created_by": request.user}
     )
     if created:
-        settings_obj = payroll_settings_for(org)
+        structure = salary_structure_for(org, period)
         days_in_month = calendar.monthrange(period.year, period.month)[1]
         active = Employee.objects.filter(organization=org, is_active=True)
-        new_entries = []
+        pairs = []  # (entry, computation)
         for employee in active:
             lop = _suggest_lop_days(employee, period)
             entry = PayslipEntry(
@@ -210,11 +337,13 @@ def payroll_run_create(request: HttpRequest) -> HttpResponse:
                 is_esi_eligible=employee.is_esi_eligible,
                 is_pf_applicable=employee.is_pf_applicable,
             )
-            _recompute(entry, settings_obj)
-            new_entries.append(entry)
-        PayslipEntry.objects.bulk_create(new_entries)
+            pairs.append((entry, _recompute(entry, structure)))
+        with transaction.atomic():
+            PayslipEntry.objects.bulk_create([e for e, _ in pairs])
+            for entry, computation in pairs:  # bulk_create backfills pks
+                save_component_amounts(entry, computation)
         messages.success(request, f"Payroll run created for {period:%B %Y} "
-                                  f"({len(new_entries)} employees).")
+                                  f"({len(pairs)} employees).")
     return redirect("payroll_run_detail", pk=run.pk)
 
 
@@ -222,11 +351,11 @@ def payroll_run_create(request: HttpRequest) -> HttpResponse:
 def payroll_run_detail(request: HttpRequest, pk: int) -> HttpResponse:
     org = request.organization
     run = get_object_or_404(PayrollRun, pk=pk, organization=org)
-    settings_obj = payroll_settings_for(org)
 
     if request.method == "POST" and not run.is_finalized:
         action = request.POST.get("action", "")
         if action == "save_grid":
+            structure = salary_structure_for(org, run.period)
             entries = list(run.entries.select_related("employee"))
             with transaction.atomic():
                 for entry in entries:
@@ -241,14 +370,12 @@ def payroll_run_detail(request: HttpRequest, pk: int) -> HttpResponse:
                     entry.salary_advance = _decimal(request.POST.get(f"advance_{pk_str}"))
                     entry.tds = _decimal(request.POST.get(f"tds_{pk_str}"))
                     entry.remarks = (request.POST.get(f"remarks_{pk_str}") or "").strip()
-                    _recompute(entry, settings_obj)
+                    computation = _recompute(entry, structure)
+                    save_component_amounts(entry, computation)
                 PayslipEntry.objects.bulk_update(entries, [
                     "total_working_days", "cl_credit", "emp_leave_days", "lop_days",
                     "internet_allowance", "salary_arrear_allowance", "salary_advance",
-                    "tds", "remarks", "present_days", "pay_days", "basic", "da", "hra",
-                    "transport_allowance", "food_allowance", "gross_salary",
-                    "esi_employee", "esi_employer", "pf_employee", "pf_employer",
-                    "total_deductions", "net_payable",
+                    "tds", "remarks", *_COMPUTED_FIELDS,
                 ])
             messages.success(request, "Payroll grid saved and recomputed.")
             return redirect("payroll_run_detail", pk=pk)
@@ -259,6 +386,8 @@ def payroll_run_detail(request: HttpRequest, pk: int) -> HttpResponse:
         "gross": sum((e.gross_salary for e in entries), Decimal("0")),
         "deductions": sum((e.total_deductions for e in entries), Decimal("0")),
         "net": sum((e.net_payable for e in entries), Decimal("0")),
+        "employer": sum((e.employer_contributions for e in entries), Decimal("0")),
+        "ctc": sum((e.ctc for e in entries), Decimal("0")),
     }
     generated_pdfs = sum(1 for e in entries if e.pdf)
     return render(request, "payslip/payroll/run_detail.html", {
@@ -333,10 +462,9 @@ def payroll_run_finalize(request: HttpRequest, pk: int) -> HttpResponse:
     if request.method != "POST" or run.is_finalized:
         return redirect("payroll_run_detail", pk=pk)
 
-    settings_obj = payroll_settings_for(org)
+    structure = salary_structure_for(org, run.period)
     entries = list(run.entries.select_related("employee"))
-    for entry in entries:
-        _recompute(entry, settings_obj)
+    computations = [_recompute(entry, structure) for entry in entries]
 
     negative = [e for e in entries if e.net_payable < 0]
     if negative and request.POST.get("confirm_negative") != "1":
@@ -351,11 +479,10 @@ def payroll_run_finalize(request: HttpRequest, pk: int) -> HttpResponse:
 
     with transaction.atomic():
         _build_pdfs(org, entries)
+        for entry, computation in zip(entries, computations):
+            save_component_amounts(entry, computation)
         PayslipEntry.objects.bulk_update(entries, [
-            "present_days", "pay_days", "basic", "da", "hra", "transport_allowance",
-            "food_allowance", "gross_salary", "esi_employee", "esi_employer",
-            "pf_employee", "pf_employer", "total_deductions", "net_payable",
-            "pdf", "pdf_generated_at",
+            *_COMPUTED_FIELDS, "pdf", "pdf_generated_at",
         ])
         run.status = PayrollRun.Status.FINALIZED
         run.finalized_by = request.user
