@@ -53,7 +53,9 @@ def people_list(request: HttpRequest) -> HttpResponse:
     q = (request.GET.get("q") or "").strip()
 
     base = Person.objects.filter(organization=request.organization).annotate(
-        doc_count=Count("documents"), last_doc=Max("documents__created_at")
+        doc_count=Count("documents", distinct=True),
+        last_doc=Max("documents__created_at"),
+        employee_links=Count("employee_profile", distinct=True),
     )
     if q:
         base = base.filter(name__icontains=q)
@@ -148,10 +150,60 @@ def person_detail(request: HttpRequest, pk: int) -> HttpResponse:
         {"label": label, "url": f"{reverse(url_name)}?person={person.pk}&type={type_key}"}
         for label, url_name, type_key in GENERATE_ACTIONS[person.kind]
     ]
+    employee = person.employee_profile.first()
     return render(request, "payslip/person_detail.html", {
         "person": person,
         "form": form,
         "heading": person.name,
         "documents": documents,
         "generate_actions": actions,
+        "employee": employee,
+        "can_convert": (person.kind == Person.Kind.CANDIDATE and employee is None
+                        and request.membership.has_module("payroll")),
+    })
+
+
+@module_required("people")
+def person_convert(request: HttpRequest, pk: int) -> HttpResponse:
+    """Convert a candidate Person into a payroll Employee, linked back to the
+    Person. Requires the payroll module right (the result is a payroll
+    record). Interns and already-converted candidates are refused."""
+    from .decorators import _forbidden
+    from .forms_payroll import ConvertToEmployeeForm
+    from .views_payroll import _next_employee_code
+
+    org = request.organization
+    person = get_object_or_404(Person, pk=pk, organization=org)
+
+    if not request.membership.has_module("payroll"):
+        return _forbidden(request, "Payroll & Salary")
+    if person.kind != Person.Kind.CANDIDATE:
+        messages.error(request, "Only candidates can be converted to employees.")
+        return redirect("person_detail", pk=pk)
+    existing = person.employee_profile.first()
+    if existing is not None:
+        messages.info(request, f"{person.name} is already a payroll employee.")
+        return redirect("employee_detail", pk=existing.pk)
+
+    if request.method == "POST":
+        form = ConvertToEmployeeForm(request.POST, organization=org)
+        if form.is_valid():
+            employee = form.save(commit=False)
+            employee.organization = org
+            employee.person = person
+            employee.name = person.name
+            employee.notes = person.notes
+            employee.created_by = request.user
+            employee.save()
+            messages.success(request, f"{person.name} converted to a payroll "
+                                      f"employee. Add bank details to finish the profile.")
+            return redirect("employee_detail", pk=employee.pk)
+    else:
+        form = ConvertToEmployeeForm(organization=org, initial={
+            "employee_code": _next_employee_code(org),
+            "designation": person.designation,
+            "doj": person.join_date,
+        })
+    return render(request, "payslip/payroll/person_convert.html", {
+        "person": person, "form": form,
     })

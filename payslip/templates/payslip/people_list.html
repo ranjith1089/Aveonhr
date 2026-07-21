@@ -60,7 +60,8 @@
         <tr><th>Name</th><th>Designation</th><th class="num">Letters</th><th>Last letter</th><th></th></tr>
         {% for p in candidates %}
         <tr class="row-link" onclick="window.location='{% url 'person_detail' p.pk %}'">
-          <td><a href="{% url 'person_detail' p.pk %}"><b>{{ p.name }}</b></a></td>
+          <td><a href="{% url 'person_detail' p.pk %}"><b>{{ p.name }}</b></a>
+            {% if p.employee_links %}<span class="badge green" style="margin-left:6px;">💼 Employee</span>{% endif %}</td>
           <td>{{ p.designation|default:"—" }}</td>
           <td class="num">{{ p.doc_count }}</td>
           <td style="white-space:nowrap;">{{ p.last_doc|date:"d M Y"|default:"—" }}</td>

@@ -46,6 +46,30 @@ class EmployeeForm(forms.ModelForm):
         return cleaned
 
 
+class ConvertToEmployeeForm(forms.ModelForm):
+    """Capture the payroll-only fields when converting a candidate (Person)
+    into an Employee. Name comes from the Person; the rest is entered here."""
+
+    class Meta:
+        model = Employee
+        fields = ["employee_code", "designation", "doj",
+                  "current_monthly_package", "is_esi_eligible", "is_pf_applicable"]
+        widgets = {"doj": _DATE}
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.organization = organization
+        self.fields["current_monthly_package"].required = True
+
+    def clean_employee_code(self):
+        code = (self.cleaned_data.get("employee_code") or "").strip()
+        if code and self.organization is not None:
+            if Employee.objects.filter(organization=self.organization,
+                                       employee_code__iexact=code).exists():
+                raise forms.ValidationError("This employee code is already in use.")
+        return code
+
+
 class PayrollSettingsForm(forms.ModelForm):
     class Meta:
         model = PayrollSettings

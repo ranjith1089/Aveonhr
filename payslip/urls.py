@@ -30,6 +30,7 @@ urlpatterns = [
     path("people/", views_people.people_list, name="people_list"),
     path("people/new/", views_people.person_create, name="person_create"),
     path("people/<int:pk>/", views_people.person_detail, name="person_detail"),
+    path("people/<int:pk>/convert/", views_people.person_convert, name="person_convert"),
     path("offer-letter/", offer_letter, name="offer_letter"),
     path("experience-certificate/", experience_certificate, name="experience_certificate"),
     path("travel-expense/", travel_expense, name="travel_expense"),

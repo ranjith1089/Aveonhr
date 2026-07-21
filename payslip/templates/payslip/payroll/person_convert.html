@@ -1,0 +1,52 @@
+{% load humanize %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Convert {{ person.name }} to Employee - Aveon HR Suite</title>
+{% include "payslip/payroll/_payroll_style.html" %}
+</head>
+<body>
+<div class="container" style="max-width:720px;">
+  {% include "payslip/payroll/_payroll_nav.html" with active_page="employees" %}
+
+  <div class="card">
+    <div class="crumb">
+      <a href="{% url 'people_list' %}">👥 People</a> ›
+      <a href="{% url 'person_detail' person.pk %}">{{ person.name }}</a> › Convert
+    </div>
+    <h1>💼 Convert to Employee</h1>
+    <p class="sub" style="margin:6px 0 0;">Create a payroll employee record for
+      <b>{{ person.name }}</b>{% if person.email %} · {{ person.email }}{% endif %}.
+      The name is carried over; enter the payroll details below. Bank/PAN details can be added afterwards.</p>
+  </div>
+
+  <div class="card">
+    {% if form.errors %}
+    <div class="msg error">
+      {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="grid">
+        <p><label>Employee code</label>{{ form.employee_code }}</p>
+        <p><label>Designation</label>{{ form.designation }}</p>
+        <p><label>Date of joining</label>{{ form.doj }}</p>
+        <p><label>Monthly package (₹)</label>{{ form.current_monthly_package }}</p>
+        <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
+          {{ form.is_esi_eligible }}<label style="margin:0;">ESI eligible</label>
+        </p>
+        <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
+          {{ form.is_pf_applicable }}<label style="margin:0;">PF applicable</label>
+        </p>
+      </div>
+      <div style="margin-top:16px; display:flex; gap:10px;">
+        <button class="btn" type="submit">💼 Convert to Employee</button>
+        <a class="btn secondary" href="{% url 'person_detail' person.pk %}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

@@ -784,6 +784,74 @@ EXPERIENCE_EMPLOYEE_PAYLOAD = {
 }
 
 
+class CandidateToEmployeeConvertTests(TestCase):
+    def setUp(self):
+        from payslip.models import Person
+        self.admin = make_member("convert_admin", admin=True)
+        self.org = self.admin.membership.organization
+        self.client.force_login(self.admin)
+        self.candidate = Person.objects.create(
+            organization=self.org, kind=Person.Kind.CANDIDATE,
+            name="Hired Candidate", designation="Engineer", notes="great fit")
+
+    def test_convert_creates_linked_employee(self):
+        import datetime
+        from decimal import Decimal
+        from payslip.models import Employee
+        resp = self.client.post(reverse("person_convert", args=[self.candidate.pk]), {
+            "employee_code": "EMP-0007", "designation": "Engineer",
+            "doj": "2026-08-01", "current_monthly_package": "40000",
+            "is_pf_applicable": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        emp = Employee.objects.get()
+        self.assertEqual(emp.person_id, self.candidate.pk)
+        self.assertEqual(emp.name, "Hired Candidate")
+        self.assertEqual(emp.designation, "Engineer")
+        self.assertEqual(emp.notes, "great fit")
+        self.assertEqual(emp.doj, datetime.date(2026, 8, 1))
+        self.assertEqual(emp.current_monthly_package, Decimal("40000.00"))
+        self.assertTrue(emp.is_pf_applicable)
+        # The People page now shows it's linked.
+        self.assertEqual(self.candidate.employee_profile.count(), 1)
+
+    def test_second_convert_is_blocked(self):
+        from payslip.models import Employee
+        self.client.post(reverse("person_convert", args=[self.candidate.pk]), {
+            "employee_code": "EMP-0007", "current_monthly_package": "40000"})
+        resp = self.client.post(reverse("person_convert", args=[self.candidate.pk]), {
+            "employee_code": "EMP-0008", "current_monthly_package": "50000"})
+        self.assertEqual(resp.status_code, 302)  # redirected to existing employee
+        self.assertEqual(Employee.objects.count(), 1)
+
+    def test_intern_cannot_be_converted(self):
+        from payslip.models import Employee, Person
+        intern = Person.objects.create(organization=self.org, kind=Person.Kind.INTERN,
+                                       name="Intern Person")
+        self.client.post(reverse("person_convert", args=[intern.pk]), {
+            "employee_code": "EMP-0007", "current_monthly_package": "40000"})
+        self.assertEqual(Employee.objects.count(), 0)
+
+    def test_convert_requires_payroll_access(self):
+        # A member with People but not Payroll cannot convert.
+        member = make_member("people_only", org=self.org, people=True)
+        self.client.force_login(member)
+        resp = self.client.post(reverse("person_convert", args=[self.candidate.pk]), {
+            "employee_code": "EMP-0007", "current_monthly_package": "40000"})
+        self.assertEqual(resp.status_code, 403)
+
+    def test_converted_employee_flows_into_a_payroll_run(self):
+        from payslip.models import PayslipEntry
+        self.client.post(reverse("person_convert", args=[self.candidate.pk]), {
+            "employee_code": "EMP-0007", "current_monthly_package": "40000",
+            "is_pf_applicable": "on"})
+        self.client.post(reverse("payroll_run_create"), {"period": "2026-09"})
+        entry = PayslipEntry.objects.get()
+        self.assertEqual(entry.employee.name, "Hired Candidate")
+        self.assertGreater(entry.basic, 0)
+        self.assertGreater(entry.ctc, entry.gross_salary)
+
+
 class PeopleRegistryTests(TestCase):
     def setUp(self):
         self.user = make_member("people_admin", admin=True)
