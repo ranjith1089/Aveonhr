@@ -12,11 +12,10 @@
   .field-grid label { display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer; padding:4px 0; }
   .field-grid input[type="checkbox"] { width:18px; height:18px; cursor:pointer; }
   .scope-group { margin:18px 0; }
-  .scope-group legend { font-weight:700; font-size:13px; color:var(--primary); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px; }
-  .scope-group ul { list-style:none; margin-left:12px; }
-  .scope-group li { margin-bottom:8px; }
-  .scope-group label { display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:500; }
-  .scope-group input[type="radio"] { width:18px; height:18px; cursor:pointer; }
+  .scope-options { list-style:none; margin-left:12px; }
+  .scope-options li { margin-bottom:8px; }
+  .scope-options label { display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:500; margin:0; }
+  .scope-options input[type="radio"] { width:18px; height:18px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -46,19 +45,14 @@
       </div>
 
       {# Export scope #}
-      <fieldset class="scope-group">
-        <legend>Export Scope</legend>
-        <ul>
-          {% for choice_value, choice_label in form.scope %}
-          <li>
-            <label for="id_scope_{{ choice_value }}">
-              <input type="radio" name="scope" value="{{ choice_value }}" id="id_scope_{{ choice_value }}" {% if form.scope.value == choice_value %}checked{% endif %} />
-              {{ choice_label }}
-            </label>
-          </li>
+      <div class="scope-group">
+        <label style="font-weight:700; font-size:13px; color:var(--primary); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px; display:block;">Export Scope</label>
+        <ul class="scope-options">
+          {% for radio in form.scope %}
+          <li>{{ radio.tag }} <label for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label></li>
           {% endfor %}
         </ul>
-      </fieldset>
+      </div>
 
       {# Grouped field checkboxes #}
       <div style="margin-bottom:18px;">
@@ -100,6 +94,8 @@
 (function() {
   const selectAllCheckbox = document.getElementById('select-all-fields');
   const fieldCheckboxes = document.querySelectorAll('input[type="checkbox"][name^="export_"]');
+
+  if (!selectAllCheckbox || fieldCheckboxes.length === 0) return;
 
   // "Select all" checkbox functionality
   selectAllCheckbox.addEventListener('change', function() {
