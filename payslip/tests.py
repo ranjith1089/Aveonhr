@@ -170,6 +170,73 @@ class IncomeModuleTests(TestCase):
         self.assertEqual(total, Decimal("6281796.42"))
 
 
+class IncomeClientActiveSplitTests(TestCase):
+    """Active vs discontinued split on the clients list + quick toggle."""
+
+    def setUp(self):
+        from decimal import Decimal
+        from .models import ClientBilling, IncomeClient
+        self.staff = make_member("inc_split", income=True)
+        self.org = self.staff.membership.organization
+        self.plain = make_member("inc_split_plain", org=self.org)
+        self.other = make_member("inc_split_other", income=True)
+
+        self.active = IncomeClient.objects.create(name="Active College",
+                                                  organization=self.org, is_active=True)
+        ClientBilling.objects.create(client=self.active, academic_year="2025-2026",
+                                     override_amounts=True, net_amount=Decimal("100000"))
+        self.inactive = IncomeClient.objects.create(name="Gone Institute",
+                                                    organization=self.org, is_active=False)
+        ClientBilling.objects.create(client=self.inactive, academic_year="2025-2026",
+                                     override_amounts=True, net_amount=Decimal("40000"))
+        self.client.force_login(self.staff)
+
+    def test_list_splits_active_and_inactive(self):
+        from decimal import Decimal
+        resp = self.client.get("/income/clients/")
+        self.assertEqual(resp.status_code, 200)
+        active = [r["c"] for r in resp.context["active_rows"]]
+        inactive = [r["c"] for r in resp.context["inactive_rows"]]
+        self.assertIn(self.active, active)
+        self.assertNotIn(self.inactive, active)
+        self.assertIn(self.inactive, inactive)
+        self.assertNotIn(self.active, inactive)
+        self.assertEqual(resp.context["active_totals"]["billed"], Decimal("100000"))
+        self.assertEqual(resp.context["inactive_totals"]["billed"], Decimal("40000"))
+        self.assertEqual(resp.context["total_count"], 2)
+
+    def test_toggle_flips_and_moves_between_sections(self):
+        from .models import IncomeClient
+        resp = self.client.post(
+            f"/income/clients/{self.active.pk}/toggle-active/", follow=True)
+        self.assertEqual(resp.status_code, 200)
+        self.active.refresh_from_db()
+        self.assertFalse(self.active.is_active)
+        # now appears in the inactive section
+        inactive = [r["c"] for r in resp.context["inactive_rows"]]
+        self.assertIn(self.active, inactive)
+        # flip back
+        self.client.post(f"/income/clients/{self.active.pk}/toggle-active/")
+        self.active.refresh_from_db()
+        self.assertTrue(self.active.is_active)
+
+    def test_toggle_requires_post(self):
+        resp = self.client.get(f"/income/clients/{self.active.pk}/toggle-active/")
+        self.assertEqual(resp.status_code, 405)
+
+    def test_toggle_is_org_scoped(self):
+        self.client.force_login(self.other)
+        resp = self.client.post(f"/income/clients/{self.active.pk}/toggle-active/")
+        self.assertEqual(resp.status_code, 404)
+        self.active.refresh_from_db()
+        self.assertTrue(self.active.is_active)
+
+    def test_toggle_requires_income_right(self):
+        self.client.force_login(self.plain)
+        resp = self.client.post(f"/income/clients/{self.active.pk}/toggle-active/")
+        self.assertEqual(resp.status_code, 403)
+
+
 class IncomeAnalyticsTests(TestCase):
     """Forecast and analytics math for the Income module."""
 

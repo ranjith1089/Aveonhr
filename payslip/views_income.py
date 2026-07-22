@@ -149,7 +149,7 @@ def income_client_list(request: HttpRequest) -> HttpResponse:
     org = request.organization
     q = (request.GET.get("q") or "").strip()
     engineer = (request.GET.get("engineer") or "").strip()
-    show = (request.GET.get("show") or "all").strip()  # all | active | balance
+    show = (request.GET.get("show") or "all").strip()  # all | balance
     sort = (request.GET.get("sort") or "balance").strip()  # balance | name
 
     clients = list(IncomeClient.objects.filter(organization=org)
@@ -158,36 +158,40 @@ def income_client_list(request: HttpRequest) -> HttpResponse:
         clients = [c for c in clients if q.lower() in c.name.lower()]
     if engineer:
         clients = [c for c in clients if any(b.engineer == engineer for b in c.billings.all())]
-    if show == "active":
-        clients = [c for c in clients if c.is_active]
-    elif show == "balance":
+    if show == "balance":
         clients = [c for c in clients if c.total_balance > 0]
 
-    rows = []
-    total_billed = Decimal("0")
-    total_received = Decimal("0")
-    total_balance = Decimal("0")
-    for c in clients:
+    def _row(c):
         billed = sum((b.total_due for b in c.billings.all()), Decimal("0"))
         received = sum((b.received_total for b in c.billings.all()), Decimal("0"))
         balance = billed - received
         pct = int(min(max(received / billed * 100, Decimal("0")), Decimal("100"))) if billed > 0 else 0
-        rows.append({"c": c, "billed": billed, "received": received,
-                     "balance": balance, "collection_pct": pct})
-        total_billed += billed
-        total_received += received
-        total_balance += balance
+        return {"c": c, "billed": billed, "received": received,
+                "balance": balance, "collection_pct": pct}
 
-    if sort == "name":
-        rows.sort(key=lambda r: r["c"].name.lower())
-    else:
-        rows.sort(key=lambda r: r["balance"], reverse=True)
+    # Split into active vs inactive (discontinued) - two separate sections.
+    active_rows, inactive_rows = [], []
+    for c in clients:
+        (active_rows if c.is_active else inactive_rows).append(_row(c))
+
+    def _totals(rows):
+        return {
+            "billed": sum((r["billed"] for r in rows), Decimal("0")),
+            "received": sum((r["received"] for r in rows), Decimal("0")),
+            "balance": sum((r["balance"] for r in rows), Decimal("0")),
+        }
+
+    key = (lambda r: r["c"].name.lower()) if sort == "name" else (lambda r: r["balance"])
+    reverse = sort != "name"
+    active_rows.sort(key=key, reverse=reverse)
+    inactive_rows.sort(key=key, reverse=reverse)
 
     return render(request, "payslip/income/client_list.html", {
-        "rows": rows, "q": q, "engineer": engineer, "show": show, "sort": sort,
+        "active_rows": active_rows, "inactive_rows": inactive_rows,
+        "total_count": len(active_rows) + len(inactive_rows),
+        "active_totals": _totals(active_rows), "inactive_totals": _totals(inactive_rows),
+        "q": q, "engineer": engineer, "show": show, "sort": sort,
         "engineers": _engineer_names(org),
-        "total_billed": total_billed, "total_received": total_received,
-        "total_balance": total_balance,
     })
 
 
@@ -216,6 +220,20 @@ def income_client_edit(request: HttpRequest, pk: int) -> HttpResponse:
         return redirect("income_client_detail", pk=client.pk)
     return render(request, "payslip/income/client_form.html",
                   {"form": form, "heading": f"Edit {client.name}", "client": client})
+
+
+@module_required("income")
+@require_POST
+def income_client_toggle_active(request: HttpRequest, pk: int) -> HttpResponse:
+    """Quick toggle of a client's active/discontinued status from the list."""
+    client = get_object_or_404(IncomeClient, pk=pk, organization=request.organization)
+    client.is_active = not client.is_active
+    client.save(update_fields=["is_active"])
+    if client.is_active:
+        messages.success(request, f"'{client.name}' marked active.")
+    else:
+        messages.success(request, f"'{client.name}' marked inactive (discontinued).")
+    return redirect("income_client_list")
 
 
 @module_required("income")

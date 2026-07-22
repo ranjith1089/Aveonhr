@@ -5,6 +5,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Clients - Aveon Income</title>
 {% include "payslip/income/_income_style.html" %}
+<style>
+  details.discontinued { margin-top:18px; }
+  details.discontinued > summary {
+    list-style:none; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+    font-weight:700; font-size:14px; color:var(--content);
+    background:var(--base-200); border:1px solid var(--base-300);
+    border-radius:var(--radius-pill); padding:8px 16px; user-select:none;
+  }
+  details.discontinued > summary::-webkit-details-marker { display:none; }
+  details.discontinued > summary::before { content:"▸"; color:var(--content-muted); transition:transform .15s; }
+  details.discontinued[open] > summary::before { transform:rotate(90deg); }
+  details.discontinued > summary:hover { border-color:var(--content-faint); }
+  details.discontinued .tbl-wrap { margin-top:12px; }
+</style>
 </head>
 <body>
 <div class="container">
@@ -12,7 +26,7 @@
 
   <div class="card">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:6px;">
-      <h1 style="margin:0;">Clients <span class="muted" style="font-size:14px;">({{ rows|length }})</span></h1>
+      <h1 style="margin:0;">Clients <span class="muted" style="font-size:14px;">({{ total_count }})</span></h1>
       <a class="btn" href="{% url 'income_client_create' %}">+ Add Client</a>
     </div>
 
@@ -34,7 +48,6 @@
         <label>Show</label>
         <select name="show">
           <option value="all" {% if show == "all" %}selected{% endif %}>All clients</option>
-          <option value="active" {% if show == "active" %}selected{% endif %}>Active only</option>
           <option value="balance" {% if show == "balance" %}selected{% endif %}>With balance only</option>
         </select>
       </div>
@@ -50,15 +63,17 @@
       </div>
     </form>
 
+    {# ===== Active clients ===== #}
+    <h2 style="margin:18px 0 8px; font-size:16px;">Active clients <span class="muted" style="font-weight:500;">({{ active_rows|length }})</span></h2>
     <div class="tbl-wrap">
       <table>
         <thead><tr>
           <th>Client</th><th>Engineer</th>
           <th class="num">Billed</th><th class="num">Received</th><th class="num">Balance</th>
-          <th style="width:130px;">Collection</th><th>Status</th><th></th>
+          <th style="width:130px;">Collection</th><th></th>
         </tr></thead>
         <tbody>
-          {% for r in rows %}
+          {% for r in active_rows %}
           <tr>
             <td><a href="{% url 'income_client_detail' r.c.pk %}">{{ r.c.name }}</a></td>
             <td>{{ r.c.latest_engineer }}</td>
@@ -69,24 +84,75 @@
               <div class="bar" style="margin:0;"><div class="bar-fill {% if r.collection_pct < 60 %}warn{% endif %}" style="width:{{ r.collection_pct }}%;"></div></div>
               <div class="bar-lbl">{{ r.collection_pct }}%</div>
             </td>
-            <td>{% if r.c.is_active %}<span class="badge green">Active</span>{% else %}<span class="badge gray">Discontinued</span>{% endif %}</td>
-            <td><a class="btn small secondary" href="{% url 'income_client_detail' r.c.pk %}">Open</a></td>
+            <td style="white-space:nowrap;">
+              <a class="btn small secondary" href="{% url 'income_client_detail' r.c.pk %}">Open</a>
+              <form method="post" action="{% url 'income_client_toggle_active' r.c.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button class="btn small secondary" type="submit"
+                        onclick="return confirm('Mark {{ r.c.name|escapejs }} as inactive (discontinued)? It moves to the Discontinued section and is excluded from the active list.');">Deactivate</button>
+              </form>
+            </td>
           </tr>
           {% empty %}
-          <tr><td colspan="8"><div class="empty"><div class="big">🔍</div>No clients{% if q %} matching "{{ q }}"{% endif %}.</div></td></tr>
+          <tr><td colspan="7"><div class="empty"><div class="big">🔍</div>No active clients{% if q %} matching "{{ q }}"{% endif %}.</div></td></tr>
           {% endfor %}
-          {% if rows %}
+          {% if active_rows %}
           <tr class="total-row">
-            <td colspan="2">TOTAL ({{ rows|length }} client{{ rows|length|pluralize }})</td>
-            <td class="num">₹ {{ total_billed|floatformat:0|intcomma }}</td>
-            <td class="num">₹ {{ total_received|floatformat:0|intcomma }}</td>
-            <td class="num {% if total_balance > 0 %}money-due{% else %}money-neg{% endif %}">₹ {{ total_balance|floatformat:0|intcomma }}</td>
-            <td colspan="3"></td>
+            <td colspan="2">TOTAL ({{ active_rows|length }} client{{ active_rows|length|pluralize }})</td>
+            <td class="num">₹ {{ active_totals.billed|floatformat:0|intcomma }}</td>
+            <td class="num">₹ {{ active_totals.received|floatformat:0|intcomma }}</td>
+            <td class="num {% if active_totals.balance > 0 %}money-due{% else %}money-neg{% endif %}">₹ {{ active_totals.balance|floatformat:0|intcomma }}</td>
+            <td colspan="2"></td>
           </tr>
           {% endif %}
         </tbody>
       </table>
     </div>
+
+    {# ===== Discontinued clients (collapsed by default) ===== #}
+    {% if inactive_rows %}
+    <details class="discontinued">
+      <summary>🗂 Discontinued clients ({{ inactive_rows|length }})</summary>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Client</th><th>Engineer</th>
+            <th class="num">Billed</th><th class="num">Received</th><th class="num">Balance</th>
+            <th style="width:130px;">Collection</th><th></th>
+          </tr></thead>
+          <tbody>
+            {% for r in inactive_rows %}
+            <tr style="opacity:.75;">
+              <td><a href="{% url 'income_client_detail' r.c.pk %}">{{ r.c.name }}</a> <span class="badge gray">Discontinued</span></td>
+              <td>{{ r.c.latest_engineer }}</td>
+              <td class="num">₹ {{ r.billed|floatformat:0|intcomma }}</td>
+              <td class="num money-neg">₹ {{ r.received|floatformat:0|intcomma }}</td>
+              <td class="num {% if r.balance > 0 %}money-due{% else %}money-neg{% endif %}">₹ {{ r.balance|floatformat:0|intcomma }}</td>
+              <td>
+                <div class="bar" style="margin:0;"><div class="bar-fill {% if r.collection_pct < 60 %}warn{% endif %}" style="width:{{ r.collection_pct }}%;"></div></div>
+                <div class="bar-lbl">{{ r.collection_pct }}%</div>
+              </td>
+              <td style="white-space:nowrap;">
+                <a class="btn small secondary" href="{% url 'income_client_detail' r.c.pk %}">Open</a>
+                <form method="post" action="{% url 'income_client_toggle_active' r.c.pk %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button class="btn small secondary" type="submit">Reactivate</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+            <tr class="total-row">
+              <td colspan="2">TOTAL ({{ inactive_rows|length }} client{{ inactive_rows|length|pluralize }})</td>
+              <td class="num">₹ {{ inactive_totals.billed|floatformat:0|intcomma }}</td>
+              <td class="num">₹ {{ inactive_totals.received|floatformat:0|intcomma }}</td>
+              <td class="num {% if inactive_totals.balance > 0 %}money-due{% else %}money-neg{% endif %}">₹ {{ inactive_totals.balance|floatformat:0|intcomma }}</td>
+              <td colspan="2"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% endif %}
   </div>
 </div>
 </body>
