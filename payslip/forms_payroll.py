@@ -188,3 +188,89 @@ class PayrollRunCreateForm(forms.Form):
         widget=forms.DateInput(attrs={"type": "month"}, format="%Y-%m"),
         help_text="Only the month/year is used.",
     )
+
+
+# Export field groups and their field names (displayed in export form)
+EXPORT_FIELD_GROUPS = {
+    "Payroll & Status": [
+        ("employee_code", "Employee Code"),
+        ("name", "Name"),
+        ("designation", "Designation"),
+        ("department", "Department"),
+        ("doj", "Date of Joining"),
+        ("relieving_date", "Relieving Date"),
+        ("is_active", "Active Status"),
+        ("employment_status", "Employment Status"),
+        ("current_monthly_package", "Monthly Package (₹)"),
+    ],
+    "Statutory": [
+        ("is_esi_eligible", "ESI Eligible"),
+        ("is_pf_applicable", "PF Applicable"),
+        ("pan_number", "PAN Number"),
+        ("pf_number", "PF Number"),
+        ("pf_uan", "PF UAN"),
+        ("esi_number", "ESI Number"),
+    ],
+    "Personal": [
+        ("date_of_birth", "Date of Birth"),
+        ("blood_group", "Blood Group"),
+        ("marital_status", "Marital Status"),
+        ("aadhar_no", "Aadhaar Number"),
+        ("address", "Address"),
+    ],
+    "Contact": [
+        ("personal_email", "Personal Email"),
+        ("official_email", "Official Email"),
+        ("contact_no", "Contact Number"),
+        ("official_no", "Official Number"),
+        ("emergency_no", "Emergency Number"),
+    ],
+    "Employment": [
+        ("agreement_signed", "Agreement Signed"),
+        ("agreement_sign_date", "Agreement Sign Date"),
+        ("biometric_id", "Biometric ID"),
+        ("reason_for_leaving", "Reason for Leaving"),
+    ],
+    "Banking": [
+        ("bank_name", "Bank Name"),
+        ("bank_account_number", "Account Number"),
+        ("ifsc_code", "IFSC Code"),
+    ],
+}
+
+
+class EmployeeExportForm(forms.Form):
+    """Export form with field selection for employee master data."""
+
+    # Flattened list of all available fields for the checkbox form
+    all_fields = []
+    for group_fields in EXPORT_FIELD_GROUPS.values():
+        all_fields.extend(group_fields)
+
+    # Dynamic checkboxes for each field
+    for field_name, field_label in all_fields:
+        locals()[f"export_{field_name}"] = forms.BooleanField(
+            label=field_label, required=False
+        )
+
+    # Export scope: All or Active only
+    SCOPE_CHOICES = [
+        ("all", "All Employees (Active + Inactive)"),
+        ("active", "Active Employees Only"),
+    ]
+    scope = forms.ChoiceField(
+        choices=SCOPE_CHOICES,
+        initial="all",
+        widget=forms.RadioSelect,
+        label="Export scope",
+    )
+
+    def get_selected_fields(self) -> list[str]:
+        """Return list of selected field names from cleaned data."""
+        if not self.is_bound:
+            return []
+        selected = []
+        for field_name, _ in self.all_fields:
+            if self.cleaned_data.get(f"export_{field_name}"):
+                selected.append(field_name)
+        return selected

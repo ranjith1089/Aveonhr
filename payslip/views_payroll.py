@@ -15,8 +15,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .decorators import module_required, org_admin_required
-from .forms_payroll import (EmployeeForm, PayrollSettingsForm, PayrollRunCreateForm,
-                            SalaryComponentForm)
+from .forms_payroll import (EmployeeExportForm, EmployeeForm, PayrollSettingsForm,
+                            PayrollRunCreateForm, SalaryComponentForm)
 from .models import (Employee, PayrollRun, PayslipEntry,
                      payroll_settings_for, salary_structure_for)
 from .services.structure_calc import (apply_structure_computation,
@@ -198,15 +198,58 @@ def employee_list(request: HttpRequest) -> HttpResponse:
     if q:
         employees = employees.filter(name__icontains=q)
     employees = list(employees)
-    active = [e for e in employees if e.is_active]
+    active_employees = [e for e in employees if e.is_active]
+    inactive_employees = [e for e in employees if not e.is_active]
     return render(request, "payslip/payroll/employee_list.html", {
-        "employees": employees,
+        "active_employees": active_employees,
+        "inactive_employees": inactive_employees,
         "q": q,
-        "active_count": len(active),
-        "inactive_count": len(employees) - len(active),
-        "monthly_cost": sum((e.current_monthly_package for e in active), Decimal("0")),
-        "esi_count": sum(1 for e in active if e.is_esi_eligible),
-        "pf_count": sum(1 for e in active if e.is_pf_applicable),
+        "active_count": len(active_employees),
+        "inactive_count": len(inactive_employees),
+        "monthly_cost": sum((e.current_monthly_package for e in active_employees), Decimal("0")),
+        "esi_count": sum(1 for e in active_employees if e.is_esi_eligible),
+        "pf_count": sum(1 for e in active_employees if e.is_pf_applicable),
+    })
+
+
+@module_required("payroll")
+def employee_export(request: HttpRequest) -> HttpResponse:
+    """Export employee master data with field selection."""
+    org = request.organization
+    form = EmployeeExportForm(request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        from .services.payroll_export import build_employee_workbook
+
+        selected_fields = form.get_selected_fields()
+        if not selected_fields:
+            messages.error(request, "Select at least one field to export.")
+            return render(request, "payslip/payroll/employee_export.html", {"form": form})
+
+        scope = form.cleaned_data["scope"]
+        is_active = True if scope == "active" else None
+
+        data = build_employee_workbook(org, selected_fields, is_active=is_active)
+        resp = HttpResponse(
+            data,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        scope_label = "active" if scope == "active" else "all"
+        resp["Content-Disposition"] = (
+            f'attachment; filename="employees-{scope_label}-{timezone.localdate():%Y-%m-%d}.xlsx"'
+        )
+        return resp
+
+    # GET: render form with current employee counts
+    employees = Employee.objects.filter(organization=org)
+    active_count = employees.filter(is_active=True).count()
+    inactive_count = employees.filter(is_active=False).count()
+
+    return render(request, "payslip/payroll/employee_export.html", {
+        "form": form,
+        "active_count": active_count,
+        "inactive_count": inactive_count,
+        "field_groups": EmployeeExportForm.EXPORT_FIELD_GROUPS,
     })
 
 

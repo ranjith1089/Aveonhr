@@ -7,6 +7,18 @@
 {% include "payslip/payroll/_payroll_style.html" %}
 <style>
   tr.row-link { cursor:pointer; }
+  details.inactive-section { margin-top:18px; }
+  details.inactive-section > summary {
+    list-style:none; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+    font-weight:700; font-size:14px; color:var(--content);
+    background:var(--base-200); border:1px solid var(--base-300);
+    border-radius:var(--radius-pill); padding:8px 16px; user-select:none;
+  }
+  details.inactive-section > summary::-webkit-details-marker { display:none; }
+  details.inactive-section > summary::before { content:"▸"; color:var(--content-muted); transition:transform .15s; }
+  details.inactive-section[open] > summary::before { transform:rotate(90deg); }
+  details.inactive-section > summary:hover { border-color:var(--content-faint); }
+  details.inactive-section .tbl-wrap { margin-top:12px; }
 </style>
 </head>
 <body>
@@ -24,10 +36,11 @@
         <button class="btn small secondary" type="submit">Search</button>
       </form>
       <a class="btn" href="{% url 'employee_create' %}">+ Add Employee</a>
+      <a class="btn secondary" href="{% url 'employee_export' %}">⬇ Export</a>
     </div>
   </div>
 
-  {% if employees %}
+  {% if active_employees or inactive_employees %}
   <div class="kpi-grid" style="margin-bottom:16px;">
     <div class="kpi is-primary">
       <div class="kpi-top"><span class="kpi-ico">👥</span><span class="kpi-lbl">Active</span></div>
@@ -53,19 +66,21 @@
   {% endif %}
 
   <div class="card">
-    {% if employees %}
+    {# ===== Active Employees ===== #}
+    {% if active_employees %}
+    <h2 style="margin:0 0 8px; font-size:16px;">Active Employees <span class="muted" style="font-weight:500;">({{ active_count }})</span></h2>
     <div class="tbl-wrap">
       <table>
         <thead>
           <tr>
             <th>Code</th><th>Name</th><th>Designation</th><th>DOJ</th>
             <th class="num">Monthly Package</th>
-            <th class="mid">ESI</th><th class="mid">PF</th><th class="mid">Status</th><th></th>
+            <th class="mid">ESI</th><th class="mid">PF</th><th></th>
           </tr>
         </thead>
         <tbody>
-        {% for e in employees %}
-        <tr class="row-link" onclick="window.location='{% url 'employee_detail' e.pk %}'" {% if not e.is_active %}style="opacity:.55;"{% endif %}>
+        {% for e in active_employees %}
+        <tr class="row-link" onclick="window.location='{% url 'employee_detail' e.pk %}'">
           <td class="muted">{{ e.employee_code }}</td>
           <td><a href="{% url 'employee_detail' e.pk %}"><b>{{ e.name }}</b></a></td>
           <td>{{ e.designation|default:"—" }}</td>
@@ -73,7 +88,6 @@
           <td class="num"><b>₹{{ e.current_monthly_package|floatformat:0|intcomma }}</b></td>
           <td class="mid">{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
           <td class="mid">{% if e.is_pf_applicable %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
-          <td class="mid">{% if e.is_active %}<span class="badge blue">Active</span>{% else %}<span class="badge red">Inactive</span>{% endif %}</td>
           <td><a class="btn small secondary" href="{% url 'employee_detail' e.pk %}">Edit →</a></td>
         </tr>
         {% endfor %}
@@ -83,10 +97,44 @@
     {% else %}
     <div class="empty">
       <div class="big">👔</div>
-      {% if q %}No employees match "{{ q }}".{% else %}No employees yet — add one to start running payroll.{% endif %}
+      {% if q %}No active employees match "{{ q }}".{% else %}No active employees yet — add one to start running payroll.{% endif %}
     </div>
     {% endif %}
   </div>
+
+  {# ===== Inactive Employees (collapsible) ===== #}
+  {% if inactive_employees %}
+  <details class="inactive-section">
+    <summary>🗂️ Inactive Employees ({{ inactive_count }})</summary>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Code</th><th>Name</th><th>Designation</th><th>DOJ</th>
+              <th class="num">Monthly Package</th>
+              <th class="mid">ESI</th><th class="mid">PF</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for e in inactive_employees %}
+          <tr class="row-link" onclick="window.location='{% url 'employee_detail' e.pk %}'" style="opacity:.55;">
+            <td class="muted">{{ e.employee_code }}</td>
+            <td><a href="{% url 'employee_detail' e.pk %}"><b>{{ e.name }}</b></a> <span class="badge red">Inactive</span></td>
+            <td>{{ e.designation|default:"—" }}</td>
+            <td style="white-space:nowrap;">{{ e.doj|date:"d M Y"|default:"—" }}</td>
+            <td class="num"><b>₹{{ e.current_monthly_package|floatformat:0|intcomma }}</b></td>
+            <td class="mid">{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
+            <td class="mid">{% if e.is_pf_applicable %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
+            <td><a class="btn small secondary" href="{% url 'employee_detail' e.pk %}">Edit →</a></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+  {% endif %}
 </div>
 </body>
 </html>
