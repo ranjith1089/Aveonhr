@@ -11,23 +11,67 @@ from .services.formula_engine import FormulaError, validate_formula
 _DATE = forms.DateInput(attrs={"type": "date"})
 
 
+_BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"]
+_MARITAL = ["Single", "Married", "Divorced", "Widowed"]
+
+
 class EmployeeForm(forms.ModelForm):
+    # Photo lives in the DB; the ImageField takes the upload, save() writes bytes.
+    photo_upload = forms.ImageField(required=False, label="Photo")
+    remove_photo = forms.BooleanField(required=False, label="Remove photo")
+
     class Meta:
         model = Employee
         fields = [
-            "employee_code", "name", "designation", "doj", "relieving_date",
-            "is_active", "current_monthly_package", "is_esi_eligible", "is_pf_applicable",
+            "employee_code", "name", "designation", "department",
+            "doj", "relieving_date", "is_active", "employment_status",
+            "current_monthly_package", "is_esi_eligible", "is_pf_applicable",
+            # personal
+            "date_of_birth", "blood_group", "marital_status",
+            "parent_spouse_name", "aadhar_no", "address",
+            # contact
+            "personal_email", "official_email", "contact_no", "official_no",
+            "emergency_no",
+            # employment / statutory
+            "agreement_years", "biometric_id",
             "bank_name", "bank_account_number", "ifsc_code", "pan_number",
-            "pf_number", "pf_uan", "esi_number", "notes",
+            "pf_number", "pf_uan", "esi_number",
+            # exit
+            "reason_for_leaving", "notes",
         ]
         widgets = {
-            "doj": _DATE, "relieving_date": _DATE,
+            "doj": _DATE, "relieving_date": _DATE, "date_of_birth": _DATE,
             "notes": forms.Textarea(attrs={"rows": 3}),
+            "address": forms.Textarea(attrs={"rows": 2}),
+            "reason_for_leaving": forms.Textarea(attrs={"rows": 2}),
+            "blood_group": forms.Select(choices=[("", "—")] + [(g, g) for g in _BLOOD_GROUPS]),
+            "marital_status": forms.Select(choices=[("", "—")] + [(m, m) for m in _MARITAL]),
         }
 
     def __init__(self, *args, organization=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.organization = organization or getattr(self.instance, "organization", None)
+
+    def save(self, commit=True):
+        employee = super().save(commit=False)
+        if self.cleaned_data.get("remove_photo"):
+            employee.photo = None
+            employee.photo_content_type = ""
+        upload = self.cleaned_data.get("photo_upload")
+        if upload:
+            from io import BytesIO
+            from PIL import Image as PilImage
+            img = PilImage.open(upload)
+            img.load()
+            img = img.convert("RGB")
+            img.thumbnail((512, 512), PilImage.LANCZOS)
+            buf = BytesIO()
+            img.save(buf, format="JPEG", quality=85)
+            employee.photo = buf.getvalue()
+            employee.photo_content_type = "image/jpeg"
+        if commit:
+            employee.save()
+        return employee
 
     def clean_employee_code(self):
         code = (self.cleaned_data.get("employee_code") or "").strip()

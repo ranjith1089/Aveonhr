@@ -610,9 +610,50 @@ class Employee(models.Model):
     employee_code = models.CharField(max_length=30)
     name = models.CharField(max_length=200, db_index=True)
     designation = models.CharField(max_length=200, blank=True, default="")
+    department = models.CharField(max_length=120, blank=True, default="")
     doj = models.DateField(null=True, blank=True)
     relieving_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+
+    # --- HR profile: personal ---
+    # Photo lives in the DB (Vercel has no persistent disk) - same pattern as
+    # Organization.logo; served via the employee_photo view.
+    photo = models.BinaryField(null=True, blank=True)
+    photo_content_type = models.CharField(max_length=50, blank=True, default="")
+    date_of_birth = models.DateField(null=True, blank=True)
+    blood_group = models.CharField(max_length=5, blank=True, default="")
+    marital_status = models.CharField(max_length=12, blank=True, default="")
+    parent_spouse_name = models.CharField(max_length=200, blank=True, default="")
+    aadhar_no = models.CharField(max_length=20, blank=True, default="")
+    address = models.TextField(blank=True, default="")
+
+    # --- HR profile: contact ---
+    personal_email = models.EmailField(blank=True, default="")
+    official_email = models.EmailField(blank=True, default="")   # "Official ID"
+    contact_no = models.CharField(max_length=30, blank=True, default="")
+    official_no = models.CharField(max_length=30, blank=True, default="")
+    emergency_no = models.CharField(max_length=30, blank=True, default="")
+
+    # --- HR profile: employment ---
+    agreement_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    biometric_id = models.CharField(max_length=50, blank=True, default="")  # "Bio Metric"
+
+    class EmploymentStatus(models.TextChoices):
+        ACTIVE = "ACTIVE", "Active"
+        PROBATION = "PROBATION", "Probation"
+        NOTICE_PERIOD = "NOTICE_PERIOD", "Notice Period"
+        RESIGNED = "RESIGNED", "Resigned"
+        TERMINATED = "TERMINATED", "Terminated"
+
+    # HR-display status. Independent of is_active, which stays the single
+    # gate that payroll runs filter on - this descriptor never changes who
+    # gets paid.
+    employment_status = models.CharField(
+        max_length=15, choices=EmploymentStatus.choices,
+        default=EmploymentStatus.ACTIVE)
+
+    # --- HR profile: exit --- (last working day = relieving_date, above)
+    reason_for_leaving = models.TextField(blank=True, default="")
 
     # The sheet's "New Salary" - current monthly package, edited only at
     # increment time. PayslipEntry snapshots this per period so a raise
@@ -649,6 +690,12 @@ class Employee(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.name} ({self.employee_code})"
+
+    @property
+    def photo_bytes(self) -> bytes | None:
+        if not self.photo:
+            return None
+        return bytes(self.photo)  # psycopg may return memoryview
 
 
 class PayrollSettings(models.Model):

@@ -63,6 +63,7 @@ urlpatterns = [
     path("payroll/employees/", views_payroll.employee_list, name="employee_list"),
     path("payroll/employees/new/", views_payroll.employee_create, name="employee_create"),
     path("payroll/employees/<int:pk>/", views_payroll.employee_detail, name="employee_detail"),
+    path("payroll/employees/<int:pk>/photo/", views_payroll.employee_photo, name="employee_photo"),
     path("payroll/runs/", views_payroll.payroll_run_list, name="payroll_run_list"),
     path("payroll/runs/new/", views_payroll.payroll_run_create, name="payroll_run_create"),
     path("payroll/runs/<int:pk>/", views_payroll.payroll_run_detail, name="payroll_run_detail"),

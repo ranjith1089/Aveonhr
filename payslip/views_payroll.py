@@ -221,7 +221,8 @@ def _next_employee_code(org) -> str:
 def employee_create(request: HttpRequest) -> HttpResponse:
     org = request.organization
     initial = {"employee_code": _next_employee_code(org)}
-    form = EmployeeForm(request.POST or None, organization=org, initial=initial)
+    form = EmployeeForm(request.POST or None, request.FILES or None,
+                        organization=org, initial=initial)
     if request.method == "POST" and form.is_valid():
         employee = form.save(commit=False)
         employee.organization = org
@@ -242,7 +243,7 @@ def employee_detail(request: HttpRequest, pk: int) -> HttpResponse:
     if request.method == "POST":
         action = request.POST.get("action", "")
         if action == "save_employee":
-            form = EmployeeForm(request.POST, instance=employee, organization=org)
+            form = EmployeeForm(request.POST, request.FILES, instance=employee, organization=org)
             if form.is_valid():
                 form.save()
                 messages.success(request, "Employee details saved.")
@@ -271,6 +272,18 @@ def employee_detail(request: HttpRequest, pk: int) -> HttpResponse:
     return render(request, "payslip/payroll/employee_detail.html", {
         "employee": employee, "form": form, "heading": employee.name, "entries": entries,
     })
+
+
+@module_required("payroll")
+def employee_photo(request: HttpRequest, pk: int) -> HttpResponse:
+    """Serve an employee's stored photo bytes (org-scoped)."""
+    employee = get_object_or_404(Employee, pk=pk, organization=request.organization)
+    if not employee.photo:
+        return HttpResponse(status=404)
+    resp = HttpResponse(employee.photo_bytes,
+                        content_type=employee.photo_content_type or "image/jpeg")
+    resp["Cache-Control"] = "private, max-age=300"
+    return resp
 
 
 # ---------------------------------------------------------------------------

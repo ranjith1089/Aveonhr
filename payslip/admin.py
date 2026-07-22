@@ -128,11 +128,14 @@ from .models import Employee, PayrollRun, PayrollSettings, PayslipEntry
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ("name", "employee_code", "organization", "designation",
-                    "current_monthly_package", "is_active")
-    list_filter = ("organization", "is_active", "is_esi_eligible")
-    search_fields = ("name", "employee_code")
+    list_display = ("name", "employee_code", "organization", "department",
+                    "designation", "current_monthly_package", "employment_status",
+                    "is_active")
+    list_filter = ("organization", "is_active", "employment_status", "is_esi_eligible")
+    search_fields = ("name", "employee_code", "department", "official_email",
+                     "personal_email", "aadhar_no")
     readonly_fields = ("created_at", "updated_at")
+    exclude = ("photo",)
 
 
 @admin.register(PayrollSettings)

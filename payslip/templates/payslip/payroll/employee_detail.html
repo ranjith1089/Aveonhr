@@ -27,15 +27,29 @@
       {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
     </div>
     {% endif %}
-    <form method="post" {% if not employee %}action="{% url 'employee_create' %}"{% endif %} style="margin-top:14px;">
+    <form method="post" enctype="multipart/form-data" {% if not employee %}action="{% url 'employee_create' %}"{% endif %} style="margin-top:14px;">
       {% csrf_token %}
       {% if employee %}<input type="hidden" name="action" value="save_employee" />{% endif %}
+
+      {# ===== Photo ===== #}
+      <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
+        <div style="width:84px; height:84px; border-radius:14px; overflow:hidden; background:var(--base-200); border:1px solid var(--base-300); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          {% if employee.photo %}<img src="{% url 'employee_photo' employee.pk %}" alt="Photo" style="width:100%; height:100%; object-fit:cover;" />
+          {% else %}<span style="font-size:30px;">👤</span>{% endif %}
+        </div>
+        <div style="flex:1; min-width:200px;">
+          <label>Photo</label>{{ form.photo_upload }}
+          {% if employee.photo %}<label style="display:flex; align-items:center; gap:6px; margin-top:6px; font-weight:500;">{{ form.remove_photo }} Remove current photo</label>{% endif %}
+        </div>
+      </div>
+
       <div class="grid">
         <p><label>Employee Code</label>{{ form.employee_code }}</p>
         <p><label>Name</label>{{ form.name }}</p>
         <p><label>Designation</label>{{ form.designation }}</p>
+        <p><label>Department</label>{{ form.department }}</p>
         <p><label>Date of Joining</label>{{ form.doj }}</p>
-        <p><label>Relieving Date</label>{{ form.relieving_date }}</p>
+        <p><label>Current Status</label>{{ form.employment_status }}</p>
         <p><label>Monthly Package (₹)</label>{{ form.current_monthly_package }}
           <span class="muted">Edit only at increment time - each payroll run snapshots this.</span></p>
         <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
@@ -45,17 +59,38 @@
           {{ form.is_pf_applicable }}<label style="margin:0;">PF applicable (sticky - not every employee is PF-enrolled)</label>
         </p>
         <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
-          {{ form.is_active }}<label style="margin:0;">Active</label>
+          {{ form.is_active }}<label style="margin:0;">Active (included in new payroll runs)</label>
         </p>
 
-        <div style="grid-column:1/-1; font-size:12px; font-weight:800; color:#1565C0; text-transform:uppercase; letter-spacing:1px; margin:10px 0 4px; padding-bottom:6px; border-bottom:1.5px solid #E8EEF7;">Bank &amp; statutory details</div>
+        <div style="grid-column:1/-1; font-size:12px; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px; margin:10px 0 4px; padding-bottom:6px; border-bottom:1.5px solid var(--base-300);">Personal details</div>
+        <p><label>Date of Birth</label>{{ form.date_of_birth }}</p>
+        <p><label>Blood Group</label>{{ form.blood_group }}</p>
+        <p><label>Marital Status</label>{{ form.marital_status }}</p>
+        <p><label>Parent / Spouse Name</label>{{ form.parent_spouse_name }}</p>
+        <p><label>Aadhaar No</label>{{ form.aadhar_no }}</p>
+        <p class="full"><label>Address</label>{{ form.address }}</p>
+
+        <div style="grid-column:1/-1; font-size:12px; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px; margin:10px 0 4px; padding-bottom:6px; border-bottom:1.5px solid var(--base-300);">Contact details</div>
+        <p><label>Personal Email</label>{{ form.personal_email }}</p>
+        <p><label>Official Email</label>{{ form.official_email }}</p>
+        <p><label>Contact No</label>{{ form.contact_no }}</p>
+        <p><label>Official No</label>{{ form.official_no }}</p>
+        <p><label>Emergency No</label>{{ form.emergency_no }}</p>
+
+        <div style="grid-column:1/-1; font-size:12px; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px; margin:10px 0 4px; padding-bottom:6px; border-bottom:1.5px solid var(--base-300);">Employment &amp; statutory details</div>
+        <p><label>Agreement Signed (years)</label>{{ form.agreement_years }}</p>
+        <p><label>Bio-Metric ID</label>{{ form.biometric_id }}</p>
         <p><label>Bank Name</label>{{ form.bank_name }}</p>
         <p><label>Account Number</label>{{ form.bank_account_number }}</p>
         <p><label>IFSC Code</label>{{ form.ifsc_code }}</p>
         <p><label>PAN Number</label>{{ form.pan_number }}</p>
         <p><label>PF Number</label>{{ form.pf_number }}</p>
-        <p><label>PF UAN</label>{{ form.pf_uan }}</p>
+        <p><label>UAN</label>{{ form.pf_uan }}</p>
         <p><label>ESI Number</label>{{ form.esi_number }}</p>
+
+        <div style="grid-column:1/-1; font-size:12px; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px; margin:10px 0 4px; padding-bottom:6px; border-bottom:1.5px solid var(--base-300);">Exit details</div>
+        <p><label>Last Working Day</label>{{ form.relieving_date }}</p>
+        <p class="full"><label>Reason for Leaving</label>{{ form.reason_for_leaving }}</p>
 
         <p class="full"><label>Notes</label>{{ form.notes }}</p>
       </div>

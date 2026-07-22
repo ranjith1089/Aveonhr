@@ -1779,3 +1779,84 @@ class PayrollRecalculateTests(TestCase):
         self.client.force_login(member)
         resp = self.client.post(reverse("payroll_run_recalculate", args=[self.run.pk]))
         self.assertEqual(resp.status_code, 403)
+
+
+class EmployeeHRFieldsTests(TestCase):
+    def setUp(self):
+        self.admin = make_member("hr_admin", admin=True, payroll=True)
+        self.org = self.admin.membership.organization
+        self.client.force_login(self.admin)
+
+    def _tiny_png(self):
+        from io import BytesIO
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (4, 4), (10, 90, 200)).save(buf, format="PNG")
+        return SimpleUploadedFile("p.png", buf.getvalue(), content_type="image/png")
+
+    def test_create_employee_with_hr_fields(self):
+        from decimal import Decimal
+        from payslip.models import Employee
+        resp = self.client.post(reverse("employee_create"), {
+            "employee_code": "EMP-0001", "name": "HR Person", "designation": "Dev",
+            "department": "Engineering", "employment_status": "PROBATION",
+            "is_active": "on", "current_monthly_package": "30000",
+            "date_of_birth": "1995-05-10", "blood_group": "O+",
+            "marital_status": "Single", "parent_spouse_name": "Parent X",
+            "aadhar_no": "1234 5678 9012", "address": "12 Main St",
+            "personal_email": "p@x.com", "official_email": "o@aveon.com",
+            "contact_no": "9000000001", "official_no": "0422-1234",
+            "emergency_no": "9000000002", "agreement_years": "2",
+            "biometric_id": "BIO-77", "reason_for_leaving": "",
+        })
+        self.assertEqual(resp.status_code, 302)
+        e = Employee.objects.get(employee_code="EMP-0001")
+        self.assertEqual(e.department, "Engineering")
+        self.assertEqual(e.employment_status, "PROBATION")
+        self.assertEqual(e.blood_group, "O+")
+        self.assertEqual(e.official_email, "o@aveon.com")
+        self.assertEqual(e.emergency_no, "9000000002")
+        self.assertEqual(e.agreement_years, 2)
+        self.assertEqual(e.biometric_id, "BIO-77")
+        self.assertTrue(e.is_active)  # payroll gate defaults on, independent of status
+
+    def test_minimal_create_still_works(self):
+        from payslip.models import Employee
+        resp = self.client.post(reverse("employee_create"), {
+            "employee_code": "EMP-0002", "name": "Minimal",
+            "current_monthly_package": "10000", "employment_status": "ACTIVE",
+        })
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(Employee.objects.filter(employee_code="EMP-0002").exists())
+
+    def test_photo_upload_stored_and_served(self):
+        from payslip.models import Employee
+        e = Employee.objects.create(organization=self.org, employee_code="EMP-0003",
+                                    name="Pic", current_monthly_package=Decimal("20000"))
+        resp = self.client.post(reverse("employee_detail", args=[e.pk]), {
+            "action": "save_employee", "employee_code": "EMP-0003", "name": "Pic",
+            "current_monthly_package": "20000", "employment_status": "ACTIVE",
+            "photo_upload": self._tiny_png(),
+        })
+        self.assertEqual(resp.status_code, 302)
+        e.refresh_from_db()
+        self.assertTrue(e.photo)
+        served = self.client.get(reverse("employee_photo", args=[e.pk]))
+        self.assertEqual(served.status_code, 200)
+        self.assertTrue(served["Content-Type"].startswith("image/"))
+
+    def test_photo_404_when_absent(self):
+        from payslip.models import Employee
+        e = Employee.objects.create(organization=self.org, employee_code="EMP-0004",
+                                    name="NoPic", current_monthly_package=Decimal("20000"))
+        self.assertEqual(self.client.get(reverse("employee_photo", args=[e.pk])).status_code, 404)
+
+    def test_photo_is_org_scoped(self):
+        from payslip.models import Employee
+        other = make_member("hr_other", admin=True, payroll=True)
+        e = Employee.objects.create(organization=other.membership.organization,
+                                    employee_code="EMP-0009", name="Theirs",
+                                    current_monthly_package=Decimal("20000"))
+        # Our admin cannot fetch another org's employee photo endpoint.
+        self.assertEqual(self.client.get(reverse("employee_photo", args=[e.pk])).status_code, 404)
