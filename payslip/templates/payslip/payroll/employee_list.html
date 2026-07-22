@@ -7,6 +7,8 @@
 {% include "payslip/payroll/_payroll_style.html" %}
 <style>
   tr.row-link { cursor:pointer; }
+  .salary-cell { cursor:pointer; user-select:none; }
+  .salary-cell:hover { opacity:0.8; }
   details.inactive-section { margin-top:18px; }
   details.inactive-section > summary {
     list-style:none; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
@@ -85,7 +87,10 @@
           <td><a href="{% url 'employee_detail' e.pk %}"><b>{{ e.name }}</b></a></td>
           <td>{{ e.designation|default:"—" }}</td>
           <td style="white-space:nowrap;">{{ e.doj|date:"d M Y"|default:"—" }}</td>
-          <td class="num"><b>₹{{ e.current_monthly_package|floatformat:0|intcomma }}</b></td>
+          <td class="num salary-cell">
+            <b class="salary-masked">*******</b>
+            <b class="salary-revealed" style="display:none;">₹{{ e.current_monthly_package|floatformat:0|intcomma }}</b>
+          </td>
           <td class="mid">{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
           <td class="mid">{% if e.is_pf_applicable %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
           <td><a class="btn small secondary" href="{% url 'employee_detail' e.pk %}">Edit →</a></td>
@@ -123,7 +128,10 @@
             <td><a href="{% url 'employee_detail' e.pk %}"><b>{{ e.name }}</b></a> <span class="badge red">Inactive</span></td>
             <td>{{ e.designation|default:"—" }}</td>
             <td style="white-space:nowrap;">{{ e.doj|date:"d M Y"|default:"—" }}</td>
-            <td class="num"><b>₹{{ e.current_monthly_package|floatformat:0|intcomma }}</b></td>
+            <td class="num salary-cell">
+              <b class="salary-masked">*******</b>
+              <b class="salary-revealed" style="display:none;">₹{{ e.current_monthly_package|floatformat:0|intcomma }}</b>
+            </td>
             <td class="mid">{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
             <td class="mid">{% if e.is_pf_applicable %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
             <td><a class="btn small secondary" href="{% url 'employee_detail' e.pk %}">Edit →</a></td>
@@ -136,5 +144,19 @@
   </details>
   {% endif %}
 </div>
+
+<script>
+document.querySelectorAll('.salary-cell').forEach(cell => {
+  cell.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const masked = this.querySelector('.salary-masked');
+    const revealed = this.querySelector('.salary-revealed');
+    if (masked.style.display !== 'none') {
+      masked.style.display = 'none';
+      revealed.style.display = 'inline';
+    }
+  });
+});
+</script>
 </body>
 </html>
