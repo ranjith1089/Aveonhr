@@ -33,7 +33,7 @@ class EmployeeForm(forms.ModelForm):
             "personal_email", "official_email", "contact_no", "official_no",
             "emergency_no",
             # employment / statutory
-            "agreement_years", "biometric_id",
+            "agreement_signed", "agreement_sign_date", "biometric_id",
             "bank_name", "bank_account_number", "ifsc_code", "pan_number",
             "pf_number", "pf_uan", "esi_number",
             # exit
@@ -41,6 +41,7 @@ class EmployeeForm(forms.ModelForm):
         ]
         widgets = {
             "doj": _DATE, "relieving_date": _DATE, "date_of_birth": _DATE,
+            "agreement_sign_date": _DATE,
             "notes": forms.Textarea(attrs={"rows": 3}),
             "address": forms.Textarea(attrs={"rows": 2}),
             "reason_for_leaving": forms.Textarea(attrs={"rows": 2}),

@@ -78,7 +78,10 @@
         <p><label>Emergency No</label>{{ form.emergency_no }}</p>
 
         <div style="grid-column:1/-1; font-size:12px; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px; margin:10px 0 4px; padding-bottom:6px; border-bottom:1.5px solid var(--base-300);">Employment &amp; statutory details</div>
-        <p><label>Agreement Signed (years)</label>{{ form.agreement_years }}</p>
+        <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
+          {{ form.agreement_signed }}<label style="margin:0;">Agreement signed</label>
+        </p>
+        <p id="agreement-date-field"><label>Date of Sign</label>{{ form.agreement_sign_date }}</p>
         <p><label>Bio-Metric ID</label>{{ form.biometric_id }}</p>
         <p><label>Bank Name</label>{{ form.bank_name }}</p>
         <p><label>Account Number</label>{{ form.bank_account_number }}</p>
@@ -148,5 +151,16 @@
   </div>
   {% endif %}
 </div>
+<script>
+  // Show "Date of Sign" only when "Agreement signed" is ticked.
+  (function () {
+    var cb = document.querySelector('[name="agreement_signed"]');
+    var dateField = document.getElementById('agreement-date-field');
+    if (!cb || !dateField) return;
+    function sync() { dateField.style.display = cb.checked ? '' : 'none'; }
+    cb.addEventListener('change', sync);
+    sync();
+  })();
+</script>
 </body>
 </html>

@@ -635,7 +635,8 @@ class Employee(models.Model):
     emergency_no = models.CharField(max_length=30, blank=True, default="")
 
     # --- HR profile: employment ---
-    agreement_years = models.PositiveSmallIntegerField(null=True, blank=True)
+    agreement_signed = models.BooleanField(default=False)
+    agreement_sign_date = models.DateField(null=True, blank=True)  # only when signed
     biometric_id = models.CharField(max_length=50, blank=True, default="")  # "Bio Metric"
 
     class EmploymentStatus(models.TextChoices):

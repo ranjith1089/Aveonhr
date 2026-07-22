@@ -1796,6 +1796,7 @@ class EmployeeHRFieldsTests(TestCase):
         return SimpleUploadedFile("p.png", buf.getvalue(), content_type="image/png")
 
     def test_create_employee_with_hr_fields(self):
+        import datetime
         from decimal import Decimal
         from payslip.models import Employee
         resp = self.client.post(reverse("employee_create"), {
@@ -1807,7 +1808,8 @@ class EmployeeHRFieldsTests(TestCase):
             "aadhar_no": "1234 5678 9012", "address": "12 Main St",
             "personal_email": "p@x.com", "official_email": "o@aveon.com",
             "contact_no": "9000000001", "official_no": "0422-1234",
-            "emergency_no": "9000000002", "agreement_years": "2",
+            "emergency_no": "9000000002",
+            "agreement_signed": "on", "agreement_sign_date": "2026-01-15",
             "biometric_id": "BIO-77", "reason_for_leaving": "",
         })
         self.assertEqual(resp.status_code, 302)
@@ -1817,7 +1819,8 @@ class EmployeeHRFieldsTests(TestCase):
         self.assertEqual(e.blood_group, "O+")
         self.assertEqual(e.official_email, "o@aveon.com")
         self.assertEqual(e.emergency_no, "9000000002")
-        self.assertEqual(e.agreement_years, 2)
+        self.assertTrue(e.agreement_signed)
+        self.assertEqual(e.agreement_sign_date, datetime.date(2026, 1, 15))
         self.assertEqual(e.biometric_id, "BIO-77")
         self.assertTrue(e.is_active)  # payroll gate defaults on, independent of status
 
