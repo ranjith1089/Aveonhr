@@ -15,8 +15,9 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .decorators import module_required, org_admin_required
-from .forms_payroll import (EmployeeExportForm, EmployeeForm, PayrollSettingsForm,
-                            PayrollRunCreateForm, SalaryComponentForm)
+from .forms_payroll import (EXPORT_FIELD_GROUPS, EmployeeExportForm, EmployeeForm,
+                            PayrollSettingsForm, PayrollRunCreateForm,
+                            SalaryComponentForm)
 from .models import (Employee, PayrollRun, PayslipEntry,
                      payroll_settings_for, salary_structure_for)
 from .services.structure_calc import (apply_structure_computation,
@@ -249,7 +250,7 @@ def employee_export(request: HttpRequest) -> HttpResponse:
         "form": form,
         "active_count": active_count,
         "inactive_count": inactive_count,
-        "field_groups": EmployeeExportForm.EXPORT_FIELD_GROUPS,
+        "field_groups": EXPORT_FIELD_GROUPS,
     })
 
 

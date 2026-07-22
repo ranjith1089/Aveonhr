@@ -242,18 +242,6 @@ EXPORT_FIELD_GROUPS = {
 class EmployeeExportForm(forms.Form):
     """Export form with field selection for employee master data."""
 
-    # Flattened list of all available fields for the checkbox form
-    all_fields = []
-    for group_fields in EXPORT_FIELD_GROUPS.values():
-        all_fields.extend(group_fields)
-
-    # Dynamic checkboxes for each field
-    for field_name, field_label in all_fields:
-        locals()[f"export_{field_name}"] = forms.BooleanField(
-            label=field_label, required=False
-        )
-
-    # Export scope: All or Active only
     SCOPE_CHOICES = [
         ("all", "All Employees (Active + Inactive)"),
         ("active", "Active Employees Only"),
@@ -265,12 +253,22 @@ class EmployeeExportForm(forms.Form):
         label="Export scope",
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Dynamically add checkboxes for each exportable field
+        for group_fields in EXPORT_FIELD_GROUPS.values():
+            for field_name, field_label in group_fields:
+                self.fields[f"export_{field_name}"] = forms.BooleanField(
+                    label=field_label, required=False
+                )
+
     def get_selected_fields(self) -> list[str]:
         """Return list of selected field names from cleaned data."""
         if not self.is_bound:
             return []
         selected = []
-        for field_name, _ in self.all_fields:
-            if self.cleaned_data.get(f"export_{field_name}"):
-                selected.append(field_name)
+        for group_fields in EXPORT_FIELD_GROUPS.values():
+            for field_name, _ in group_fields:
+                if self.cleaned_data.get(f"export_{field_name}"):
+                    selected.append(field_name)
         return selected
