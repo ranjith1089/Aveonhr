@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Job Postings - Recruitment - Aveon HR Suite</title>
+{% include "payslip/recruitment/_recruitment_style.html" %}
+</head>
+<body>
+<div class="container">
+  {% include "payslip/people/_people_nav.html" with active_page="postings" %}
+
+  <div class="page-head">
+    <div>
+      <h1>📋 Job Postings</h1>
+      <p class="sub" style="margin:0;">Manage openings and track applications through the hiring pipeline.</p>
+    </div>
+    <a class="btn" href="{% url 'job_posting_create' %}">+ New Posting</a>
+  </div>
+
+  {% if total_count %}
+  <div class="kpi-grid" style="margin-bottom:16px;">
+    <div class="kpi is-primary">
+      <div class="kpi-top"><span class="kpi-ico">📋</span><span class="kpi-lbl">Total Postings</span></div>
+      <div class="kpi-val">{{ total_count }}</div>
+      <div class="kpi-sub">{{ open_postings|length }} open</div>
+    </div>
+    <div class="kpi is-good">
+      <div class="kpi-top"><span class="kpi-ico">🪑</span><span class="kpi-lbl">Open Positions</span></div>
+      <div class="kpi-val">{{ open_positions }}</div>
+      <div class="kpi-sub">Across open postings</div>
+    </div>
+    <div class="kpi is-muted">
+      <div class="kpi-top"><span class="kpi-ico">👤</span><span class="kpi-lbl">Applications</span></div>
+      <div class="kpi-val">{{ total_applications }}</div>
+      <div class="kpi-sub">All postings</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ===== Open Postings ===== #}
+  <div class="card">
+    <h2 style="margin:0 0 8px; font-size:16px;">Open Postings <span class="muted" style="font-weight:500;">({{ open_postings|length }})</span></h2>
+    {% if open_postings %}
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th><th>Department</th><th>Type</th>
+            <th class="num">Positions</th><th class="num">Applications</th>
+            <th>Posted</th><th>Closing</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for p in open_postings %}
+        <tr class="row-link" onclick="window.location='{% url 'job_posting_detail' p.pk %}'">
+          <td><a href="{% url 'job_posting_detail' p.pk %}"><b>{{ p.title }}</b></a></td>
+          <td>{{ p.department|default:"—" }}</td>
+          <td>{{ p.get_employment_type_display }}</td>
+          <td class="num">{{ p.positions_count }}</td>
+          <td class="num">{{ p.app_count }}</td>
+          <td style="white-space:nowrap;">{{ p.posted_date|date:"d M Y"|default:"—" }}</td>
+          <td style="white-space:nowrap;">{{ p.closing_date|date:"d M Y"|default:"—" }}</td>
+          <td><a class="btn small secondary" href="{% url 'job_posting_detail' p.pk %}">View →</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="big">📋</div>
+      No open postings — create one to start hiring.
+    </div>
+    {% endif %}
+  </div>
+
+  {# ===== On Hold Postings ===== #}
+  {% if on_hold_postings %}
+  <details class="inactive-section">
+    <summary>⏸ On Hold ({{ on_hold_postings|length }})</summary>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Title</th><th>Department</th><th>Type</th><th class="num">Applications</th><th>Posted</th><th></th></tr>
+          </thead>
+          <tbody>
+          {% for p in on_hold_postings %}
+          <tr class="row-link" onclick="window.location='{% url 'job_posting_detail' p.pk %}'" style="opacity:.65;">
+            <td><a href="{% url 'job_posting_detail' p.pk %}"><b>{{ p.title }}</b></a> <span class="badge amber">On Hold</span></td>
+            <td>{{ p.department|default:"—" }}</td>
+            <td>{{ p.get_employment_type_display }}</td>
+            <td class="num">{{ p.app_count }}</td>
+            <td style="white-space:nowrap;">{{ p.posted_date|date:"d M Y"|default:"—" }}</td>
+            <td><a class="btn small secondary" href="{% url 'job_posting_detail' p.pk %}">View →</a></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+  {% endif %}
+
+  {# ===== Closed Postings ===== #}
+  {% if closed_postings %}
+  <details class="inactive-section">
+    <summary>✅ Closed ({{ closed_postings|length }})</summary>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Title</th><th>Department</th><th>Type</th><th class="num">Applications</th><th>Posted</th><th></th></tr>
+          </thead>
+          <tbody>
+          {% for p in closed_postings %}
+          <tr class="row-link" onclick="window.location='{% url 'job_posting_detail' p.pk %}'" style="opacity:.55;">
+            <td><a href="{% url 'job_posting_detail' p.pk %}"><b>{{ p.title }}</b></a> <span class="badge green">Closed</span></td>
+            <td>{{ p.department|default:"—" }}</td>
+            <td>{{ p.get_employment_type_display }}</td>
+            <td class="num">{{ p.app_count }}</td>
+            <td style="white-space:nowrap;">{{ p.posted_date|date:"d M Y"|default:"—" }}</td>
+            <td><a class="btn small secondary" href="{% url 'job_posting_detail' p.pk %}">View →</a></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+  {% endif %}
+
+  {# ===== Draft Postings ===== #}
+  {% if draft_postings %}
+  <details class="inactive-section">
+    <summary>📝 Drafts ({{ draft_postings|length }})</summary>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr><th>Title</th><th>Department</th><th>Type</th><th>Created</th><th></th></tr>
+          </thead>
+          <tbody>
+          {% for p in draft_postings %}
+          <tr class="row-link" onclick="window.location='{% url 'job_posting_detail' p.pk %}'" style="opacity:.65;">
+            <td><a href="{% url 'job_posting_detail' p.pk %}"><b>{{ p.title }}</b></a> <span class="badge gray">Draft</span></td>
+            <td>{{ p.department|default:"—" }}</td>
+            <td>{{ p.get_employment_type_display }}</td>
+            <td style="white-space:nowrap;">{{ p.created_at|date:"d M Y" }}</td>
+            <td><a class="btn small secondary" href="{% url 'job_posting_detail' p.pk %}">Edit →</a></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+  {% endif %}
+</div>
+</body>
+</html>

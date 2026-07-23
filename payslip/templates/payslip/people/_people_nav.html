@@ -1,0 +1,16 @@
+<div class="topbar">
+  <a class="brand" href="{% url 'people_list' %}">👥 People</a>
+  <div class="topnav">
+    <a href="{% url 'people_list' %}" {% if active_page == "people" %}class="active"{% endif %}>Candidates &amp; Interns</a>
+    <a href="{% url 'job_posting_list' %}" {% if active_page == "postings" %}class="active"{% endif %}>Job Postings</a>
+    <a href="{% url 'job_posting_create' %}">+ New Posting</a>
+    <a href="{% url 'landing' %}">← HR Suite</a>
+  </div>
+</div>
+{% if messages %}
+<div class="messages">
+  {% for message in messages %}
+  <div class="msg {{ message.tags }}">{{ message }}</div>
+  {% endfor %}
+</div>
+{% endif %}

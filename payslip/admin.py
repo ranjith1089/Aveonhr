@@ -193,3 +193,32 @@ class StructureChangeLogAdmin(admin.ModelAdmin):
     list_display = ("action", "organization", "structure", "user", "created_at")
     list_filter = ("organization",)
     readonly_fields = ("created_at",)
+
+
+from .models import JobApplication, JobPosting
+
+
+class JobApplicationInline(admin.TabularInline):
+    model = JobApplication
+    extra = 0
+    fields = ("applicant_name", "stage", "applied_date", "rating")
+    readonly_fields = ("applied_date",)
+
+
+@admin.register(JobPosting)
+class JobPostingAdmin(admin.ModelAdmin):
+    list_display = ("title", "organization", "status", "employment_type",
+                    "department", "positions_count", "created_at")
+    list_filter = ("status", "employment_type", "organization")
+    search_fields = ("title", "department")
+    readonly_fields = ("created_at", "updated_at")
+    inlines = [JobApplicationInline]
+
+
+@admin.register(JobApplication)
+class JobApplicationAdmin(admin.ModelAdmin):
+    list_display = ("applicant_name", "job_posting", "stage", "rating",
+                    "applied_date", "created_at")
+    list_filter = ("stage", "job_posting__organization")
+    search_fields = ("applicant_name", "applicant_email", "job_posting__title")
+    readonly_fields = ("created_at", "updated_at", "stage_updated_at")

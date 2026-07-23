@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{ heading }} - Recruitment - Aveon HR Suite</title>
+{% include "payslip/recruitment/_recruitment_style.html" %}
+</head>
+<body>
+<div class="container">
+  {% include "payslip/people/_people_nav.html" with active_page="postings" %}
+
+  <div class="page-head">
+    <div>
+      <p class="crumb"><a href="{% url 'job_posting_list' %}">Job Postings</a> / <a href="{% url 'job_posting_detail' posting.pk %}">{{ posting.title }}</a> / New Application</p>
+      <h1>{{ heading }}</h1>
+    </div>
+  </div>
+
+  <div class="card" style="max-width:750px;">
+    {% if form.errors %}
+    <div class="msg error" style="margin-bottom:14px;">
+      {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-grid">
+        <div>
+          <label for="id_applicant_name">Applicant Name *</label>
+          {{ form.applicant_name }}
+        </div>
+        <div>
+          <label for="id_applicant_email">Email</label>
+          {{ form.applicant_email }}
+        </div>
+        <div>
+          <label for="id_applicant_phone">Phone</label>
+          {{ form.applicant_phone }}
+        </div>
+        <div>
+          <label for="id_person">Link to Existing Candidate</label>
+          {{ form.person }}
+        </div>
+        <div>
+          <label for="id_stage">Stage</label>
+          {{ form.stage }}
+        </div>
+        <div>
+          <label for="id_applied_date">Applied Date *</label>
+          {{ form.applied_date }}
+        </div>
+        <div>
+          <label for="id_rating">Rating (1-5)</label>
+          {{ form.rating }}
+        </div>
+        <div></div>
+        <div class="full">
+          <label for="id_resume_notes">Resume Notes</label>
+          {{ form.resume_notes }}
+        </div>
+        <div class="full">
+          <label for="id_cover_letter">Cover Letter</label>
+          {{ form.cover_letter }}
+        </div>
+        <div class="full">
+          <label for="id_notes">Notes</label>
+          {{ form.notes }}
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:20px;">
+        <button class="btn" type="submit">Save Application</button>
+        <a class="btn secondary" href="{% url 'job_application_list' posting.pk %}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+</body>
+</html>

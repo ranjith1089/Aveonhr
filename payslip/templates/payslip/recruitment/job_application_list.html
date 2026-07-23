@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Applications - {{ posting.title }} - Recruitment - Aveon HR Suite</title>
+{% include "payslip/recruitment/_recruitment_style.html" %}
+</head>
+<body>
+<div class="container">
+  {% include "payslip/people/_people_nav.html" with active_page="postings" %}
+
+  <div class="page-head">
+    <div>
+      <p class="crumb"><a href="{% url 'job_posting_list' %}">Job Postings</a> / <a href="{% url 'job_posting_detail' posting.pk %}">{{ posting.title }}</a> / Applications</p>
+      <h1>{{ posting.title }} — Pipeline</h1>
+      <p class="sub" style="margin:0;">{{ total_apps }} application{{ total_apps|pluralize }} across all stages.</p>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <a class="btn" href="{% url 'job_application_create' posting.pk %}">+ Add Application</a>
+      <a class="btn secondary" href="{% url 'job_posting_detail' posting.pk %}">← Back to Posting</a>
+    </div>
+  </div>
+
+  <div class="pipeline">
+    {% for stage in pipeline %}
+    <div class="pipeline-col">
+      <div class="pipeline-col-hdr">
+        <h3>{{ stage.label }}</h3>
+        <span class="badge {{ stage.badge }}">{{ stage.count }}</span>
+      </div>
+      {% for app in stage.apps %}
+      <a class="pipeline-card" href="{% url 'job_application_detail' app.pk %}">
+        <div class="name">{{ app.applicant_name }}</div>
+        <div class="meta">
+          {% if app.applicant_email %}{{ app.applicant_email }}<br>{% endif %}
+          {{ app.applied_date|date:"d M Y" }}
+          {% if app.rating %}
+          <br><span class="stars">{% for i in "12345" %}{% if forloop.counter <= app.rating %}★{% else %}☆{% endif %}{% endfor %}</span>
+          {% endif %}
+          {% if app.person %}<br><span class="badge blue" style="font-size:10px;">Linked</span>{% endif %}
+        </div>
+      </a>
+      {% empty %}
+      <div class="pipeline-empty">No candidates</div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+</body>
+</html>

@@ -4,28 +4,17 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>{{ heading }} - People - Aveon HR Suite</title>
-{% include "payslip/income/_income_style.html" %}
+{% include "payslip/recruitment/_recruitment_style.html" %}
 <style>
-  .section-title { font-size:12px; font-weight:800; color:#1565C0; text-transform:uppercase; letter-spacing:1px; margin:18px 0 10px; padding-bottom:6px; border-bottom:1.5px solid #E8EEF7; grid-column:1 / -1; }
-  .crumb { font-size:12.5px; font-weight:700; color:#64748B; margin-bottom:4px; }
-  .crumb a { color:#1565C0; text-decoration:none; }
+  .section-title { font-size:12px; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px; margin:18px 0 10px; padding-bottom:6px; border-bottom:1.5px solid var(--base-300); grid-column:1 / -1; }
+  .crumb { font-size:12.5px; font-weight:700; color:var(--content-muted); margin-bottom:4px; }
+  .crumb a { color:var(--primary); text-decoration:none; }
   .gen-btns { display:flex; gap:8px; flex-wrap:wrap; }
 </style>
 </head>
 <body>
 <div class="container" style="max-width:980px;">
-  <div class="topbar">
-    <a class="brand" href="{% url 'landing' %}">👥 People</a>
-    <div class="topnav">
-      <a href="{% url 'landing' %}">← HR Suite</a>
-      <a href="{% url 'people_list' %}" class="active">👥 People</a>
-    </div>
-  </div>
-  {% if messages %}
-  <div class="messages">
-    {% for message in messages %}<div class="msg {{ message.tags }}">{{ message }}</div>{% endfor %}
-  </div>
-  {% endif %}
+  {% include "payslip/people/_people_nav.html" with active_page="people" %}
 
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">

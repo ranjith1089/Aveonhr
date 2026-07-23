@@ -1,0 +1,72 @@
+{# Recruitment-specific layer on top of the shared FlyonUI-inspired theme. #}
+{% include "payslip/theme/_flyon_theme.html" %}
+<style>
+  .page-head { display:flex; align-items:flex-start; justify-content:space-between;
+               gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+  .crumb { font-size:12px; font-weight:600; color:var(--content-faint); margin-bottom:6px;
+           letter-spacing:.2px; }
+  .crumb a { color:var(--primary); text-decoration:none; }
+  .crumb a:hover { text-decoration:underline; }
+
+  .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:12px; }
+  .kpi { position:relative; overflow:hidden; background:var(--base-100);
+    border:1px solid var(--base-300); border-left:4px solid #CBD5E1; border-radius:var(--radius-lg);
+    padding:14px 16px; transition:transform .12s, box-shadow .12s; }
+  .kpi:hover { transform:translateY(-2px); box-shadow:var(--shadow); }
+  .kpi .kpi-top { display:flex; align-items:center; gap:7px; margin-bottom:7px; }
+  .kpi .kpi-ico { font-size:14px; line-height:1; }
+  .kpi .kpi-lbl { font-size:10.5px; font-weight:700; color:var(--content-muted);
+                  text-transform:uppercase; letter-spacing:.7px; }
+  .kpi .kpi-val { font-size:23px; font-weight:800; color:var(--content);
+                  font-variant-numeric:tabular-nums; line-height:1.15; white-space:nowrap; }
+  .kpi .kpi-sub { font-size:11.5px; color:var(--content-faint); font-weight:500; margin-top:4px; }
+  .kpi.is-primary { border-left-color:var(--primary); background:linear-gradient(135deg,var(--base-100),var(--primary-soft)); }
+  .kpi.is-primary .kpi-val { color:var(--primary); }
+  .kpi.is-good { border-left-color:var(--success); }
+  .kpi.is-good .kpi-val { color:var(--success); }
+  .kpi.is-warn { border-left-color:var(--warning); }
+  .kpi.is-warn .kpi-val { color:var(--warning); }
+  .kpi.is-muted { border-left-color:#CBD5E1; }
+
+  th.num, td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  th.mid, td.mid { text-align:center; }
+  tr.row-link { cursor:pointer; }
+
+  .pipeline { display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:14px; }
+  .pipeline-col { background:var(--base-100); border:1px solid var(--base-300);
+    border-radius:var(--radius-lg); padding:12px; min-height:120px; }
+  .pipeline-col-hdr { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .pipeline-col-hdr h3 { font-size:13px; font-weight:700; margin:0;
+    text-transform:uppercase; letter-spacing:.5px; }
+  .pipeline-card { background:var(--base-200); border:1px solid var(--base-300);
+    border-radius:var(--radius); padding:10px 12px; margin-bottom:8px;
+    cursor:pointer; transition:box-shadow .12s; text-decoration:none; display:block; color:inherit; }
+  .pipeline-card:hover { box-shadow:var(--shadow); }
+  .pipeline-card .name { font-weight:700; color:var(--content); }
+  .pipeline-card .meta { font-size:11.5px; color:var(--content-muted); margin-top:3px; }
+  .pipeline-empty { font-size:12px; color:var(--content-faint); font-style:italic; padding:8px 0; }
+
+  .stars { color:#F59E0B; letter-spacing:2px; font-size:13px; }
+
+  details.inactive-section { margin-top:18px; }
+  details.inactive-section > summary {
+    list-style:none; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+    font-weight:700; font-size:14px; color:var(--content);
+    background:var(--base-200); border:1px solid var(--base-300);
+    border-radius:var(--radius-pill); padding:8px 16px; user-select:none;
+  }
+  details.inactive-section > summary::-webkit-details-marker { display:none; }
+  details.inactive-section > summary::before { content:""; color:var(--content-muted); transition:transform .15s; }
+  details.inactive-section[open] > summary::before { transform:rotate(90deg); }
+  details.inactive-section > summary:hover { border-color:var(--content-faint); }
+  details.inactive-section .tbl-wrap { margin-top:12px; }
+
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .form-grid .full { grid-column:1/-1; }
+  .form-grid label { display:block; font-weight:600; font-size:13px; margin-bottom:4px; }
+  .form-grid textarea, .form-grid input, .form-grid select { width:100%; }
+
+  .danger-zone { margin-top:28px; padding-top:18px; border-top:1px dashed var(--error); }
+  .danger-zone .btn.danger { background:var(--error); color:#fff; }
+  .danger-zone .btn.danger:hover { opacity:.85; }
+</style>

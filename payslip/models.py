@@ -109,7 +109,6 @@ class Membership(models.Model):
     can_income = models.BooleanField("Income", default=False)
     can_implementation = models.BooleanField("Implementation", default=False)
     can_payroll = models.BooleanField("Payroll", default=False)
-
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -996,6 +995,87 @@ class StructureChangeLog(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.action} @ {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class JobPosting(models.Model):
+    class EmploymentType(models.TextChoices):
+        FULL_TIME = "FULL_TIME", "Full-time"
+        PART_TIME = "PART_TIME", "Part-time"
+        CONTRACT = "CONTRACT", "Contract"
+        INTERNSHIP = "INTERNSHIP", "Internship"
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "Draft"
+        OPEN = "OPEN", "Open"
+        ON_HOLD = "ON_HOLD", "On Hold"
+        CLOSED = "CLOSED", "Closed"
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="job_postings")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, related_name="+")
+    title = models.CharField(max_length=200)
+    department = models.CharField(max_length=120, blank=True, default="")
+    location = models.CharField(max_length=200, blank=True, default="")
+    description = models.TextField()
+    requirements = models.TextField(blank=True, default="")
+    employment_type = models.CharField(max_length=12, choices=EmploymentType.choices,
+                                       default=EmploymentType.FULL_TIME)
+    experience_range = models.CharField(max_length=50, blank=True, default="")
+    salary_range = models.CharField(max_length=100, blank=True, default="")
+    status = models.CharField(max_length=10, choices=Status.choices,
+                              default=Status.DRAFT)
+    posted_date = models.DateField(null=True, blank=True)
+    closing_date = models.DateField(null=True, blank=True)
+    positions_count = models.PositiveIntegerField(default=1)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.title} ({self.get_status_display()})"
+
+
+class JobApplication(models.Model):
+    class Stage(models.TextChoices):
+        APPLIED = "APPLIED", "Applied"
+        SCREENING = "SCREENING", "Screening"
+        INTERVIEW = "INTERVIEW", "Interview"
+        OFFERED = "OFFERED", "Offered"
+        HIRED = "HIRED", "Hired"
+        REJECTED = "REJECTED", "Rejected"
+        WITHDRAWN = "WITHDRAWN", "Withdrawn"
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="job_applications")
+    job_posting = models.ForeignKey(JobPosting, on_delete=models.CASCADE,
+                                    related_name="applications")
+    person = models.ForeignKey(Person, on_delete=models.SET_NULL, null=True,
+                               blank=True, related_name="job_applications")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+                                   null=True, related_name="+")
+    applicant_name = models.CharField(max_length=200)
+    applicant_email = models.EmailField(blank=True, default="")
+    applicant_phone = models.CharField(max_length=30, blank=True, default="")
+    resume_notes = models.TextField(blank=True, default="")
+    cover_letter = models.TextField(blank=True, default="")
+    stage = models.CharField(max_length=12, choices=Stage.choices,
+                             default=Stage.APPLIED)
+    applied_date = models.DateField()
+    stage_updated_at = models.DateTimeField(auto_now=True)
+    rating = models.PositiveSmallIntegerField(null=True, blank=True)
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-applied_date", "-created_at"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.applicant_name} -> {self.job_posting.title}"
 
 
 def salary_structure_for(org, period=None) -> "SalaryStructure":

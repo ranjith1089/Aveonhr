@@ -1930,3 +1930,220 @@ class EmployeeHRFieldsTests(TestCase):
                                     current_monthly_package=Decimal("20000"))
         # Our admin cannot fetch another org's employee photo endpoint.
         self.assertEqual(self.client.get(reverse("employee_photo", args=[e.pk])).status_code, 404)
+
+
+class RecruitmentModuleTests(TestCase):
+    def setUp(self):
+        self.admin = make_member("recruit_admin", admin=True, people=True)
+        self.org = self.admin.membership.organization
+        self.client.force_login(self.admin)
+
+    def _make_posting(self, **overrides):
+        from payslip.models import JobPosting
+        defaults = dict(
+            organization=self.org,
+            created_by=self.admin,
+            title="Software Engineer",
+            description="Build things.",
+            status=JobPosting.Status.OPEN,
+            posted_date=datetime.date(2026, 7, 1),
+        )
+        defaults.update(overrides)
+        return JobPosting.objects.create(**defaults)
+
+    def _make_application(self, posting, **overrides):
+        from payslip.models import JobApplication
+        defaults = dict(
+            organization=self.org,
+            job_posting=posting,
+            created_by=self.admin,
+            applicant_name="Test Applicant",
+            applied_date=datetime.date(2026, 7, 15),
+        )
+        defaults.update(overrides)
+        return JobApplication.objects.create(**defaults)
+
+    # --- access control ---
+    def test_member_without_people_right_gets_403(self):
+        member = make_member("no_recruit", org=self.org, travel_expense=True)
+        self.client.force_login(member)
+        self.assertEqual(self.client.get(reverse("job_posting_list")).status_code, 403)
+
+    def test_member_with_right_gets_200(self):
+        member = make_member("has_recruit", org=self.org, people=True)
+        self.client.force_login(member)
+        self.assertEqual(self.client.get(reverse("job_posting_list")).status_code, 200)
+
+    def test_anonymous_redirects_to_login(self):
+        self.client.logout()
+        r = self.client.get(reverse("job_posting_list"))
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/accounts/login/", r["Location"])
+
+    # --- org isolation ---
+    def test_cross_org_posting_404(self):
+        posting = self._make_posting()
+        other = make_member("other_recruit", admin=True, people=True)
+        self.client.force_login(other)
+        self.assertEqual(
+            self.client.get(reverse("job_posting_detail", args=[posting.pk])).status_code, 404
+        )
+
+    def test_cross_org_application_404(self):
+        posting = self._make_posting()
+        app = self._make_application(posting)
+        other = make_member("other_recruit2", admin=True, people=True)
+        self.client.force_login(other)
+        self.assertEqual(
+            self.client.get(reverse("job_application_detail", args=[app.pk])).status_code, 404
+        )
+
+    # --- job posting CRUD ---
+    def test_create_posting(self):
+        from payslip.models import JobPosting
+        resp = self.client.post(reverse("job_posting_create"), {
+            "title": "Backend Developer",
+            "description": "Build APIs.",
+            "employment_type": "FULL_TIME",
+            "status": "OPEN",
+            "posted_date": "2026-07-01",
+            "positions_count": "2",
+            "is_active": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        posting = JobPosting.objects.get()
+        self.assertEqual(posting.title, "Backend Developer")
+        self.assertEqual(posting.organization, self.org)
+        self.assertEqual(posting.created_by, self.admin)
+        self.assertEqual(posting.positions_count, 2)
+
+    def test_edit_posting(self):
+        posting = self._make_posting()
+        resp = self.client.post(reverse("job_posting_detail", args=[posting.pk]), {
+            "action": "save_posting",
+            "title": "Senior Software Engineer",
+            "description": "Build things better.",
+            "employment_type": "FULL_TIME",
+            "status": "OPEN",
+            "posted_date": "2026-07-01",
+            "positions_count": "3",
+            "is_active": "on",
+        })
+        self.assertEqual(resp.status_code, 302)
+        posting.refresh_from_db()
+        self.assertEqual(posting.title, "Senior Software Engineer")
+        self.assertEqual(posting.positions_count, 3)
+
+    def test_delete_posting_cascades_applications(self):
+        from payslip.models import JobApplication, JobPosting
+        posting = self._make_posting()
+        self._make_application(posting)
+        self.assertEqual(JobApplication.objects.count(), 1)
+        self.client.post(reverse("job_posting_detail", args=[posting.pk]), {
+            "action": "delete_posting",
+        })
+        self.assertEqual(JobPosting.objects.count(), 0)
+        self.assertEqual(JobApplication.objects.count(), 0)
+
+    def test_posting_list_splits_by_status(self):
+        self._make_posting(title="Open Job", status="OPEN")
+        self._make_posting(title="Draft Job", status="DRAFT")
+        self._make_posting(title="Closed Job", status="CLOSED")
+        resp = self.client.get(reverse("job_posting_list"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Open Job")
+        self.assertContains(resp, "Draft Job")
+        self.assertContains(resp, "Closed Job")
+
+    # --- job application CRUD ---
+    def test_create_application(self):
+        from payslip.models import JobApplication
+        posting = self._make_posting()
+        resp = self.client.post(reverse("job_application_create", args=[posting.pk]), {
+            "applicant_name": "Jane Doe",
+            "applicant_email": "jane@example.com",
+            "stage": "APPLIED",
+            "applied_date": "2026-07-15",
+        })
+        self.assertEqual(resp.status_code, 302)
+        app = JobApplication.objects.get()
+        self.assertEqual(app.applicant_name, "Jane Doe")
+        self.assertEqual(app.job_posting, posting)
+        self.assertEqual(app.organization, self.org)
+
+    def test_edit_application_stage(self):
+        posting = self._make_posting()
+        app = self._make_application(posting)
+        resp = self.client.post(reverse("job_application_detail", args=[app.pk]), {
+            "action": "save_application",
+            "applicant_name": "Test Applicant",
+            "stage": "INTERVIEW",
+            "applied_date": "2026-07-15",
+        })
+        self.assertEqual(resp.status_code, 302)
+        app.refresh_from_db()
+        self.assertEqual(app.stage, "INTERVIEW")
+
+    def test_delete_application(self):
+        from payslip.models import JobApplication
+        posting = self._make_posting()
+        app = self._make_application(posting)
+        self.client.post(reverse("job_application_detail", args=[app.pk]), {
+            "action": "delete_application",
+        })
+        self.assertEqual(JobApplication.objects.count(), 0)
+
+    def test_application_list_shows_pipeline(self):
+        posting = self._make_posting()
+        self._make_application(posting, applicant_name="Alice", stage="APPLIED")
+        self._make_application(posting, applicant_name="Bob", stage="INTERVIEW")
+        resp = self.client.get(reverse("job_application_list", args=[posting.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Alice")
+        self.assertContains(resp, "Bob")
+
+    # --- form validation ---
+    def test_rating_validation(self):
+        from payslip.forms_recruitment import JobApplicationForm
+        form = JobApplicationForm(data={
+            "applicant_name": "X",
+            "stage": "APPLIED",
+            "applied_date": "2026-07-15",
+            "rating": "6",
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn("rating", form.errors)
+
+    def test_closing_date_validation(self):
+        from payslip.forms_recruitment import JobPostingForm
+        form = JobPostingForm(data={
+            "title": "X",
+            "description": "Y",
+            "employment_type": "FULL_TIME",
+            "status": "OPEN",
+            "posted_date": "2026-07-15",
+            "closing_date": "2026-07-10",
+            "positions_count": "1",
+            "is_active": "on",
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn("closing_date", form.errors)
+
+    # --- People integration ---
+    def test_application_linked_to_person(self):
+        from payslip.models import Person
+        person = Person.objects.create(
+            organization=self.org, kind="CANDIDATE", name="Linked Candidate",
+        )
+        posting = self._make_posting()
+        app = self._make_application(posting, person=person,
+                                     applicant_name="Linked Candidate")
+        self.assertEqual(app.person, person)
+        resp = self.client.get(reverse("job_application_detail", args=[app.pk]))
+        self.assertEqual(resp.status_code, 200)
+
+    # --- landing page ---
+    def test_landing_page_shows_combined_people_recruitment_card(self):
+        resp = self.client.get(reverse("landing"))
+        self.assertContains(resp, "People &amp; Recruitment")
+        self.assertContains(resp, 'href="/people/"')

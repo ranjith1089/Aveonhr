@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>People - Aveon HR Suite</title>
-{# Generic app styles (topbar/cards/tables/badges) - shared app-wide. #}
-{% include "payslip/income/_income_style.html" %}
+{# Themed component vocabulary shared with Recruitment (unified People module). #}
+{% include "payslip/recruitment/_recruitment_style.html" %}
 <style>
   tr.row-link { cursor:pointer; }
   .section-hdr {
@@ -18,18 +18,7 @@
 </head>
 <body>
 <div class="container">
-  <div class="topbar">
-    <a class="brand" href="{% url 'landing' %}">👥 People</a>
-    <div class="topnav">
-      <a href="{% url 'landing' %}">← HR Suite</a>
-      <a href="{% url 'people_list' %}" class="active">👥 People</a>
-    </div>
-  </div>
-  {% if messages %}
-  <div class="messages">
-    {% for message in messages %}<div class="msg {{ message.tags }}">{{ message }}</div>{% endfor %}
-  </div>
-  {% endif %}
+  {% include "payslip/people/_people_nav.html" with active_page="people" %}
 
   <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
     <div>

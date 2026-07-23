@@ -1,7 +1,7 @@
 from django.urls import include, path
 from django.views.generic import RedirectView
 
-from . import views_implementation, views_income, views_payroll, views_people, views_proposal_history, views_team
+from . import views_implementation, views_income, views_payroll, views_people, views_proposal_history, views_recruitment, views_team
 from .views import (
     cms_feature_list,
     company_profile,
@@ -75,5 +75,12 @@ urlpatterns = [
     path("payroll/runs/<int:pk>/generate-payslips/", views_payroll.payroll_generate_payslips, name="payroll_generate_payslips"),
     path("payroll/runs/<int:pk>/export.xlsx", views_payroll.payroll_register_export, name="payroll_register_export"),
     path("payroll/entries/<int:pk>/<str:action>/", views_payroll.payroll_entry_pdf, name="payroll_entry_pdf"),
+    # --- Recruitment module ---
+    path("recruitment/", views_recruitment.job_posting_list, name="job_posting_list"),
+    path("recruitment/postings/new/", views_recruitment.job_posting_create, name="job_posting_create"),
+    path("recruitment/postings/<int:pk>/", views_recruitment.job_posting_detail, name="job_posting_detail"),
+    path("recruitment/postings/<int:pk>/applications/", views_recruitment.job_application_list, name="job_application_list"),
+    path("recruitment/postings/<int:pk>/applications/new/", views_recruitment.job_application_create, name="job_application_create"),
+    path("recruitment/applications/<int:pk>/", views_recruitment.job_application_detail, name="job_application_detail"),
 ]
 

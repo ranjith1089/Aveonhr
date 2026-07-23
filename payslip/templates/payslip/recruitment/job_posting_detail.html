@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{ heading }} - Recruitment - Aveon HR Suite</title>
+{% include "payslip/recruitment/_recruitment_style.html" %}
+</head>
+<body>
+<div class="container">
+  {% include "payslip/people/_people_nav.html" with active_page="postings" %}
+
+  <div class="page-head">
+    <div>
+      <p class="crumb"><a href="{% url 'job_posting_list' %}">Job Postings</a> / {{ heading }}</p>
+      <h1>{{ heading }}
+        {% if posting.status == "OPEN" %}<span class="badge green">Open</span>
+        {% elif posting.status == "DRAFT" %}<span class="badge gray">Draft</span>
+        {% elif posting.status == "ON_HOLD" %}<span class="badge amber">On Hold</span>
+        {% elif posting.status == "CLOSED" %}<span class="badge green">Closed</span>
+        {% endif %}
+      </h1>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <a class="btn" href="{% url 'job_application_create' posting.pk %}">+ Add Application</a>
+      <a class="btn secondary" href="{% url 'job_application_list' posting.pk %}">View Pipeline ({{ total_apps }})</a>
+    </div>
+  </div>
+
+  {# ===== Application Summary ===== #}
+  {% if app_counts %}
+  <div class="card" style="margin-bottom:16px;">
+    <h2 style="margin:0 0 10px; font-size:15px;">Application Pipeline</h2>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      {% for stage_label, count in app_counts.items %}
+      <div style="background:var(--base-200); border:1px solid var(--base-300); border-radius:var(--radius); padding:8px 14px; text-align:center;">
+        <div style="font-size:18px; font-weight:800;">{{ count }}</div>
+        <div style="font-size:11px; color:var(--content-muted); font-weight:600; text-transform:uppercase;">{{ stage_label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="margin-top:10px;">
+      <a href="{% url 'job_application_list' posting.pk %}" style="font-size:13px; font-weight:600;">View all {{ total_apps }} application{{ total_apps|pluralize }} →</a>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ===== Edit Form ===== #}
+  <div class="card" style="max-width:750px;">
+    <h2 style="margin:0 0 12px; font-size:15px;">Edit Posting</h2>
+
+    {% if form.errors %}
+    <div class="msg error" style="margin-bottom:14px;">
+      {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_posting" />
+      <div class="form-grid">
+        <div class="full">
+          <label for="id_title">Title *</label>
+          {{ form.title }}
+        </div>
+        <div>
+          <label for="id_department">Department</label>
+          {{ form.department }}
+        </div>
+        <div>
+          <label for="id_location">Location</label>
+          {{ form.location }}
+        </div>
+        <div>
+          <label for="id_employment_type">Employment Type</label>
+          {{ form.employment_type }}
+        </div>
+        <div>
+          <label for="id_status">Status</label>
+          {{ form.status }}
+        </div>
+        <div>
+          <label for="id_experience_range">Experience Range</label>
+          {{ form.experience_range }}
+        </div>
+        <div>
+          <label for="id_salary_range">Salary Range</label>
+          {{ form.salary_range }}
+        </div>
+        <div>
+          <label for="id_posted_date">Posted Date</label>
+          {{ form.posted_date }}
+        </div>
+        <div>
+          <label for="id_closing_date">Closing Date</label>
+          {{ form.closing_date }}
+        </div>
+        <div>
+          <label for="id_positions_count">No. of Positions</label>
+          {{ form.positions_count }}
+        </div>
+        <div>
+          <label for="id_is_active" style="display:flex; align-items:center; gap:8px; margin-top:22px;">
+            {{ form.is_active }} Active
+          </label>
+        </div>
+        <div class="full">
+          <label for="id_description">Description *</label>
+          {{ form.description }}
+        </div>
+        <div class="full">
+          <label for="id_requirements">Requirements</label>
+          {{ form.requirements }}
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:20px;">
+        <button class="btn" type="submit">Save Changes</button>
+        <a class="btn secondary" href="{% url 'job_posting_list' %}">Back to List</a>
+      </div>
+    </form>
+
+    <div class="danger-zone">
+      <form method="post" onsubmit="return confirm('Delete this posting and all its applications?');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="delete_posting" />
+        <button class="btn danger" type="submit">Delete Posting</button>
+      </form>
+    </div>
+  </div>
+</div>
+</body>
+</html>

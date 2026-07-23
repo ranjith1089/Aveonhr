@@ -20,7 +20,7 @@ MODULE_LABELS = {
     "experience_certificates": "Experience Certificates",
     "travel_expense": "Travel Expense Reports",
     "proposals": "Proposals & Quotations",
-    "people": "People (Candidates & Interns)",
+    "people": "People & Recruitment",
     "income": "Income",
     "implementation": "Implementation Tracker",
     "payroll": "Payroll & Salary",
