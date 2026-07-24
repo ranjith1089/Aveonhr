@@ -107,11 +107,29 @@ from .models import Person, PersonDocument
 
 @admin.register(Person)
 class PersonAdmin(admin.ModelAdmin):
-    list_display = ("name", "kind", "organization", "designation", "college_name",
-                    "updated_at")
-    list_filter = ("kind", "organization")
+    list_display = ("name", "kind", "organization", "designation", "stage",
+                    "source", "updated_at")
+    list_filter = ("kind", "organization", "stage", "source")
     search_fields = ("name", "email", "employee_no", "roll_number")
     readonly_fields = ("created_at", "updated_at")
+
+
+from .models import InterviewRound, JobOpening
+
+
+@admin.register(JobOpening)
+class JobOpeningAdmin(admin.ModelAdmin):
+    list_display = ("title", "organization", "department", "positions", "status",
+                    "created_at")
+    list_filter = ("status", "organization")
+    search_fields = ("title", "department")
+
+
+@admin.register(InterviewRound)
+class InterviewRoundAdmin(admin.ModelAdmin):
+    list_display = ("person", "round_name", "interviewer", "result", "scheduled_at")
+    list_filter = ("result",)
+    search_fields = ("person__name", "round_name", "interviewer")
 
 
 @admin.register(PersonDocument)

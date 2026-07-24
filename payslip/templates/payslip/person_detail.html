@@ -10,6 +10,11 @@
   .crumb { font-size:12.5px; font-weight:700; color:#64748B; margin-bottom:4px; }
   .crumb a { color:#1565C0; text-decoration:none; }
   .gen-btns { display:flex; gap:8px; flex-wrap:wrap; }
+  .badge.stage-new,.badge.stage-on_hold{background:#F1F5F9;color:#475569;}
+  .badge.stage-screening,.badge.stage-interview{background:#FEF3C7;color:#92400E;}
+  .badge.stage-shortlisted,.badge.stage-offered{background:#DBEAFE;color:#1E40AF;}
+  .badge.stage-selected,.badge.stage-joined{background:#DCFCE7;color:#166534;}
+  .badge.stage-rejected{background:#FEE2E2;color:#991B1B;}
 </style>
 </head>
 <body>
@@ -19,6 +24,8 @@
     <div class="topnav">
       <a href="{% url 'landing' %}">← HR Suite</a>
       <a href="{% url 'people_list' %}" class="active">👥 People</a>
+      <a href="{% url 'recruitment_pipeline' %}">🎯 Recruitment</a>
+      <a href="{% url 'job_opening_list' %}">💼 Job Openings</a>
     </div>
   </div>
   {% if messages %}
@@ -34,6 +41,7 @@
         <h1>{{ heading }}
           {% if person %}
           {% if person.kind == "CANDIDATE" %}<span class="badge blue" style="vertical-align:middle;">Candidate / Employee</span>
+          {% if person.stage %}<span class="badge stage-{{ person.stage|lower }}" style="vertical-align:middle;">{{ person.get_stage_display }}</span>{% endif %}
           {% else %}<span class="badge amber" style="vertical-align:middle;">Internship Student</span>{% endif %}
           {% endif %}
         </h1>
@@ -65,6 +73,58 @@
     </p>
     {% endif %}
   </div>
+
+  {% if person and person.kind == "CANDIDATE" %}
+  <div class="card">
+    <h2>🎤 Interview Rounds</h2>
+    {% if interviews %}
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>Round</th><th>Scheduled</th><th>Interviewer</th><th>Rating</th><th>Result</th><th>Feedback</th><th></th></tr>
+        {% for iv in interviews %}
+        <tr>
+          <td><b>{{ iv.round_name }}</b></td>
+          <td style="white-space:nowrap;">{{ iv.scheduled_at|date:"d M Y, h:i A"|default:"—" }}</td>
+          <td>{{ iv.interviewer|default:"—" }}</td>
+          <td>{% if iv.rating %}{{ iv.rating }}/5{% else %}—{% endif %}</td>
+          <td>
+            {% if iv.result == "PASSED" %}<span class="badge green">Passed</span>
+            {% elif iv.result == "FAILED" %}<span class="badge red">Failed</span>
+            {% else %}<span class="badge amber">Pending</span>{% endif %}
+          </td>
+          <td style="max-width:200px;font-size:12px;">{{ iv.feedback|default:"—"|truncatewords:15 }}</td>
+          <td>
+            <form method="post" action="{% url 'interview_delete' iv.pk %}" style="display:inline;"
+                  onsubmit="return confirm('Remove this interview round?');">
+              {% csrf_token %}
+              <button class="btn small danger" type="submit">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">No interview rounds recorded yet.</p>
+    {% endif %}
+
+    <details style="margin-top:12px;">
+      <summary style="cursor:pointer;font-weight:700;font-size:13px;color:var(--primary,#1a73e8);">+ Add Interview Round</summary>
+      <form method="post" action="{% url 'interview_add' person.pk %}" style="margin-top:10px;">
+        {% csrf_token %}
+        <div class="grid">
+          <p><label>Round Name</label>{{ interview_form.round_name }}</p>
+          <p><label>Scheduled At</label>{{ interview_form.scheduled_at }}</p>
+          <p><label>Interviewer</label>{{ interview_form.interviewer }}</p>
+          <p><label>Rating (1-5)</label>{{ interview_form.rating }}</p>
+          <p><label>Result</label>{{ interview_form.result }}</p>
+          <p class="full"><label>Feedback</label>{{ interview_form.feedback }}</p>
+        </div>
+        <button class="btn small" type="submit" style="margin-top:8px;">Add Round</button>
+      </form>
+    </details>
+  </div>
+  {% endif %}
 
   {% if person %}
   <div class="card">
@@ -130,6 +190,12 @@
         <p><label>Designation / Position</label>{{ form.designation }}</p>
         <p><label>Joining Date</label>{{ form.join_date }}</p>
         <p><label>Leaving Date</label>{{ form.leaving_date }}</p>
+
+        <div class="section-title">Recruitment</div>
+        <p><label>Source</label>{{ form.source }}</p>
+        <p><label>Stage</label>{{ form.stage }}</p>
+        <p><label>Applied For (Job Opening)</label>{{ form.applied_for }}</p>
+        <p><label>Expected CTC (₹)</label>{{ form.expected_ctc }}</p>
 
         <div class="section-title">Internship student details</div>
         <p><label>Roll Number</label>{{ form.roll_number }}</p>

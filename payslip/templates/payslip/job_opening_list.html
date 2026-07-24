@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Job Openings - Aveon HR Suite</title>
+{% include "payslip/income/_income_style.html" %}
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <a class="brand" href="{% url 'landing' %}">💼 Job Openings</a>
+    <div class="topnav">
+      <a href="{% url 'landing' %}">← HR Suite</a>
+      <a href="{% url 'people_list' %}">👥 People</a>
+      <a href="{% url 'recruitment_pipeline' %}">🎯 Recruitment</a>
+      <a href="{% url 'job_opening_list' %}" class="active">💼 Job Openings</a>
+    </div>
+  </div>
+  {% if messages %}
+  <div class="messages">
+    {% for message in messages %}<div class="msg {{ message.tags }}">{{ message }}</div>{% endfor %}
+  </div>
+  {% endif %}
+
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+    <h1>💼 Job Openings</h1>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <form method="get" style="display:flex;gap:6px;">
+        <select name="show" onchange="this.form.submit()">
+          <option value="open" {% if show == "open" %}selected{% endif %}>Open</option>
+          <option value="all" {% if show == "all" %}selected{% endif %}>All</option>
+          <option value="closed" {% if show == "closed" %}selected{% endif %}>Closed</option>
+        </select>
+      </form>
+      <a class="btn" href="{% url 'job_opening_create' %}">+ Add Job Opening</a>
+    </div>
+  </div>
+
+  <div class="card">
+    {% if openings %}
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Title</th>
+          <th>Department</th>
+          <th>Location</th>
+          <th class="num">Positions</th>
+          <th class="num">Applicants</th>
+          <th class="num">Selected</th>
+          <th>Status</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+        {% for j in openings %}
+        <tr>
+          <td><b>{{ j.title }}</b></td>
+          <td>{{ j.department|default:"—" }}</td>
+          <td>{{ j.location|default:"—" }}</td>
+          <td class="num">{{ j.positions }}</td>
+          <td class="num">{{ j.applicant_count }}</td>
+          <td class="num">{{ j.selected_count }}</td>
+          <td>
+            {% if j.status == "OPEN" %}<span class="badge green">Open</span>
+            {% elif j.status == "ON_HOLD" %}<span class="badge amber">On Hold</span>
+            {% else %}<span class="badge gray">Closed</span>{% endif %}
+          </td>
+          <td style="white-space:nowrap;">
+            <a class="btn small secondary" href="{% url 'job_opening_edit' j.pk %}">Edit</a>
+            <a class="btn small secondary" href="{% url 'recruitment_pipeline' %}?job={{ j.pk }}">View Applicants</a>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="big">💼</div>
+      No job openings{% if show == "open" %} are open{% endif %} yet.
+      <br><a href="{% url 'job_opening_create' %}">Create one</a> to start tracking applicants.
+    </div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>
