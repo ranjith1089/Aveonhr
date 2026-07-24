@@ -62,6 +62,8 @@ urlpatterns = [
     path("income/payments/<int:pk>/delete/", views_income.income_payment_delete, name="income_payment_delete"),
     path("income/implementation/", views_implementation.implementation_dashboard, name="implementation_dashboard"),
     path("income/clients/<int:pk>/implementation/", views_implementation.client_implementation, name="client_implementation"),
+    path("income/implementation/<int:pk>/po-document/", views_implementation.download_po_document, name="download_po_document"),
+    path("income/implementation/<int:pk>/agreement-document/", views_implementation.download_agreement_document, name="download_agreement_document"),
     path("income/export.xlsx", views_income.income_export, name="income_export"),
     path("income/import/", views_income.income_import, name="income_import"),
     # --- Payroll module ---

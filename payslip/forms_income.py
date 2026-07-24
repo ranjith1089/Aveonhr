@@ -116,7 +116,15 @@ class IncomeImportForm(forms.Form):
 from .models import ClientOnboarding, FeatureStatus
 
 
+ALLOWED_DOC_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx"}
+
+
 class ClientOnboardingForm(forms.ModelForm):
+    po_upload = forms.FileField(required=False, label="Upload PO document")
+    remove_po_document = forms.BooleanField(required=False, label="Remove PO document")
+    agreement_upload = forms.FileField(required=False, label="Upload Agreement document")
+    remove_agreement_document = forms.BooleanField(required=False, label="Remove Agreement document")
+
     class Meta:
         model = ClientOnboarding
         fields = [
@@ -147,6 +155,26 @@ class ClientOnboardingForm(forms.ModelForm):
             "reminder_days": "Show an expiry reminder this many days before the end date.",
         }
 
+    def clean_po_upload(self):
+        f = self.cleaned_data.get("po_upload")
+        if f:
+            ext = ("." + f.name.rsplit(".", 1)[-1]).lower() if "." in f.name else ""
+            if ext not in ALLOWED_DOC_EXTENSIONS:
+                raise ValidationError(f"Allowed: {', '.join(sorted(ALLOWED_DOC_EXTENSIONS))}")
+            if f.size > 10 * 1024 * 1024:
+                raise ValidationError("File must be under 10 MB.")
+        return f
+
+    def clean_agreement_upload(self):
+        f = self.cleaned_data.get("agreement_upload")
+        if f:
+            ext = ("." + f.name.rsplit(".", 1)[-1]).lower() if "." in f.name else ""
+            if ext not in ALLOWED_DOC_EXTENSIONS:
+                raise ValidationError(f"Allowed: {', '.join(sorted(ALLOWED_DOC_EXTENSIONS))}")
+            if f.size > 10 * 1024 * 1024:
+                raise ValidationError("File must be under 10 MB.")
+        return f
+
     def clean(self):
         cleaned = super().clean()
         start = cleaned.get("agreement_start")
@@ -154,6 +182,28 @@ class ClientOnboardingForm(forms.ModelForm):
         if start and end and end <= start:
             self.add_error("agreement_end", "End date must be after the start date.")
         return cleaned
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        po_file = self.cleaned_data.get("po_upload")
+        if po_file:
+            instance.po_document = po_file.read()
+            instance.po_filename = po_file.name
+        elif self.cleaned_data.get("remove_po_document"):
+            instance.po_document = None
+            instance.po_filename = ""
+
+        agr_file = self.cleaned_data.get("agreement_upload")
+        if agr_file:
+            instance.agreement_document = agr_file.read()
+            instance.agreement_filename = agr_file.name
+        elif self.cleaned_data.get("remove_agreement_document"):
+            instance.agreement_document = None
+            instance.agreement_filename = ""
+
+        if commit:
+            instance.save()
+        return instance
 
 
 class FeatureAddForm(forms.ModelForm):

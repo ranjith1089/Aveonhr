@@ -355,9 +355,13 @@ class ClientOnboarding(models.Model):
     po_received = models.BooleanField(default=False)
     po_number = models.CharField(max_length=100, blank=True, default="")
     po_date = models.DateField(null=True, blank=True)
+    po_document = models.BinaryField(null=True, blank=True)
+    po_filename = models.CharField(max_length=255, blank=True, default="")
 
     # Agreement
     agreement_signed = models.BooleanField(default=False)
+    agreement_document = models.BinaryField(null=True, blank=True)
+    agreement_filename = models.CharField(max_length=255, blank=True, default="")
     agreement_years = models.PositiveSmallIntegerField(null=True, blank=True)
     agreement_start = models.DateField(null=True, blank=True)
     agreement_end = models.DateField(null=True, blank=True)

@@ -102,7 +102,7 @@
       {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
     </div>
     {% endif %}
-    <form method="post" style="margin-top:8px;">
+    <form method="post" enctype="multipart/form-data" style="margin-top:8px;">
       {% csrf_token %}
       <input type="hidden" name="action" value="save_onboarding" />
       <div class="grid">
@@ -130,6 +130,17 @@
         <p style="align-self:end;"><label style="display:inline;">{{ form.po_received }} PO received</label></p>
         <p><label>PO Number</label>{{ form.po_number }}</p>
         <p><label>PO Date</label>{{ form.po_date }}</p>
+        <p class="full">
+          <label>PO Document</label>
+          {% if onboarding.po_filename %}
+          <span style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <a href="{% url 'download_po_document' onboarding.pk %}" class="btn small secondary">⬇ {{ onboarding.po_filename }}</a>
+            <label style="display:inline;font-weight:400;font-size:12px;">{{ form.remove_po_document }} Remove</label>
+          </span>
+          {% endif %}
+          {{ form.po_upload }}
+          <span class="muted">PDF, DOC, DOCX, JPG, PNG — max 10 MB.</span>
+        </p>
 
         <div class="section-title">Agreement</div>
         <p style="align-self:end;"><label style="display:inline;">{{ form.agreement_signed }} Agreement signed</label></p>
@@ -137,6 +148,17 @@
         <p><label>Start Date</label>{{ form.agreement_start }}</p>
         <p><label>End Date</label>{{ form.agreement_end }}<span class="muted">Leave blank to auto-compute from start + years.</span></p>
         <p><label>Reminder (days before end)</label>{{ form.reminder_days }}</p>
+        <p class="full">
+          <label>Agreement Document</label>
+          {% if onboarding.agreement_filename %}
+          <span style="display:inline-flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <a href="{% url 'download_agreement_document' onboarding.pk %}" class="btn small secondary">⬇ {{ onboarding.agreement_filename }}</a>
+            <label style="display:inline;font-weight:400;font-size:12px;">{{ form.remove_agreement_document }} Remove</label>
+          </span>
+          {% endif %}
+          {{ form.agreement_upload }}
+          <span class="muted">PDF, DOC, DOCX, JPG, PNG — max 10 MB.</span>
+        </p>
 
         <p class="full"><label>Notes</label>{{ form.notes }}</p>
       </div>
