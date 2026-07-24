@@ -55,14 +55,43 @@
   </div>
 </div>
 <script>
-  const chk = document.getElementById('id_override_amounts');
-  const manual = document.getElementById('manual-amounts');
-  function toggle() {
-    manual.style.opacity = chk.checked ? '1' : '0.45';
-    manual.querySelectorAll('input').forEach(i => i.readOnly = !chk.checked);
+(function(){
+  var chk      = document.getElementById('id_override_amounts');
+  var manual   = document.getElementById('manual-amounts');
+  var students = document.getElementById('id_student_count');
+  var rate     = document.getElementById('id_rate');
+  var otp      = document.getElementById('id_one_time_payment');
+  var taxable  = document.getElementById('id_taxable_value');
+  var gst      = document.getElementById('id_gst_amount');
+  var net      = document.getElementById('id_net_amount');
+
+  function num(el){ var v=parseFloat(el.value); return isNaN(v)?0:v; }
+  function fmt(n){ return (Math.round(n*100)/100).toFixed(2); }
+
+  function calc(){
+    if(chk.checked) return;
+    var s=num(students), r=num(rate), o=num(otp);
+    var tv=s*r;
+    var g=Math.round(tv*0.18*100)/100;
+    var n=tv+g+o;
+    taxable.value=fmt(tv);
+    gst.value=fmt(g);
+    net.value=fmt(n);
   }
-  chk.addEventListener('change', toggle);
+
+  function toggle(){
+    var isManual=chk.checked;
+    manual.style.opacity=isManual?'1':'0.45';
+    manual.querySelectorAll('input').forEach(function(i){i.readOnly=!isManual;});
+    if(!isManual) calc();
+  }
+
+  [students,rate,otp].forEach(function(el){
+    el.addEventListener('input',calc);
+  });
+  chk.addEventListener('change',toggle);
   toggle();
+})();
 </script>
 </body>
 </html>
