@@ -48,6 +48,7 @@ urlpatterns = [
     path("income/clients/new/", views_income.income_client_create, name="income_client_create"),
     path("income/clients/<int:pk>/", views_income.income_client_detail, name="income_client_detail"),
     path("income/clients/<int:pk>/edit/", views_income.income_client_edit, name="income_client_edit"),
+    path("income/clients/<int:pk>/update-engineer/", views_income.income_client_update_engineer, name="income_client_update_engineer"),
     path("income/clients/<int:pk>/billing/new/", views_income.income_billing_create, name="income_billing_create"),
     path("income/billing/<int:pk>/edit/", views_income.income_billing_edit, name="income_billing_edit"),
     path("income/billing/<int:pk>/payments/add/", views_income.income_payment_add, name="income_payment_add"),

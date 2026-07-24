@@ -14,6 +14,7 @@ from django.db.models.functions import Coalesce
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
 from .decorators import module_required
@@ -189,6 +190,20 @@ def income_client_list(request: HttpRequest) -> HttpResponse:
         "total_billed": total_billed, "total_received": total_received,
         "total_balance": total_balance,
     })
+
+
+@module_required("income")
+@require_POST
+def income_client_update_engineer(request: HttpRequest, pk: int) -> JsonResponse:
+    org = request.organization
+    client = get_object_or_404(IncomeClient, pk=pk, organization=org)
+    latest = max(client.billings.all(), key=lambda b: b.year_start, default=None)
+    if not latest:
+        return JsonResponse({"error": "No billing year exists for this client."}, status=400)
+    engineer = (request.POST.get("engineer") or "").strip()
+    latest.engineer = engineer
+    latest.save(update_fields=["engineer", "updated_at"])
+    return JsonResponse({"ok": True, "engineer": engineer})
 
 
 @module_required("income")

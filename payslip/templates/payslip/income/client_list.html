@@ -61,7 +61,12 @@
           {% for r in rows %}
           <tr>
             <td><a href="{% url 'income_client_detail' r.c.pk %}">{{ r.c.name }}</a></td>
-            <td>{{ r.c.latest_engineer }}</td>
+            <td class="engineer-cell" data-client-id="{{ r.c.pk }}" data-engineer="{{ r.c.latest_engineer }}">
+              <span class="eng-display" title="Click to edit">{{ r.c.latest_engineer|default:"—" }}</span>
+              <span class="eng-edit" style="display:none;">
+                <input type="text" list="engineer-datalist" value="{{ r.c.latest_engineer }}" class="eng-input">
+              </span>
+            </td>
             <td class="num">₹ {{ r.billed|floatformat:0|intcomma }}</td>
             <td class="num money-neg">₹ {{ r.received|floatformat:0|intcomma }}</td>
             <td class="num {% if r.balance > 0 %}money-due{% else %}money-neg{% endif %}">₹ {{ r.balance|floatformat:0|intcomma }}</td>
@@ -89,5 +94,63 @@
     </div>
   </div>
 </div>
+
+<datalist id="engineer-datalist">
+  {% for e in engineers %}<option value="{{ e }}">{% endfor %}
+</datalist>
+
+<style>
+.engineer-cell .eng-display{cursor:pointer;border-bottom:1px dashed var(--border,#ccc);padding:1px 4px;border-radius:3px;min-width:30px;display:inline-block;}
+.engineer-cell .eng-display:hover{background:var(--primary-bg,#e8f0fe);color:var(--primary,#1a73e8);}
+.engineer-cell .eng-input{width:120px;padding:3px 6px;font-size:13px;border:1.5px solid var(--primary,#1a73e8);border-radius:4px;outline:none;}
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded",function(){
+  var cells=document.querySelectorAll(".engineer-cell");
+  cells.forEach(function(cell){
+    var display=cell.querySelector(".eng-display");
+    var editWrap=cell.querySelector(".eng-edit");
+    var input=cell.querySelector(".eng-input");
+    var clientId=cell.dataset.clientId;
+    var saving=false;
+
+    display.addEventListener("click",function(){
+      display.style.display="none";
+      editWrap.style.display="inline";
+      input.focus();
+      input.select();
+    });
+
+    function save(){
+      if(saving)return;
+      saving=true;
+      var val=input.value.trim();
+      editWrap.style.display="none";
+      display.style.display="inline";
+      display.textContent=val||"—";
+
+      var fd=new FormData();
+      fd.append("engineer",val);
+      fetch("/income/clients/"+clientId+"/update-engineer/",{
+        method:"POST",
+        headers:{"X-CSRFToken":"{{ csrf_token }}"},
+        body:fd,
+      }).then(function(r){return r.json();}).then(function(data){
+        if(data.error){display.textContent=cell.dataset.engineer||"—";alert(data.error);}
+        else{cell.dataset.engineer=data.engineer;}
+      }).catch(function(){
+        display.textContent=cell.dataset.engineer||"—";
+      }).finally(function(){saving=false;});
+    }
+
+    input.addEventListener("keydown",function(e){
+      if(e.key==="Enter"){e.preventDefault();input.blur();}
+      if(e.key==="Escape"){input.value=cell.dataset.engineer;input.blur();}
+    });
+    input.addEventListener("blur",save);
+  });
+});
+</script>
 </body>
 </html>
