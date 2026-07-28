@@ -71,6 +71,7 @@ urlpatterns = [
     path("payroll/structure/", views_payroll.salary_structure, name="salary_structure"),
     path("payroll/entries/<int:pk>/breakdown/", views_payroll.payroll_entry_breakdown, name="payroll_entry_breakdown"),
     path("payroll/employees/", views_payroll.employee_list, name="employee_list"),
+    path("payroll/employees/export.xlsx", views_payroll.employee_export, name="employee_export"),
     path("payroll/employees/new/", views_payroll.employee_create, name="employee_create"),
     path("payroll/employees/<int:pk>/", views_payroll.employee_detail, name="employee_detail"),
     path("payroll/employees/<int:pk>/photo/", views_payroll.employee_photo, name="employee_photo"),
