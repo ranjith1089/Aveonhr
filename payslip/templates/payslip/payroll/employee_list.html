@@ -35,9 +35,9 @@
       <div class="kpi-sub">{% if inactive_count %}{{ inactive_count }} inactive{% else %}Everyone on payroll{% endif %}</div>
     </div>
     <div class="kpi is-good">
-      <div class="kpi-top"><span class="kpi-ico">💰</span><span class="kpi-lbl">Monthly package</span></div>
-      <div class="kpi-val">₹{{ monthly_cost|floatformat:0|intcomma }}</div>
-      <div class="kpi-sub">Combined, active only</div>
+      <div class="kpi-top"><span class="kpi-ico">👥</span><span class="kpi-lbl">Total employees</span></div>
+      <div class="kpi-val">{{ active_count|add:inactive_count }}</div>
+      <div class="kpi-sub">Active + inactive</div>
     </div>
     <div class="kpi is-muted">
       <div class="kpi-top"><span class="kpi-ico">🛡️</span><span class="kpi-lbl">ESI enrolled</span></div>
@@ -59,7 +59,6 @@
         <thead>
           <tr>
             <th>Code</th><th>Name</th><th>Designation</th><th>DOJ</th>
-            <th class="num">Monthly Package</th>
             <th class="mid">ESI</th><th class="mid">PF</th><th class="mid">Status</th><th></th>
           </tr>
         </thead>
@@ -70,7 +69,6 @@
           <td><a href="{% url 'employee_detail' e.pk %}"><b>{{ e.name }}</b></a></td>
           <td>{{ e.designation|default:"—" }}</td>
           <td style="white-space:nowrap;">{{ e.doj|date:"d M Y"|default:"—" }}</td>
-          <td class="num"><b>₹{{ e.current_monthly_package|floatformat:0|intcomma }}</b></td>
           <td class="mid">{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
           <td class="mid">{% if e.is_pf_applicable %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
           <td class="mid">{% if e.is_active %}<span class="badge blue">Active</span>{% else %}<span class="badge red">Inactive</span>{% endif %}</td>
