@@ -92,6 +92,17 @@ class ClientBillingForm(forms.ModelForm):
             getattr(self.instance, "client", None), "organization", None
         )
         if org is not None:
+            if not AcademicYear.objects.filter(organization=org).exists():
+                existing = (
+                    ClientBilling.objects.filter(client__organization=org)
+                    .values_list("academic_year", flat=True)
+                    .distinct()
+                )
+                for label in existing:
+                    AcademicYear.objects.get_or_create(
+                        organization=org, label=label,
+                        defaults={"is_active": True},
+                    )
             years = AcademicYear.objects.filter(
                 organization=org, is_active=True
             ).values_list("label", flat=True)
