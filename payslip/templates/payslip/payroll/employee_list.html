@@ -29,8 +29,13 @@
       <p class="sub" style="margin:0;">The payroll master — each run picks up every active employee.</p>
     </div>
     <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-      <form method="get" style="display:flex; gap:8px;">
+      <form method="get" style="display:flex; gap:8px; align-items:center;">
         <input type="text" name="q" value="{{ q }}" placeholder="🔍 Search name…" style="max-width:220px;" />
+        <select name="status" onchange="this.form.submit()" style="padding:7px 10px;border-radius:7px;border:1.5px solid #CBD5E1;font-size:13px;">
+          <option value="active" {% if status_filter == "active" %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
+          <option value="all" {% if status_filter == "all" %}selected{% endif %}>All</option>
+        </select>
         <button class="btn small secondary" type="submit">Search</button>
       </form>
       <button class="btn secondary" type="button" onclick="document.getElementById('exportModal').classList.add('open')">📥 Export Excel</button>

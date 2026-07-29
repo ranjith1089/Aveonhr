@@ -208,16 +208,24 @@ def employee_export(request: HttpRequest) -> HttpResponse:
 def employee_list(request: HttpRequest) -> HttpResponse:
     from .services.employee_export import EXPORTABLE_COLUMNS
     q = (request.GET.get("q") or "").strip()
-    employees = Employee.objects.filter(organization=request.organization)
+    status_filter = (request.GET.get("status") or "active").lower()
+    all_employees = list(Employee.objects.filter(organization=request.organization))
     if q:
-        employees = employees.filter(name__icontains=q)
-    employees = list(employees)
-    active = [e for e in employees if e.is_active]
+        all_employees = [e for e in all_employees if q.lower() in e.name.lower()]
+    active = [e for e in all_employees if e.is_active]
+    inactive = [e for e in all_employees if not e.is_active]
+    if status_filter == "inactive":
+        employees = inactive
+    elif status_filter == "all":
+        employees = all_employees
+    else:
+        employees = active
     return render(request, "payslip/payroll/employee_list.html", {
         "employees": employees,
         "q": q,
+        "status_filter": status_filter,
         "active_count": len(active),
-        "inactive_count": len(employees) - len(active),
+        "inactive_count": len(inactive),
         "monthly_cost": sum((e.current_monthly_package for e in active), Decimal("0")),
         "esi_count": sum(1 for e in active if e.is_esi_eligible),
         "pf_count": sum(1 for e in active if e.is_pf_applicable),
