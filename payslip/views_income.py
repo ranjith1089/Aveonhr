@@ -391,6 +391,22 @@ def income_import(request: HttpRequest) -> HttpResponse:
 @module_required("income")
 def academic_year_list(request: HttpRequest) -> HttpResponse:
     org = request.organization
+
+    if not AcademicYear.objects.filter(organization=org).exists():
+        existing = (
+            ClientBilling.objects.filter(client__organization=org)
+            .values_list("academic_year", flat=True)
+            .distinct()
+        )
+        created = 0
+        for label in existing:
+            AcademicYear.objects.get_or_create(
+                organization=org, label=label, defaults={"is_active": True}
+            )
+            created += 1
+        if created:
+            messages.info(request, f"Auto-imported {created} academic year(s) from existing billings.")
+
     form = AcademicYearForm(organization=org)
 
     if request.method == "POST":
