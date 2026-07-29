@@ -159,9 +159,10 @@
   <script>
   function showResetModal(userId, username) {
     document.getElementById('modal-username').textContent = username;
-    document.getElementById('reset-form').action = '{% url 'team_reset_password' 0 %}'.replace('0', userId);
+    document.getElementById('reset-form').action = '/team/' + userId + '/reset-password/';
     document.getElementById('reset-modal').style.display = 'flex';
     document.getElementById('new-password').focus();
+    document.getElementById('new-password').value = '';
   }
   function closeResetModal() {
     document.getElementById('reset-modal').style.display = 'none';

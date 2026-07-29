@@ -162,10 +162,13 @@ def team_reset_password(request: HttpRequest, user_id: int) -> HttpResponse:
     if not new_password:
         messages.error(request, "Password cannot be empty.")
         return redirect("team")
-    user.set_password(new_password)
-    user.save()
-    messages.success(
-        request,
-        f"Password reset for {user.username}. Share the new temporary password: {new_password}"
-    )
+    try:
+        user.set_password(new_password)
+        user.save(update_fields=["password"])
+        messages.success(
+            request,
+            f"✓ Password reset for {user.username}. New password: {new_password}"
+        )
+    except Exception as e:
+        messages.error(request, f"Error resetting password: {str(e)}")
     return redirect("team")
