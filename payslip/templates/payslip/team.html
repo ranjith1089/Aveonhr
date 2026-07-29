@@ -65,7 +65,11 @@
               <input class="rights-check" type="checkbox" name="{{ f }}_{{ row.m.user_id }}" {% if enabled %}checked{% endif %} />
             </td>
             {% endfor %}
-            <td>
+            <td style="display:flex; gap:6px;">
+              <button class="btn small secondary" type="button"
+                      onclick="showResetModal({{ row.m.user_id }}, '{{ row.m.user.username }}')">
+                Reset Password
+              </button>
               <button class="btn small {% if row.m.user.is_active %}danger{% else %}secondary{% endif %}"
                       type="submit" form="toggle-{{ row.m.user_id }}"
                       {% if row.m.user == me %}disabled title="You cannot deactivate yourself"{% endif %}>
@@ -131,6 +135,42 @@
       </div>
     </form>
   </details>
+
+  <!-- Password Reset Modal -->
+  <div id="reset-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; display:flex; align-items:center; justify-content:center;">
+    <div class="card" style="max-width:400px; width:90%;">
+      <h2>Reset Password</h2>
+      <p style="margin-bottom:16px;">Set a new temporary password for <strong id="modal-username"></strong></p>
+      <form id="reset-form" method="post" style="display:flex; flex-direction:column; gap:12px;">
+        {% csrf_token %}
+        <p>
+          <label>New Temporary Password</label>
+          <input type="password" id="new-password" name="new_password" required style="width:100%; padding:8px;" />
+          <span class="muted" style="font-size:12px; display:block; margin-top:4px;">Share this with the member - they can change it after logging in.</span>
+        </p>
+        <div style="display:flex; gap:8px;">
+          <button class="btn" type="submit">Set Password</button>
+          <button class="btn secondary" type="button" onclick="closeResetModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  function showResetModal(userId, username) {
+    document.getElementById('modal-username').textContent = username;
+    document.getElementById('reset-form').action = '{% url 'team_reset_password' 0 %}'.replace('0', userId);
+    document.getElementById('reset-modal').style.display = 'flex';
+    document.getElementById('new-password').focus();
+  }
+  function closeResetModal() {
+    document.getElementById('reset-modal').style.display = 'none';
+    document.getElementById('new-password').value = '';
+  }
+  document.getElementById('reset-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeResetModal();
+  });
+  </script>
 </div>
 </body>
 </html>

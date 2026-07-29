@@ -26,6 +26,7 @@ urlpatterns = [
     path("team/", views_team.team, name="team"),
     path("team/add/", views_team.team_add_member, name="team_add_member"),
     path("team/<int:user_id>/toggle/", views_team.team_toggle_member, name="team_toggle_member"),
+    path("team/<int:user_id>/reset-password/", views_team.team_reset_password, name="team_reset_password"),
     # --- People registry & Recruitment ---
     path("people/", views_people.people_list, name="people_list"),
     path("people/new/", views_people.person_create, name="person_create"),

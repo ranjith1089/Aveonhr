@@ -147,3 +147,25 @@ def team_toggle_member(request: HttpRequest, user_id: int) -> HttpResponse:
         user.save(update_fields=["is_active"])
         messages.success(request, f"{user.username} reactivated.")
     return redirect("team")
+
+
+@org_admin_required
+@require_POST
+def team_reset_password(request: HttpRequest, user_id: int) -> HttpResponse:
+    org = request.organization
+    membership = get_object_or_404(
+        Membership.objects.select_related("user"),
+        user_id=user_id, organization=org,
+    )
+    user = membership.user
+    new_password = request.POST.get("new_password", "").strip()
+    if not new_password:
+        messages.error(request, "Password cannot be empty.")
+        return redirect("team")
+    user.set_password(new_password)
+    user.save()
+    messages.success(
+        request,
+        f"Password reset for {user.username}. Share the new temporary password: {new_password}"
+    )
+    return redirect("team")
