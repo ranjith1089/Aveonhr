@@ -92,21 +92,30 @@ class ClientBillingForm(forms.ModelForm):
             getattr(self.instance, "client", None), "organization", None
         )
         if org is not None:
-            if not AcademicYear.objects.filter(organization=org).exists():
-                existing = (
+            year_labels = []
+            try:
+                if not AcademicYear.objects.filter(organization=org).exists():
+                    existing = (
+                        ClientBilling.objects.filter(client__organization=org)
+                        .values_list("academic_year", flat=True)
+                        .distinct()
+                    )
+                    for lbl in existing:
+                        AcademicYear.objects.get_or_create(
+                            organization=org, label=lbl,
+                            defaults={"is_active": True},
+                        )
+                year_labels = list(AcademicYear.objects.filter(
+                    organization=org, is_active=True
+                ).values_list("label", flat=True))
+            except Exception:
+                year_labels = list(
                     ClientBilling.objects.filter(client__organization=org)
                     .values_list("academic_year", flat=True)
                     .distinct()
+                    .order_by("-academic_year")
                 )
-                for label in existing:
-                    AcademicYear.objects.get_or_create(
-                        organization=org, label=label,
-                        defaults={"is_active": True},
-                    )
-            years = AcademicYear.objects.filter(
-                organization=org, is_active=True
-            ).values_list("label", flat=True)
-            choices = [("", "-- Select academic year --")] + [(y, y) for y in years]
+            choices = [("", "-- Select academic year --")] + [(y, y) for y in year_labels]
             current = getattr(self.instance, "academic_year", None)
             if current and current not in [c[0] for c in choices]:
                 choices.append((current, f"{current} (inactive)"))
