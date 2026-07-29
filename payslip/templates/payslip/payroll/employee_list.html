@@ -108,6 +108,14 @@
     <h2>📥 Export Employees to Excel</h2>
     <p class="sub">Select the columns you want in your .xlsx file, then click Export.</p>
     <form id="exportForm" method="get" action="{% url 'employee_export' %}">
+      <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+        <label style="font-size:13px;font-weight:700;">Employee Status:</label>
+        <select name="status" style="padding:6px 10px;border-radius:7px;border:1.5px solid #CBD5E1;font-size:13px;">
+          <option value="active">Active Only</option>
+          <option value="inactive">Inactive Only</option>
+          <option value="all" selected>All Employees</option>
+        </select>
+      </div>
       <div class="col-grid">
         {% for key, label in export_columns %}
         <label><input type="checkbox" name="cols" value="{{ key }}" checked /> {{ label }}</label>

@@ -195,7 +195,8 @@ def payroll_entry_breakdown(request: HttpRequest, pk: int) -> HttpResponse:
 def employee_export(request: HttpRequest) -> HttpResponse:
     from .services.employee_export import build_employee_workbook, COLUMN_KEYS
     selected = [c for c in request.GET.getlist("cols") if c in COLUMN_KEYS]
-    data = build_employee_workbook(request.organization, selected)
+    status = (request.GET.get("status") or "all").lower()
+    data = build_employee_workbook(request.organization, selected, status=status)
     resp = HttpResponse(
         data,
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

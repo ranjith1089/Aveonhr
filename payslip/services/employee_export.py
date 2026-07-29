@@ -54,7 +54,7 @@ def _format_value(val):
     return val
 
 
-def build_employee_workbook(org, selected_columns: Sequence[str]) -> bytes:
+def build_employee_workbook(org, selected_columns: Sequence[str], status: str = "all") -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
@@ -64,6 +64,10 @@ def build_employee_workbook(org, selected_columns: Sequence[str]) -> bytes:
         columns = EXPORTABLE_COLUMNS[:5]
 
     employees = Employee.objects.filter(organization=org).order_by("name")
+    if status == "active":
+        employees = employees.filter(is_active=True)
+    elif status == "inactive":
+        employees = employees.filter(is_active=False)
 
     wb = Workbook()
     ws = wb.active
