@@ -77,7 +77,10 @@ class ClientBillingForm(forms.ModelForm):
             "next_followup_date", "followup_note",
         ]
         widgets = {
-            "academic_year": forms.Select(),
+            "academic_year": forms.TextInput(attrs={
+                "list": "year-options",
+                "placeholder": "e.g., 2026-2027",
+            }),
             "engineer": forms.TextInput(attrs={
                 "list": "engineer-options",
                 "placeholder": "Pick or type a new engineer",
@@ -106,8 +109,8 @@ class ClientBillingForm(forms.ModelForm):
                             defaults={"is_active": True},
                         )
                 year_labels = list(AcademicYear.objects.filter(
-                    organization=org, is_active=True
-                ).values_list("label", flat=True))
+                    organization=org
+                ).values_list("label", flat=True).order_by("-label"))
             except Exception:
                 year_labels = list(
                     ClientBilling.objects.filter(client__organization=org)

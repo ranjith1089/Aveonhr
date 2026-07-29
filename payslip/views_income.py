@@ -290,9 +290,13 @@ def income_billing_create(request: HttpRequest, pk: int) -> HttpResponse:
         else:
             messages.success(request, f"{billing.academic_year} added for {client.name}.")
             return redirect("income_client_detail", pk=client.pk)
+    year_options = sorted(
+        AcademicYear.objects.filter(organization=org).values_list("label", flat=True),
+        reverse=True
+    )
     return render(request, "payslip/income/billing_form.html",
                   {"form": form, "heading": f"Add year - {client.name}", "client": client,
-                   "engineer_options": _engineer_names(org)})
+                   "year_options": year_options, "engineer_options": _engineer_names(org)})
 
 
 @module_required("income")
@@ -307,9 +311,13 @@ def income_billing_edit(request: HttpRequest, pk: int) -> HttpResponse:
         form.save()
         messages.success(request, f"{billing.academic_year} updated.")
         return redirect("income_client_detail", pk=billing.client_id)
+    year_options = sorted(
+        AcademicYear.objects.filter(organization=org).values_list("label", flat=True),
+        reverse=True
+    )
     return render(request, "payslip/income/billing_form.html",
                   {"form": form, "heading": f"Edit {billing.client.name} {billing.academic_year}",
-                   "client": billing.client, "engineer_options": _engineer_names(org)})
+                   "client": billing.client, "year_options": year_options, "engineer_options": _engineer_names(org)})
 
 
 @module_required("income")

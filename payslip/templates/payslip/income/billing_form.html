@@ -21,7 +21,14 @@
     <form method="post" style="margin-top:14px;">
       {% csrf_token %}
       <div class="grid">
-        <p><label>Academic Year</label>{{ form.academic_year }}</p>
+        <p>
+          <label>Academic Year</label>
+          {{ form.academic_year }}
+          <datalist id="year-options">
+            {% for y in year_options %}<option value="{{ y }}">{% endfor %}
+          </datalist>
+          <span class="muted">Pick from the list or type a new year (e.g., 2026-2027).</span>
+        </p>
         <p>
           <label>Implementation Engineer</label>
           {{ form.engineer }}
