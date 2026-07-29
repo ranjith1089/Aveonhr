@@ -174,6 +174,26 @@ ENGINEER_CHOICES = [(n, n) for n in (
 )]
 
 
+class AcademicYear(models.Model):
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE,
+        related_name="academic_years",
+    )
+    label = models.CharField(
+        max_length=9,
+        validators=[RegexValidator(r"^\d{4}-\d{4}$", "Use the format 2025-2026.")],
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-label"]
+        unique_together = [("organization", "label")]
+
+    def __str__(self) -> str:
+        return self.label
+
+
 class IncomeClient(models.Model):
     organization = models.ForeignKey(
         Organization, on_delete=models.PROTECT,

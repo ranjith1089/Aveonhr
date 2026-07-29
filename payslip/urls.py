@@ -66,6 +66,7 @@ urlpatterns = [
     path("income/implementation/<int:pk>/agreement-document/", views_implementation.download_agreement_document, name="download_agreement_document"),
     path("income/export.xlsx", views_income.income_export, name="income_export"),
     path("income/import/", views_income.income_import, name="income_import"),
+    path("income/academic-years/", views_income.academic_year_list, name="academic_year_list"),
     # --- Payroll module ---
     path("payroll/settings/", views_payroll.payroll_settings, name="payroll_settings"),
     path("payroll/structure/", views_payroll.salary_structure, name="salary_structure"),

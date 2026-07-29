@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Academic Years - Aveon Income</title>
+{% include "payslip/income/_income_style.html" %}
+</head>
+<body>
+<div class="container" style="max-width:680px;">
+  {% include "payslip/income/_income_nav.html" with active_page="academic_years" %}
+
+  <div class="card">
+    <h1>📅 Academic Years</h1>
+    <p class="sub" style="margin:0 0 14px;">Add years once here, then pick them from a dropdown when creating billings.</p>
+
+    {% if form.errors %}
+    <div class="msg error">
+      {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add" />
+      <p style="margin:0;"><label>New Year</label>{{ form.label }}</p>
+      <button class="btn" type="submit">+ Add</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>All Academic Years</h2>
+    {% if years %}
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Year</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for y in years %}
+        <tr>
+          <td><b>{{ y.label }}</b></td>
+          <td>
+            {% if y.is_active %}<span class="badge green">Active</span>
+            {% else %}<span class="badge gray">Inactive</span>{% endif %}
+          </td>
+          <td>
+            <form method="post" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="toggle" />
+              <input type="hidden" name="pk" value="{{ y.pk }}" />
+              <button class="btn small secondary" type="submit">
+                {% if y.is_active %}Deactivate{% else %}Activate{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="big">📅</div>
+      No academic years added yet. Add one above to get started.
+    </div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

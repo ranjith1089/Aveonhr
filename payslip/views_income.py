@@ -19,12 +19,13 @@ from django.views.decorators.http import require_GET, require_POST
 
 from .decorators import module_required
 from .forms_income import (
+    AcademicYearForm,
     ClientBillingForm,
     IncomeClientForm,
     IncomeImportForm,
     PaymentReceiptForm,
 )
-from .models import ClientBilling, IncomeClient, PaymentReceipt
+from .models import AcademicYear, ClientBilling, IncomeClient, PaymentReceipt
 
 
 def _engineer_names(org) -> list[str]:
@@ -278,7 +279,7 @@ def income_billing_create(request: HttpRequest, pk: int) -> HttpResponse:
             "rate": latest.rate,
             "previous_pending": latest.balance,  # prefill only - stays editable
         }
-    form = ClientBillingForm(request.POST or None, initial=initial)
+    form = ClientBillingForm(request.POST or None, initial=initial, organization=org)
     if request.method == "POST" and form.is_valid():
         billing = form.save(commit=False)
         billing.client = client
@@ -301,7 +302,7 @@ def income_billing_edit(request: HttpRequest, pk: int) -> HttpResponse:
         ClientBilling.objects.select_related("client"),
         pk=pk, client__organization=org,
     )
-    form = ClientBillingForm(request.POST or None, instance=billing)
+    form = ClientBillingForm(request.POST or None, instance=billing, organization=org)
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, f"{billing.academic_year} updated.")
@@ -382,3 +383,38 @@ def income_import(request: HttpRequest) -> HttpResponse:
                 return redirect("income_dashboard")
     return render(request, "payslip/income/import.html",
                   {"form": form, "result": result})
+
+
+# ---------------------------------------------------------------------------
+# Academic Years
+# ---------------------------------------------------------------------------
+@module_required("income")
+def academic_year_list(request: HttpRequest) -> HttpResponse:
+    org = request.organization
+    form = AcademicYearForm(organization=org)
+
+    if request.method == "POST":
+        action = request.POST.get("action", "add")
+
+        if action == "toggle":
+            pk = request.POST.get("pk")
+            year = get_object_or_404(AcademicYear, pk=pk, organization=org)
+            year.is_active = not year.is_active
+            year.save(update_fields=["is_active"])
+            label = "activated" if year.is_active else "deactivated"
+            messages.success(request, f"{year.label} {label}.")
+            return redirect("academic_year_list")
+
+        form = AcademicYearForm(request.POST, organization=org)
+        if form.is_valid():
+            year = form.save(commit=False)
+            year.organization = org
+            year.save()
+            messages.success(request, f"Academic year {year.label} added.")
+            return redirect("academic_year_list")
+
+    years = AcademicYear.objects.filter(organization=org)
+    return render(request, "payslip/income/academic_years.html", {
+        "years": years,
+        "form": form,
+    })

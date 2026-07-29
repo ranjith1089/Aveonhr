@@ -30,7 +30,14 @@ class GeneratedFileAdmin(admin.ModelAdmin):
         return False
 
 
-from .models import ClientBilling, IncomeClient, PaymentReceipt
+from .models import AcademicYear, ClientBilling, IncomeClient, PaymentReceipt
+
+
+@admin.register(AcademicYear)
+class AcademicYearAdmin(admin.ModelAdmin):
+    list_display = ("label", "organization", "is_active", "created_at")
+    list_filter = ("is_active", "organization")
+    search_fields = ("label",)
 
 
 class ClientBillingInline(admin.TabularInline):

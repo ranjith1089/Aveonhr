@@ -8,6 +8,7 @@
     <a href="{% url 'income_client_create' %}">+ Add Client</a>
     <a href="{% url 'income_export' %}">Export Excel</a>
     <a href="{% url 'income_import' %}" {% if active_page == "import" %}class="active"{% endif %}>Import</a>
+    <a href="{% url 'academic_year_list' %}" {% if active_page == "academic_years" %}class="active"{% endif %}>📅 Years</a>
     <a href="{% url 'landing' %}">← HR Suite</a>
   </div>
 </div>

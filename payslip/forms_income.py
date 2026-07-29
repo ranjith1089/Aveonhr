@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from .forms import EXCEL_EXTENSIONS, EXECUTABLE_EXTENSIONS, _extension
-from .models import ClientBilling, IncomeClient, PaymentReceipt
+from .models import AcademicYear, ClientBilling, IncomeClient, PaymentReceipt
 
 
 class IncomeClientForm(forms.ModelForm):
@@ -34,6 +34,38 @@ class IncomeClientForm(forms.ModelForm):
         return name
 
 
+class AcademicYearForm(forms.ModelForm):
+    class Meta:
+        model = AcademicYear
+        fields = ["label"]
+        widgets = {
+            "label": forms.TextInput(attrs={"placeholder": "2026-2027"}),
+        }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.organization = organization or getattr(self.instance, "organization", None)
+
+    def clean_label(self):
+        raw = (self.cleaned_data.get("label") or "").strip()
+        m = re.match(r"^(\d{4})\s*-\s*(\d{2,4})$", raw)
+        if not m:
+            raise ValidationError("Use the format 2025-2026.")
+        start = int(m.group(1))
+        end_raw = m.group(2)
+        end = int(end_raw) if len(end_raw) == 4 else int(str(start)[:2] + end_raw)
+        if end != start + 1:
+            raise ValidationError("The end year must be the start year + 1.")
+        label = f"{start}-{end}"
+        if self.organization is not None:
+            qs = AcademicYear.objects.filter(organization=self.organization, label=label)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(f"{label} already exists.")
+        return label
+
+
 class ClientBillingForm(forms.ModelForm):
     class Meta:
         model = ClientBilling
@@ -45,8 +77,7 @@ class ClientBillingForm(forms.ModelForm):
             "next_followup_date", "followup_note",
         ]
         widgets = {
-            "academic_year": forms.TextInput(attrs={"placeholder": "2025-2026"}),
-            # Free text + datalist: pick an existing engineer or type a new name.
+            "academic_year": forms.Select(),
             "engineer": forms.TextInput(attrs={
                 "list": "engineer-options",
                 "placeholder": "Pick or type a new engineer",
@@ -54,6 +85,21 @@ class ClientBillingForm(forms.ModelForm):
             "remarks": forms.Textarea(attrs={"rows": 2}),
             "next_followup_date": forms.DateInput(attrs={"type": "date"}),
         }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        org = organization or getattr(
+            getattr(self.instance, "client", None), "organization", None
+        )
+        if org is not None:
+            years = AcademicYear.objects.filter(
+                organization=org, is_active=True
+            ).values_list("label", flat=True)
+            choices = [("", "-- Select academic year --")] + [(y, y) for y in years]
+            current = getattr(self.instance, "academic_year", None)
+            if current and current not in [c[0] for c in choices]:
+                choices.append((current, f"{current} (inactive)"))
+            self.fields["academic_year"].choices = choices
 
     def clean_academic_year(self):
         raw = (self.cleaned_data.get("academic_year") or "").strip()
