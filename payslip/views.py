@@ -87,32 +87,6 @@ def signup(request: HttpRequest) -> HttpResponse:
     return render(request, "registration/signup.html", {"form": form})
 
 
-def admin_password_reset(request: HttpRequest) -> HttpResponse:
-    """Emergency admin password reset - only works if no users exist (initial setup)."""
-    from django.contrib.auth.models import User
-    if request.method == "POST":
-        username = request.POST.get("username", "").strip()
-        password = request.POST.get("password", "").strip()
-        if username and password:
-            user = User.objects.filter(username=username).first()
-            if user:
-                user.set_password(password)
-                user.save()
-                return render(request, "registration/password_reset_success.html", {
-                    "username": username,
-                    "password": password
-                })
-            else:
-                return render(request, "registration/admin_password_reset.html", {
-                    "error": f"User '{username}' not found. Check username and try again."
-                })
-        else:
-            return render(request, "registration/admin_password_reset.html", {
-                "error": "Username and password are required."
-            })
-    return render(request, "registration/admin_password_reset.html")
-
-
 @org_admin_required
 def company_profile(request: HttpRequest) -> HttpResponse:
     org = request.organization

@@ -20,7 +20,6 @@ urlpatterns = [
     path("", landing, name="landing"),
     path("accounts/signup/", signup, name="signup"),
     path("accounts/", include("django.contrib.auth.urls")),
-    path("accounts/admin-reset/", views.admin_password_reset, name="admin_password_reset"),
     path("profile/", company_profile, name="company_profile"),
     path("profile/logo/", profile_logo, name="profile_logo"),
     # --- Team management (org admins) ---
