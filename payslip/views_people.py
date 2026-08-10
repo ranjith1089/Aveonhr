@@ -1,5 +1,4 @@
-"""People registry - stored candidates & internship students, with the
-letters generated for each of them.
+"""People registry & Recruitment pipeline.
 
 Org-scoped: every query filters by request.organization; cross-org 404.
 Stored PDFs are served through the transient GeneratedFile token flow.
@@ -8,13 +7,15 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.db.models import Count, Max
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from .decorators import module_required
-from .forms_people import PersonForm
-from .models import Person, PersonDocument
+from .forms_people import InterviewRoundForm, JobOpeningForm, PersonForm
+from .models import InterviewRound, JobOpening, Person, PersonDocument
 
 # Which letters each kind of person can generate, with their builder URLs.
 GENERATE_ACTIONS = {
@@ -37,17 +38,23 @@ DOC_BADGES = {
     PersonDocument.DocType.EXPERIENCE_INTERNSHIP: "green",
 }
 
+STAGE_BADGES = {
+    "NEW": "gray", "SCREENING": "amber", "SHORTLISTED": "blue",
+    "INTERVIEW": "amber", "SELECTED": "green", "OFFERED": "blue",
+    "JOINED": "green", "REJECTED": "red", "ON_HOLD": "gray",
+}
+
 
 def _quick_generate_actions(kind) -> list[dict]:
-    """Blank-form links for one-step generation (no existing person) -
-    the same builder pages, minus ?person=, so the standalone
-    fill-and-generate-then-auto-capture flow is unchanged."""
     return [
         {"label": label, "url": reverse(url_name)}
         for label, url_name, _type_key in GENERATE_ACTIONS[kind]
     ]
 
 
+# ---------------------------------------------------------------------------
+# People list
+# ---------------------------------------------------------------------------
 @module_required("people")
 def people_list(request: HttpRequest) -> HttpResponse:
     q = (request.GET.get("q") or "").strip()
@@ -69,20 +76,29 @@ def people_list(request: HttpRequest) -> HttpResponse:
         "q": q,
         "candidate_quick_actions": _quick_generate_actions(Person.Kind.CANDIDATE),
         "intern_quick_actions": _quick_generate_actions(Person.Kind.INTERN),
+        "stage_badges": STAGE_BADGES,
     })
 
 
+# ---------------------------------------------------------------------------
+# Person CRUD
+# ---------------------------------------------------------------------------
 @module_required("people")
 def person_create(request: HttpRequest) -> HttpResponse:
     initial = {}
     if request.GET.get("kind") in (Person.Kind.CANDIDATE, Person.Kind.INTERN):
         initial["kind"] = request.GET["kind"]
+    if request.GET.get("job"):
+        initial["applied_for"] = request.GET["job"]
+        initial["stage"] = Person.Stage.NEW
     form = PersonForm(request.POST or None, organization=request.organization,
                       initial=initial or None)
     if request.method == "POST" and form.is_valid():
         person = form.save(commit=False)
         person.organization = request.organization
         person.created_by = request.user
+        if person.stage and not person.stage_updated_at:
+            person.stage_updated_at = timezone.now()
         person.save()
         messages.success(request, f"Added {person.name}.")
         return redirect("person_detail", pk=person.pk)
@@ -92,6 +108,8 @@ def person_create(request: HttpRequest) -> HttpResponse:
         "heading": "Add Person",
         "documents": [],
         "generate_actions": [],
+        "interviews": [],
+        "interview_form": InterviewRoundForm(),
     })
 
 
@@ -103,10 +121,14 @@ def person_detail(request: HttpRequest, pk: int) -> HttpResponse:
         action = request.POST.get("action", "")
 
         if action == "save_person":
+            old_stage = person.stage
             form = PersonForm(request.POST, instance=person,
                               organization=request.organization)
             if form.is_valid():
-                form.save()
+                p = form.save(commit=False)
+                if p.stage != old_stage:
+                    p.stage_updated_at = timezone.now()
+                p.save()
                 messages.success(request, "Details saved.")
                 return redirect("person_detail", pk=pk)
             messages.error(request, "Please fix the errors below.")
@@ -151,6 +173,7 @@ def person_detail(request: HttpRequest, pk: int) -> HttpResponse:
         for label, url_name, type_key in GENERATE_ACTIONS[person.kind]
     ]
     employee = person.employee_profile.first()
+    interviews = person.interviews.all()
     return render(request, "payslip/person_detail.html", {
         "person": person,
         "form": form,
@@ -160,14 +183,160 @@ def person_detail(request: HttpRequest, pk: int) -> HttpResponse:
         "employee": employee,
         "can_convert": (person.kind == Person.Kind.CANDIDATE and employee is None
                         and request.membership.has_module("payroll")),
+        "interviews": interviews,
+        "interview_form": InterviewRoundForm(),
+        "stage_badges": STAGE_BADGES,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Recruitment pipeline
+# ---------------------------------------------------------------------------
+@module_required("people")
+def recruitment_pipeline(request: HttpRequest) -> HttpResponse:
+    org = request.organization
+    stage_filter = (request.GET.get("stage") or "").strip()
+    source_filter = (request.GET.get("source") or "").strip()
+    job_filter = (request.GET.get("job") or "").strip()
+    q = (request.GET.get("q") or "").strip()
+
+    candidates = Person.objects.filter(
+        organization=org, kind=Person.Kind.CANDIDATE,
+    ).exclude(stage="").select_related("applied_for")
+
+    if stage_filter:
+        candidates = candidates.filter(stage=stage_filter)
+    if source_filter:
+        candidates = candidates.filter(source=source_filter)
+    if job_filter:
+        candidates = candidates.filter(applied_for_id=job_filter)
+    if q:
+        candidates = candidates.filter(name__icontains=q)
+
+    candidates = list(candidates)
+
+    all_in_pipeline = Person.objects.filter(
+        organization=org, kind=Person.Kind.CANDIDATE,
+    ).exclude(stage="")
+    stage_cards = []
+    total_pipeline = 0
+    for val, label in Person.Stage.choices:
+        c = all_in_pipeline.filter(stage=val).count()
+        total_pipeline += c
+        stage_cards.append({"val": val, "label": label, "count": c})
+
+    jobs = JobOpening.objects.filter(organization=org, status=JobOpening.Status.OPEN)
+
+    return render(request, "payslip/recruitment_pipeline.html", {
+        "candidates": candidates,
+        "stage_filter": stage_filter,
+        "source_filter": source_filter,
+        "job_filter": job_filter,
+        "q": q,
+        "stage_cards": stage_cards,
+        "total_pipeline": total_pipeline,
+        "stages": Person.Stage.choices,
+        "sources": Person.Source.choices,
+        "jobs": jobs,
     })
 
 
 @module_required("people")
+@require_POST
+def person_update_stage(request: HttpRequest, pk: int) -> JsonResponse:
+    person = get_object_or_404(Person, pk=pk, organization=request.organization)
+    new_stage = (request.POST.get("stage") or "").strip()
+    if new_stage not in Person.Stage.values:
+        return JsonResponse({"error": "Invalid stage."}, status=400)
+    person.stage = new_stage
+    person.stage_updated_at = timezone.now()
+    person.save(update_fields=["stage", "stage_updated_at", "updated_at"])
+    return JsonResponse({"ok": True, "stage": new_stage,
+                         "label": Person.Stage(new_stage).label})
+
+
+# ---------------------------------------------------------------------------
+# Job Openings
+# ---------------------------------------------------------------------------
+@module_required("people")
+def job_opening_list(request: HttpRequest) -> HttpResponse:
+    org = request.organization
+    show = (request.GET.get("show") or "open").strip()
+    openings = JobOpening.objects.filter(organization=org)
+    if show == "open":
+        openings = openings.filter(status=JobOpening.Status.OPEN)
+    elif show == "closed":
+        openings = openings.filter(status=JobOpening.Status.CLOSED)
+    openings = list(openings)
+    return render(request, "payslip/job_opening_list.html", {
+        "openings": openings, "show": show,
+    })
+
+
+@module_required("people")
+def job_opening_create(request: HttpRequest) -> HttpResponse:
+    form = JobOpeningForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        opening = form.save(commit=False)
+        opening.organization = request.organization
+        opening.save()
+        messages.success(request, f"Job opening '{opening.title}' created.")
+        return redirect("job_opening_list")
+    return render(request, "payslip/job_opening_form.html", {
+        "form": form, "heading": "Add Job Opening",
+    })
+
+
+@module_required("people")
+def job_opening_edit(request: HttpRequest, pk: int) -> HttpResponse:
+    opening = get_object_or_404(JobOpening, pk=pk, organization=request.organization)
+    form = JobOpeningForm(request.POST or None, instance=opening)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Job opening updated.")
+        return redirect("job_opening_list")
+    return render(request, "payslip/job_opening_form.html", {
+        "form": form, "heading": f"Edit {opening.title}", "opening": opening,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Interview rounds
+# ---------------------------------------------------------------------------
+@module_required("people")
+@require_POST
+def interview_add(request: HttpRequest, pk: int) -> HttpResponse:
+    person = get_object_or_404(Person, pk=pk, organization=request.organization)
+    form = InterviewRoundForm(request.POST)
+    if form.is_valid():
+        interview = form.save(commit=False)
+        interview.person = person
+        interview.save()
+        messages.success(request, f"Interview round '{interview.round_name}' added.")
+    else:
+        messages.error(request, "Could not add interview: " +
+                       "; ".join(f"{f}: {e[0]}" for f, e in form.errors.items()))
+    return redirect("person_detail", pk=pk)
+
+
+@module_required("people")
+@require_POST
+def interview_delete(request: HttpRequest, pk: int) -> HttpResponse:
+    interview = get_object_or_404(
+        InterviewRound.objects.select_related("person"),
+        pk=pk, person__organization=request.organization,
+    )
+    person_pk = interview.person_id
+    interview.delete()
+    messages.success(request, "Interview round removed.")
+    return redirect("person_detail", pk=person_pk)
+
+
+# ---------------------------------------------------------------------------
+# Convert to Employee (unchanged)
+# ---------------------------------------------------------------------------
+@module_required("people")
 def person_convert(request: HttpRequest, pk: int) -> HttpResponse:
-    """Convert a candidate Person into a payroll Employee, linked back to the
-    Person. Requires the payroll module right (the result is a payroll
-    record). Interns and already-converted candidates are refused."""
     from .decorators import _forbidden
     from .forms_payroll import ConvertToEmployeeForm
     from .views_payroll import _next_employee_code

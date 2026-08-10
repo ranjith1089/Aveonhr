@@ -10,6 +10,8 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
+import mimetypes
+
 from .decorators import module_required
 from .forms_income import ClientOnboardingForm, FeatureAddForm
 from .models import ClientOnboarding, FeatureStatus, IncomeClient, feature_progress, onboarding_for
@@ -118,7 +120,7 @@ def client_implementation(request: HttpRequest, pk: int) -> HttpResponse:
         action = request.POST.get("action", "")
 
         if action == "save_onboarding":
-            form = ClientOnboardingForm(request.POST, instance=onboarding)
+            form = ClientOnboardingForm(request.POST, request.FILES, instance=onboarding)
             if form.is_valid():
                 form.save()
                 messages.success(request, "Onboarding details saved.")
@@ -234,3 +236,31 @@ def client_implementation(request: HttpRequest, pk: int) -> HttpResponse:
         "all_clients": IncomeClient.objects.filter(organization=request.organization)
                        .only("id", "name").order_by("name"),
     })
+
+
+@module_required("implementation")
+def download_po_document(request: HttpRequest, pk: int) -> HttpResponse:
+    onboarding = get_object_or_404(
+        ClientOnboarding.objects.select_related("client"),
+        pk=pk, client__organization=request.organization,
+    )
+    if not onboarding.po_document:
+        return HttpResponse("No PO document uploaded.", status=404)
+    content_type = mimetypes.guess_type(onboarding.po_filename)[0] or "application/octet-stream"
+    resp = HttpResponse(bytes(onboarding.po_document), content_type=content_type)
+    resp["Content-Disposition"] = f'attachment; filename="{onboarding.po_filename}"'
+    return resp
+
+
+@module_required("implementation")
+def download_agreement_document(request: HttpRequest, pk: int) -> HttpResponse:
+    onboarding = get_object_or_404(
+        ClientOnboarding.objects.select_related("client"),
+        pk=pk, client__organization=request.organization,
+    )
+    if not onboarding.agreement_document:
+        return HttpResponse("No agreement document uploaded.", status=404)
+    content_type = mimetypes.guess_type(onboarding.agreement_filename)[0] or "application/octet-stream"
+    resp = HttpResponse(bytes(onboarding.agreement_document), content_type=content_type)
+    resp["Content-Disposition"] = f'attachment; filename="{onboarding.agreement_filename}"'
+    return resp

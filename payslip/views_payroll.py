@@ -193,8 +193,24 @@ def payroll_entry_breakdown(request: HttpRequest, pk: int) -> HttpResponse:
 # Employees
 # ---------------------------------------------------------------------------
 @module_required("payroll")
+def employee_export(request: HttpRequest) -> HttpResponse:
+    from .services.employee_export import build_employee_workbook, COLUMN_KEYS
+    selected = [c for c in request.GET.getlist("cols") if c in COLUMN_KEYS]
+    status = (request.GET.get("status") or "all").lower()
+    data = build_employee_workbook(request.organization, selected, status=status)
+    resp = HttpResponse(
+        data,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    resp["Content-Disposition"] = 'attachment; filename="employees.xlsx"'
+    return resp
+
+
+@module_required("payroll")
 def employee_list(request: HttpRequest) -> HttpResponse:
+    from .services.employee_export import EXPORTABLE_COLUMNS
     q = (request.GET.get("q") or "").strip()
+    status_filter = (request.GET.get("status") or "active").lower()
     employees = Employee.objects.filter(organization=request.organization)
     if q:
         employees = employees.filter(name__icontains=q)
@@ -205,11 +221,13 @@ def employee_list(request: HttpRequest) -> HttpResponse:
         "active_employees": active_employees,
         "inactive_employees": inactive_employees,
         "q": q,
+        "status_filter": status_filter,
         "active_count": len(active_employees),
         "inactive_count": len(inactive_employees),
         "monthly_cost": sum((e.current_monthly_package for e in active_employees), Decimal("0")),
         "esi_count": sum(1 for e in active_employees if e.is_esi_eligible),
         "pf_count": sum(1 for e in active_employees if e.is_pf_applicable),
+        "export_columns": EXPORTABLE_COLUMNS,
     })
 
 

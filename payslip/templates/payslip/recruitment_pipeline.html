@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Recruitment Pipeline - Aveon HR Suite</title>
+{% include "payslip/income/_income_style.html" %}
+<style>
+  .stage-cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;}
+  .stage-card{flex:1;min-width:100px;text-align:center;padding:10px 8px;border-radius:10px;background:var(--card-bg,#fff);border:1.5px solid var(--border,#E2E8F0);cursor:pointer;text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s;}
+  .stage-card:hover,.stage-card.active{border-color:var(--primary,#1a73e8);box-shadow:0 2px 8px rgba(26,115,232,.12);}
+  .stage-card .count{font-size:22px;font-weight:800;color:var(--primary,#1a73e8);}
+  .stage-card .label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#64748B;margin-top:2px;}
+  .stage-select{padding:3px 6px;font-size:12px;border:1.5px solid var(--border,#CBD5E1);border-radius:5px;cursor:pointer;}
+  .badge.stage-new,.badge.stage-on_hold{background:#F1F5F9;color:#475569;}
+  .badge.stage-screening,.badge.stage-interview{background:#FEF3C7;color:#92400E;}
+  .badge.stage-shortlisted,.badge.stage-offered{background:#DBEAFE;color:#1E40AF;}
+  .badge.stage-selected,.badge.stage-joined{background:#DCFCE7;color:#166534;}
+  .badge.stage-rejected{background:#FEE2E2;color:#991B1B;}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <a class="brand" href="{% url 'landing' %}">👥 Recruitment</a>
+    <div class="topnav">
+      <a href="{% url 'landing' %}">← HR Suite</a>
+      <a href="{% url 'job_opening_list' %}">💼 Job Openings</a>
+      <a href="{% url 'recruitment_pipeline' %}" class="active">🎯 Recruitment</a>
+      <a href="{% url 'people_list' %}">👥 People</a>
+    </div>
+  </div>
+  {% if messages %}
+  <div class="messages">
+    {% for message in messages %}<div class="msg {{ message.tags }}">{{ message }}</div>{% endfor %}
+  </div>
+  {% endif %}
+
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+    <div>
+      <h1>🎯 Recruitment Pipeline</h1>
+      <p class="sub" style="margin:0;">Track candidates through the hiring process — from application to joining.</p>
+    </div>
+    <a class="btn" href="{% url 'person_create' %}?kind=CANDIDATE">+ Add Candidate</a>
+  </div>
+
+  <div class="stage-cards">
+    <a class="stage-card {% if not stage_filter %}active{% endif %}" href="{% url 'recruitment_pipeline' %}">
+      <div class="count">{{ total_pipeline }}</div>
+      <div class="label">All</div>
+    </a>
+    {% for sc in stage_cards %}
+    <a class="stage-card {% if stage_filter == sc.val %}active{% endif %}" href="?stage={{ sc.val }}{% if source_filter %}&source={{ source_filter }}{% endif %}{% if job_filter %}&job={{ job_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}">
+      <div class="count">{{ sc.count }}</div>
+      <div class="label">{{ sc.label }}</div>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <form method="get" class="filter-bar" style="margin-bottom:14px;">
+      <div style="flex:1.5;">
+        <label>Search</label>
+        <input type="text" name="q" value="{{ q }}" placeholder="Candidate name...">
+      </div>
+      <div>
+        <label>Stage</label>
+        <select name="stage">
+          <option value="">All stages</option>
+          {% for val, label in stages %}
+          <option value="{{ val }}" {% if stage_filter == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Source</label>
+        <select name="source">
+          <option value="">All sources</option>
+          {% for val, label in sources %}
+          <option value="{{ val }}" {% if source_filter == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Job Opening</label>
+        <select name="job">
+          <option value="">All jobs</option>
+          {% for j in jobs %}
+          <option value="{{ j.pk }}" {% if job_filter == j.pk|stringformat:"d" %}selected{% endif %}>{{ j.title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="flex:0;">
+        <button class="btn secondary" type="submit">Apply</button>
+      </div>
+    </form>
+
+    {% if candidates %}
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Candidate</th>
+          <th>Designation</th>
+          <th>Job Opening</th>
+          <th>Source</th>
+          <th>Stage</th>
+          <th>Applied</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+        {% for p in candidates %}
+        <tr>
+          <td><a href="{% url 'person_detail' p.pk %}"><b>{{ p.name }}</b></a>
+            {% if p.email %}<br><span class="muted" style="font-size:12px;">{{ p.email }}</span>{% endif %}
+          </td>
+          <td>{{ p.designation|default:"—" }}</td>
+          <td>{{ p.applied_for.title|default:"—" }}</td>
+          <td>{{ p.get_source_display|default:"—" }}</td>
+          <td>
+            <select class="stage-select" data-person-id="{{ p.pk }}" onchange="updateStage(this)">
+              {% for val, label in stages %}
+              <option value="{{ val }}" {% if p.stage == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td style="white-space:nowrap;">{{ p.created_at|date:"d M Y" }}</td>
+          <td><a class="btn small secondary" href="{% url 'person_detail' p.pk %}">Open →</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="big">🎯</div>
+      No candidates in the pipeline{% if stage_filter %} at this stage{% endif %}.
+      <br><a href="{% url 'person_create' %}?kind=CANDIDATE">Add a candidate</a> to get started.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function updateStage(sel){
+  var id=sel.dataset.personId;
+  var fd=new FormData();
+  fd.append("stage",sel.value);
+  fetch("/people/"+id+"/update-stage/",{
+    method:"POST",
+    headers:{"X-CSRFToken":"{{ csrf_token }}"},
+    body:fd,
+  }).then(function(r){return r.json();}).then(function(data){
+    if(data.error){alert(data.error);location.reload();}
+  }).catch(function(){alert("Failed to update stage.");location.reload();});
+}
+</script>
+</body>
+</html>

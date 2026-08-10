@@ -14,16 +14,18 @@ from django.db.models.functions import Coalesce
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
 from .decorators import module_required
 from .forms_income import (
+    AcademicYearForm,
     ClientBillingForm,
     IncomeClientForm,
     IncomeImportForm,
     PaymentReceiptForm,
 )
-from .models import ClientBilling, IncomeClient, PaymentReceipt
+from .models import AcademicYear, ClientBilling, IncomeClient, PaymentReceipt
 
 
 def _engineer_names(org) -> list[str]:
@@ -196,6 +198,20 @@ def income_client_list(request: HttpRequest) -> HttpResponse:
 
 
 @module_required("income")
+@require_POST
+def income_client_update_engineer(request: HttpRequest, pk: int) -> JsonResponse:
+    org = request.organization
+    client = get_object_or_404(IncomeClient, pk=pk, organization=org)
+    latest = max(client.billings.all(), key=lambda b: b.year_start, default=None)
+    if not latest:
+        return JsonResponse({"error": "No billing year exists for this client."}, status=400)
+    engineer = (request.POST.get("engineer") or "").strip()
+    latest.engineer = engineer
+    latest.save(update_fields=["engineer", "updated_at"])
+    return JsonResponse({"ok": True, "engineer": engineer})
+
+
+@module_required("income")
 def income_client_create(request: HttpRequest) -> HttpResponse:
     org = request.organization
     form = IncomeClientForm(request.POST or None, organization=org)
@@ -281,7 +297,7 @@ def income_billing_create(request: HttpRequest, pk: int) -> HttpResponse:
             "rate": latest.rate,
             "previous_pending": latest.balance,  # prefill only - stays editable
         }
-    form = ClientBillingForm(request.POST or None, initial=initial)
+    form = ClientBillingForm(request.POST or None, initial=initial, organization=org)
     if request.method == "POST" and form.is_valid():
         billing = form.save(commit=False)
         billing.client = client
@@ -292,9 +308,13 @@ def income_billing_create(request: HttpRequest, pk: int) -> HttpResponse:
         else:
             messages.success(request, f"{billing.academic_year} added for {client.name}.")
             return redirect("income_client_detail", pk=client.pk)
+    year_options = sorted(
+        AcademicYear.objects.filter(organization=org).values_list("label", flat=True),
+        reverse=True
+    )
     return render(request, "payslip/income/billing_form.html",
                   {"form": form, "heading": f"Add year - {client.name}", "client": client,
-                   "engineer_options": _engineer_names(org)})
+                   "year_options": year_options, "engineer_options": _engineer_names(org)})
 
 
 @module_required("income")
@@ -304,14 +324,18 @@ def income_billing_edit(request: HttpRequest, pk: int) -> HttpResponse:
         ClientBilling.objects.select_related("client"),
         pk=pk, client__organization=org,
     )
-    form = ClientBillingForm(request.POST or None, instance=billing)
+    form = ClientBillingForm(request.POST or None, instance=billing, organization=org)
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, f"{billing.academic_year} updated.")
         return redirect("income_client_detail", pk=billing.client_id)
+    year_options = sorted(
+        AcademicYear.objects.filter(organization=org).values_list("label", flat=True),
+        reverse=True
+    )
     return render(request, "payslip/income/billing_form.html",
                   {"form": form, "heading": f"Edit {billing.client.name} {billing.academic_year}",
-                   "client": billing.client, "engineer_options": _engineer_names(org)})
+                   "client": billing.client, "year_options": year_options, "engineer_options": _engineer_names(org)})
 
 
 @module_required("income")
@@ -385,3 +409,54 @@ def income_import(request: HttpRequest) -> HttpResponse:
                 return redirect("income_dashboard")
     return render(request, "payslip/income/import.html",
                   {"form": form, "result": result})
+
+
+# ---------------------------------------------------------------------------
+# Academic Years
+# ---------------------------------------------------------------------------
+@module_required("income")
+def academic_year_list(request: HttpRequest) -> HttpResponse:
+    org = request.organization
+
+    if not AcademicYear.objects.filter(organization=org).exists():
+        existing = (
+            ClientBilling.objects.filter(client__organization=org)
+            .values_list("academic_year", flat=True)
+            .distinct()
+        )
+        created = 0
+        for label in existing:
+            AcademicYear.objects.get_or_create(
+                organization=org, label=label, defaults={"is_active": True}
+            )
+            created += 1
+        if created:
+            messages.info(request, f"Auto-imported {created} academic year(s) from existing billings.")
+
+    form = AcademicYearForm(organization=org)
+
+    if request.method == "POST":
+        action = request.POST.get("action", "add")
+
+        if action == "toggle":
+            pk = request.POST.get("pk")
+            year = get_object_or_404(AcademicYear, pk=pk, organization=org)
+            year.is_active = not year.is_active
+            year.save(update_fields=["is_active"])
+            label = "activated" if year.is_active else "deactivated"
+            messages.success(request, f"{year.label} {label}.")
+            return redirect("academic_year_list")
+
+        form = AcademicYearForm(request.POST, organization=org)
+        if form.is_valid():
+            year = form.save(commit=False)
+            year.organization = org
+            year.save()
+            messages.success(request, f"Academic year {year.label} added.")
+            return redirect("academic_year_list")
+
+    years = AcademicYear.objects.filter(organization=org)
+    return render(request, "payslip/income/academic_years.html", {
+        "years": years,
+        "form": form,
+    })

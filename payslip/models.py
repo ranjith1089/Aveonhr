@@ -173,6 +173,26 @@ ENGINEER_CHOICES = [(n, n) for n in (
 )]
 
 
+class AcademicYear(models.Model):
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE,
+        related_name="academic_years",
+    )
+    label = models.CharField(
+        max_length=9,
+        validators=[RegexValidator(r"^\d{4}-\d{4}$", "Use the format 2025-2026.")],
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-label"]
+        unique_together = [("organization", "label")]
+
+    def __str__(self) -> str:
+        return self.label
+
+
 class IncomeClient(models.Model):
     organization = models.ForeignKey(
         Organization, on_delete=models.PROTECT,
@@ -354,9 +374,13 @@ class ClientOnboarding(models.Model):
     po_received = models.BooleanField(default=False)
     po_number = models.CharField(max_length=100, blank=True, default="")
     po_date = models.DateField(null=True, blank=True)
+    po_document = models.BinaryField(null=True, blank=True)
+    po_filename = models.CharField(max_length=255, blank=True, default="")
 
     # Agreement
     agreement_signed = models.BooleanField(default=False)
+    agreement_document = models.BinaryField(null=True, blank=True)
+    agreement_filename = models.CharField(max_length=255, blank=True, default="")
     agreement_years = models.PositiveSmallIntegerField(null=True, blank=True)
     agreement_start = models.DateField(null=True, blank=True)
     agreement_end = models.DateField(null=True, blank=True)
@@ -510,6 +534,24 @@ class Person(models.Model):
         CANDIDATE = "CANDIDATE", "Candidate / Employee"
         INTERN = "INTERN", "Internship Student"
 
+    class Source(models.TextChoices):
+        CAMPUS = "CAMPUS", "Campus Drive"
+        REFERRAL = "REFERRAL", "Referral"
+        PORTAL = "PORTAL", "Job Portal"
+        WALKIN = "WALKIN", "Walk-in"
+        OTHER = "OTHER", "Other"
+
+    class Stage(models.TextChoices):
+        NEW = "NEW", "New"
+        SCREENING = "SCREENING", "Screening"
+        SHORTLISTED = "SHORTLISTED", "Shortlisted"
+        INTERVIEW = "INTERVIEW", "Interview"
+        SELECTED = "SELECTED", "Selected"
+        OFFERED = "OFFERED", "Offered"
+        JOINED = "JOINED", "Joined"
+        REJECTED = "REJECTED", "Rejected"
+        ON_HOLD = "ON_HOLD", "On Hold"
+
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
                                      related_name="people")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
@@ -530,6 +572,16 @@ class Person(models.Model):
     designation = models.CharField(max_length=200, blank=True, default="")
     join_date = models.DateField(null=True, blank=True)
     leaving_date = models.DateField(null=True, blank=True)
+
+    # Recruitment pipeline
+    source = models.CharField(max_length=12, choices=Source.choices, blank=True, default="")
+    stage = models.CharField(max_length=12, choices=Stage.choices, blank=True, default="")
+    applied_for = models.ForeignKey(
+        "JobOpening", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="applicants",
+    )
+    expected_ctc = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    stage_updated_at = models.DateTimeField(null=True, blank=True)
 
     # Internship student
     roll_number = models.CharField(max_length=100, blank=True, default="")
@@ -586,6 +638,66 @@ class PersonDocument(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.person.name}: {self.get_doc_type_display()}"
+
+
+# ---------------------------------------------------------------------------
+# Recruitment - job openings & interview tracking
+# ---------------------------------------------------------------------------
+class JobOpening(models.Model):
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        ON_HOLD = "ON_HOLD", "On Hold"
+        CLOSED = "CLOSED", "Closed"
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE,
+                                     related_name="job_openings")
+    title = models.CharField(max_length=200)
+    department = models.CharField(max_length=100, blank=True, default="")
+    positions = models.PositiveIntegerField(default=1)
+    location = models.CharField(max_length=200, blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return self.title
+
+    @property
+    def applicant_count(self):
+        return self.applicants.count()
+
+    @property
+    def selected_count(self):
+        return self.applicants.filter(
+            stage__in=(Person.Stage.SELECTED, Person.Stage.OFFERED, Person.Stage.JOINED)
+        ).count()
+
+
+class InterviewRound(models.Model):
+    class Result(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        PASSED = "PASSED", "Passed"
+        FAILED = "FAILED", "Failed"
+
+    person = models.ForeignKey(Person, on_delete=models.CASCADE,
+                               related_name="interviews")
+    round_name = models.CharField(max_length=100)
+    scheduled_at = models.DateTimeField(null=True, blank=True)
+    interviewer = models.CharField(max_length=100, blank=True, default="")
+    feedback = models.TextField(blank=True, default="")
+    rating = models.PositiveSmallIntegerField(null=True, blank=True)
+    result = models.CharField(max_length=10, choices=Result.choices, default=Result.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.person.name} - {self.round_name}"
 
 
 # ---------------------------------------------------------------------------

@@ -14,6 +14,11 @@
   }
   .section-hdr h2 { margin-bottom:0; }
   .quick-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .badge.stage-new,.badge.stage-on_hold{background:#F1F5F9;color:#475569;}
+  .badge.stage-screening,.badge.stage-interview{background:#FEF3C7;color:#92400E;}
+  .badge.stage-shortlisted,.badge.stage-offered{background:#DBEAFE;color:#1E40AF;}
+  .badge.stage-selected,.badge.stage-joined{background:#DCFCE7;color:#166534;}
+  .badge.stage-rejected{background:#FEE2E2;color:#991B1B;}
 </style>
 </head>
 <body>
@@ -46,12 +51,14 @@
     {% if candidates %}
     <div class="tbl-wrap">
       <table>
-        <tr><th>Name</th><th>Designation</th><th class="num">Letters</th><th>Last letter</th><th></th></tr>
+        <tr><th>Name</th><th>Designation</th><th>Stage</th><th>Source</th><th class="num">Letters</th><th>Last letter</th><th></th></tr>
         {% for p in candidates %}
         <tr class="row-link" onclick="window.location='{% url 'person_detail' p.pk %}'">
           <td><a href="{% url 'person_detail' p.pk %}"><b>{{ p.name }}</b></a>
             {% if p.employee_links %}<span class="badge green" style="margin-left:6px;">💼 Employee</span>{% endif %}</td>
           <td>{{ p.designation|default:"—" }}</td>
+          <td>{% if p.stage %}<span class="badge stage-{{ p.stage|lower }}">{{ p.get_stage_display }}</span>{% else %}—{% endif %}</td>
+          <td>{{ p.get_source_display|default:"—" }}</td>
           <td class="num">{{ p.doc_count }}</td>
           <td style="white-space:nowrap;">{{ p.last_doc|date:"d M Y"|default:"—" }}</td>
           <td><a class="btn small secondary" href="{% url 'person_detail' p.pk %}">Open →</a></td>

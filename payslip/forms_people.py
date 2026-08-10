@@ -1,11 +1,12 @@
-"""Forms for the People registry."""
+"""Forms for the People registry and Recruitment pipeline."""
 from __future__ import annotations
 
 from django import forms
 
-from .models import Person
+from .models import InterviewRound, JobOpening, Person
 
 _DATE = forms.DateInput(attrs={"type": "date"})
+_DATETIME = forms.DateTimeInput(attrs={"type": "datetime-local"})
 
 
 class PersonForm(forms.ModelForm):
@@ -14,6 +15,7 @@ class PersonForm(forms.ModelForm):
         fields = [
             "kind", "name", "title", "gender", "email", "phone", "address",
             "employee_no", "designation", "join_date", "leaving_date",
+            "source", "stage", "applied_for", "expected_ctc",
             "roll_number", "course", "college_name", "college_address",
             "internship_role", "start_date", "end_date",
             "notes",
@@ -33,6 +35,10 @@ class PersonForm(forms.ModelForm):
     def __init__(self, *args, organization=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.organization = organization or getattr(self.instance, "organization", None)
+        if self.organization:
+            self.fields["applied_for"].queryset = JobOpening.objects.filter(
+                organization=self.organization, status=JobOpening.Status.OPEN,
+            )
 
     def clean_name(self):
         name = (self.cleaned_data.get("name") or "").strip()
@@ -40,7 +46,6 @@ class PersonForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        # Per-org uniqueness on (kind, name) - friendly error instead of 500.
         name = cleaned.get("name")
         kind = cleaned.get("kind")
         if name and kind and self.organization is not None:
@@ -52,3 +57,23 @@ class PersonForm(forms.ModelForm):
                 self.add_error("name", "This person already exists - open their "
                                        "record from the People page instead.")
         return cleaned
+
+
+class JobOpeningForm(forms.ModelForm):
+    class Meta:
+        model = JobOpening
+        fields = ["title", "department", "positions", "location", "description", "status"]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 3}),
+        }
+
+
+class InterviewRoundForm(forms.ModelForm):
+    class Meta:
+        model = InterviewRound
+        fields = ["round_name", "scheduled_at", "interviewer", "feedback", "rating", "result"]
+        widgets = {
+            "scheduled_at": _DATETIME,
+            "feedback": forms.Textarea(attrs={"rows": 2}),
+            "rating": forms.NumberInput(attrs={"min": 1, "max": 5, "style": "width:80px;"}),
+        }

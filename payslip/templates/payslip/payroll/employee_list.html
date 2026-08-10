@@ -7,6 +7,7 @@
 {% include "payslip/payroll/_payroll_style.html" %}
 <style>
   tr.row-link { cursor:pointer; }
+<<<<<<< HEAD
   .salary-cell { cursor:pointer; user-select:none; }
   .salary-cell:hover { opacity:0.8; }
   details.inactive-section { margin-top:18px; }
@@ -21,6 +22,18 @@
   details.inactive-section[open] > summary::before { transform:rotate(90deg); }
   details.inactive-section > summary:hover { border-color:var(--content-faint); }
   details.inactive-section .tbl-wrap { margin-top:12px; }
+=======
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1000;align-items:center;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);padding:24px 28px;max-width:560px;width:92%;max-height:80vh;overflow-y:auto;}
+  .modal-box h2{margin:0 0 6px;font-size:17px;}
+  .modal-box .sub{margin:0 0 14px;color:#64748B;font-size:13px;}
+  .col-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;}
+  .col-grid label{display:flex;align-items:center;gap:7px;font-size:13px;padding:5px 0;cursor:pointer;}
+  .col-grid input[type=checkbox]{accent-color:#1a73e8;width:15px;height:15px;}
+  .modal-actions{margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .modal-actions .link-btn{background:none;border:none;color:#1a73e8;cursor:pointer;font-size:13px;font-weight:600;padding:0;}
+>>>>>>> 0c30938e5baa2448b43204b93d6c97e9f2672e31
 </style>
 </head>
 <body>
@@ -33,12 +46,17 @@
       <p class="sub" style="margin:0;">The payroll master — each run picks up every active employee.</p>
     </div>
     <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-      <form method="get" style="display:flex; gap:8px;">
+      <form method="get" style="display:flex; gap:8px; align-items:center;">
         <input type="text" name="q" value="{{ q }}" placeholder="🔍 Search name…" style="max-width:220px;" />
+        <select name="status" onchange="this.form.submit()" style="padding:7px 10px;border-radius:7px;border:1.5px solid #CBD5E1;font-size:13px;">
+          <option value="active" {% if status_filter == "active" %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
+          <option value="all" {% if status_filter == "all" %}selected{% endif %}>All</option>
+        </select>
         <button class="btn small secondary" type="submit">Search</button>
       </form>
+      <button class="btn secondary" type="button" onclick="document.getElementById('exportModal').classList.add('open')">📥 Export Excel</button>
       <a class="btn" href="{% url 'employee_create' %}">+ Add Employee</a>
-      <a class="btn secondary" href="{% url 'employee_export' %}">⬇ Export</a>
     </div>
   </div>
 
@@ -50,9 +68,9 @@
       <div class="kpi-sub">{% if inactive_count %}{{ inactive_count }} inactive{% else %}Everyone on payroll{% endif %}</div>
     </div>
     <div class="kpi is-good">
-      <div class="kpi-top"><span class="kpi-ico">💰</span><span class="kpi-lbl">Monthly package</span></div>
-      <div class="kpi-val">₹{{ monthly_cost|floatformat:0|intcomma }}</div>
-      <div class="kpi-sub">Combined, active only</div>
+      <div class="kpi-top"><span class="kpi-ico">👥</span><span class="kpi-lbl">Total employees</span></div>
+      <div class="kpi-val">{{ active_count|add:inactive_count }}</div>
+      <div class="kpi-sub">Active + inactive</div>
     </div>
     <div class="kpi is-muted">
       <div class="kpi-top"><span class="kpi-ico">🛡️</span><span class="kpi-lbl">ESI enrolled</span></div>
@@ -145,6 +163,34 @@
   {% endif %}
 </div>
 
+<div class="modal-overlay" id="exportModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal-box">
+    <h2>📥 Export Employees to Excel</h2>
+    <p class="sub">Select the columns you want in your .xlsx file, then click Export.</p>
+    <form id="exportForm" method="get" action="{% url 'employee_export' %}">
+      <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+        <label style="font-size:13px;font-weight:700;">Employee Status:</label>
+        <select name="status" style="padding:6px 10px;border-radius:7px;border:1.5px solid #CBD5E1;font-size:13px;">
+          <option value="active">Active Only</option>
+          <option value="inactive">Inactive Only</option>
+          <option value="all" selected>All Employees</option>
+        </select>
+      </div>
+      <div class="col-grid">
+        {% for key, label in export_columns %}
+        <label><input type="checkbox" name="cols" value="{{ key }}" checked /> {{ label }}</label>
+        {% endfor %}
+      </div>
+      <div class="modal-actions">
+        <button class="btn" type="submit">Export Selected</button>
+        <button class="link-btn" type="button" onclick="toggleAll(true)">Select All</button>
+        <button class="link-btn" type="button" onclick="toggleAll(false)">Deselect All</button>
+        <button class="btn secondary" type="button" onclick="document.getElementById('exportModal').classList.remove('open')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 document.querySelectorAll('.salary-cell').forEach(cell => {
   cell.addEventListener('click', function(e) {
@@ -157,6 +203,9 @@ document.querySelectorAll('.salary-cell').forEach(cell => {
     }
   });
 });
+function toggleAll(checked){
+  document.querySelectorAll('#exportForm input[type=checkbox]').forEach(function(cb){cb.checked=checked;});
+}
 </script>
 </body>
 </html>

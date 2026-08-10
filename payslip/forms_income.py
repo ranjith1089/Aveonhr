@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from .forms import EXCEL_EXTENSIONS, EXECUTABLE_EXTENSIONS, _extension
-from .models import ClientBilling, IncomeClient, PaymentReceipt
+from .models import AcademicYear, ClientBilling, IncomeClient, PaymentReceipt
 
 
 class IncomeClientForm(forms.ModelForm):
@@ -34,6 +34,38 @@ class IncomeClientForm(forms.ModelForm):
         return name
 
 
+class AcademicYearForm(forms.ModelForm):
+    class Meta:
+        model = AcademicYear
+        fields = ["label"]
+        widgets = {
+            "label": forms.TextInput(attrs={"placeholder": "2026-2027"}),
+        }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.organization = organization or getattr(self.instance, "organization", None)
+
+    def clean_label(self):
+        raw = (self.cleaned_data.get("label") or "").strip()
+        m = re.match(r"^(\d{4})\s*-\s*(\d{2,4})$", raw)
+        if not m:
+            raise ValidationError("Use the format 2025-2026.")
+        start = int(m.group(1))
+        end_raw = m.group(2)
+        end = int(end_raw) if len(end_raw) == 4 else int(str(start)[:2] + end_raw)
+        if end != start + 1:
+            raise ValidationError("The end year must be the start year + 1.")
+        label = f"{start}-{end}"
+        if self.organization is not None:
+            qs = AcademicYear.objects.filter(organization=self.organization, label=label)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise ValidationError(f"{label} already exists.")
+        return label
+
+
 class ClientBillingForm(forms.ModelForm):
     class Meta:
         model = ClientBilling
@@ -45,8 +77,10 @@ class ClientBillingForm(forms.ModelForm):
             "next_followup_date", "followup_note",
         ]
         widgets = {
-            "academic_year": forms.TextInput(attrs={"placeholder": "2025-2026"}),
-            # Free text + datalist: pick an existing engineer or type a new name.
+            "academic_year": forms.TextInput(attrs={
+                "list": "year-options",
+                "placeholder": "e.g., 2026-2027",
+            }),
             "engineer": forms.TextInput(attrs={
                 "list": "engineer-options",
                 "placeholder": "Pick or type a new engineer",
@@ -54,6 +88,41 @@ class ClientBillingForm(forms.ModelForm):
             "remarks": forms.Textarea(attrs={"rows": 2}),
             "next_followup_date": forms.DateInput(attrs={"type": "date"}),
         }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        org = organization or getattr(
+            getattr(self.instance, "client", None), "organization", None
+        )
+        if org is not None:
+            year_labels = []
+            try:
+                if not AcademicYear.objects.filter(organization=org).exists():
+                    existing = (
+                        ClientBilling.objects.filter(client__organization=org)
+                        .values_list("academic_year", flat=True)
+                        .distinct()
+                    )
+                    for lbl in existing:
+                        AcademicYear.objects.get_or_create(
+                            organization=org, label=lbl,
+                            defaults={"is_active": True},
+                        )
+                year_labels = list(AcademicYear.objects.filter(
+                    organization=org
+                ).values_list("label", flat=True).order_by("-label"))
+            except Exception:
+                year_labels = list(
+                    ClientBilling.objects.filter(client__organization=org)
+                    .values_list("academic_year", flat=True)
+                    .distinct()
+                    .order_by("-academic_year")
+                )
+            choices = [("", "-- Select academic year --")] + [(y, y) for y in year_labels]
+            current = getattr(self.instance, "academic_year", None)
+            if current and current not in [c[0] for c in choices]:
+                choices.append((current, f"{current} (inactive)"))
+            self.fields["academic_year"].choices = choices
 
     def clean_academic_year(self):
         raw = (self.cleaned_data.get("academic_year") or "").strip()
@@ -116,7 +185,15 @@ class IncomeImportForm(forms.Form):
 from .models import ClientOnboarding, FeatureStatus
 
 
+ALLOWED_DOC_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx"}
+
+
 class ClientOnboardingForm(forms.ModelForm):
+    po_upload = forms.FileField(required=False, label="Upload PO document")
+    remove_po_document = forms.BooleanField(required=False, label="Remove PO document")
+    agreement_upload = forms.FileField(required=False, label="Upload Agreement document")
+    remove_agreement_document = forms.BooleanField(required=False, label="Remove Agreement document")
+
     class Meta:
         model = ClientOnboarding
         fields = [
@@ -147,6 +224,26 @@ class ClientOnboardingForm(forms.ModelForm):
             "reminder_days": "Show an expiry reminder this many days before the end date.",
         }
 
+    def clean_po_upload(self):
+        f = self.cleaned_data.get("po_upload")
+        if f:
+            ext = ("." + f.name.rsplit(".", 1)[-1]).lower() if "." in f.name else ""
+            if ext not in ALLOWED_DOC_EXTENSIONS:
+                raise ValidationError(f"Allowed: {', '.join(sorted(ALLOWED_DOC_EXTENSIONS))}")
+            if f.size > 10 * 1024 * 1024:
+                raise ValidationError("File must be under 10 MB.")
+        return f
+
+    def clean_agreement_upload(self):
+        f = self.cleaned_data.get("agreement_upload")
+        if f:
+            ext = ("." + f.name.rsplit(".", 1)[-1]).lower() if "." in f.name else ""
+            if ext not in ALLOWED_DOC_EXTENSIONS:
+                raise ValidationError(f"Allowed: {', '.join(sorted(ALLOWED_DOC_EXTENSIONS))}")
+            if f.size > 10 * 1024 * 1024:
+                raise ValidationError("File must be under 10 MB.")
+        return f
+
     def clean(self):
         cleaned = super().clean()
         start = cleaned.get("agreement_start")
@@ -154,6 +251,28 @@ class ClientOnboardingForm(forms.ModelForm):
         if start and end and end <= start:
             self.add_error("agreement_end", "End date must be after the start date.")
         return cleaned
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        po_file = self.cleaned_data.get("po_upload")
+        if po_file:
+            instance.po_document = po_file.read()
+            instance.po_filename = po_file.name
+        elif self.cleaned_data.get("remove_po_document"):
+            instance.po_document = None
+            instance.po_filename = ""
+
+        agr_file = self.cleaned_data.get("agreement_upload")
+        if agr_file:
+            instance.agreement_document = agr_file.read()
+            instance.agreement_filename = agr_file.name
+        elif self.cleaned_data.get("remove_agreement_document"):
+            instance.agreement_document = None
+            instance.agreement_filename = ""
+
+        if commit:
+            instance.save()
+        return instance
 
 
 class FeatureAddForm(forms.ModelForm):
