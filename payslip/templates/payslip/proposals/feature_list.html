@@ -441,6 +441,21 @@
     {% for para in spec.about.paragraphs %}<p class="body-p">{{ para }}</p>{% endfor %}
   </div>
 
+  <!-- ============ FEATURED CLIENTS ============ -->
+  {% if clients %}
+  <div class="sec">
+    <h2 class="st">Featured Clients</h2>
+    <div class="cards-g">
+      {% for client in clients %}
+      <div class="card-c" style="text-align: center;">
+        <img src="/static/payslip/clients/{{ client.logo }}" alt="{{ client.name }} logo" style="max-height: 60px; max-width: 100%; margin-bottom: 12px; object-fit: contain;">
+        <div class="card-t">{{ client.name }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   <div class="ns-contact">
     <span class="ns-talk">Let&rsquo;s talk.</span>
     {% if contact_phone %}<span>Phone: <strong>{{ contact_phone }}</strong></span>{% endif %}

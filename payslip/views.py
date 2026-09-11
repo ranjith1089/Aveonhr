@@ -603,6 +603,7 @@ def cms_feature_list(request: HttpRequest) -> HttpResponse:
     full 9-part spec - for demos, tenders and RFP responses.
     """
     from .cms_spec import CMS_SPEC
+    from .client_logos import FEATURED_CLIENTS
 
     brand = CompanyBranding.from_profile(org_for(request.user))
     context = {
@@ -611,6 +612,7 @@ def cms_feature_list(request: HttpRequest) -> HttpResponse:
         "contact_phone": brand.phone,
         "contact_email": brand.email,
         "contact_website": brand.website,
+        "clients": FEATURED_CLIENTS,
     }
     response = render(request, "payslip/proposals/feature_list.html", context)
     if request.GET.get("download"):
