@@ -602,17 +602,40 @@ def cms_feature_list(request: HttpRequest) -> HttpResponse:
     (Version 2026) verbatim from cms_spec.py - 16 chapters, every module's
     full 9-part spec - for demos, tenders and RFP responses.
     """
+    import base64
+    from pathlib import Path
     from .cms_spec import CMS_SPEC
     from .client_logos import FEATURED_CLIENTS
 
     brand = CompanyBranding.from_profile(org_for(request.user))
+
+    # Convert client logos to data URIs for print-ready HTML
+    clients_with_logos = []
+    clients_dir = Path(__file__).parent / "static" / "payslip" / "clients"
+    for client in FEATURED_CLIENTS:
+        logo_path = clients_dir / client["logo"]
+        logo_uri = ""
+        if logo_path.exists():
+            try:
+                logo_bytes = logo_path.read_bytes()
+                # Detect image type from extension
+                ext = logo_path.suffix.lower()
+                mime_type = "image/png" if ext == ".png" else "image/jpeg"
+                logo_uri = f"data:{mime_type};base64," + base64.b64encode(logo_bytes).decode("ascii")
+            except Exception:
+                pass
+        clients_with_logos.append({
+            "name": client["name"],
+            "logo_uri": logo_uri,
+        })
+
     context = {
         "spec": CMS_SPEC,
         "logo_data_uri": _logo_data_uri(brand),
         "contact_phone": brand.phone,
         "contact_email": brand.email,
         "contact_website": brand.website,
-        "clients": FEATURED_CLIENTS,
+        "clients": clients_with_logos,
     }
     response = render(request, "payslip/proposals/feature_list.html", context)
     if request.GET.get("download"):
