@@ -1,8 +1,33 @@
 # Featured clients for CMS features proposal page
-# Add client entries with name and logo filename
-# Logo files should be placed in payslip/static/payslip/clients/
+# Logo files are stored in payslip/static/payslip/clients/
 
 FEATURED_CLIENTS = [
-    # {"name": "Client Name", "logo": "client_name.png"},
-    # {"name": "Another Client", "logo": "client_logo.png"},
+    {"name": "Aalim", "logo": "aalim.png"},
+    {"name": "Annai Mera", "logo": "annai mera.png"},
+    {"name": "CIET", "logo": "ciet.png"},
+    {"name": "DSC", "logo": "dsc.png"},
+    {"name": "EGS", "logo": "egs.png"},
+    {"name": "GRG", "logo": "grg.png"},
+    {"name": "GTN", "logo": "gtn.png"},
+    {"name": "JSB", "logo": "JSB-website-baner-1 1.png"},
+    {"name": "Kirsttu Janti University", "logo": "kirstu janti university.png"},
+    {"name": "KOCAS", "logo": "kocas.png"},
+    {"name": "Kovai Kalaimagal College", "logo": "kovai-kalaimagal-college.png"},
+    {"name": "KSG", "logo": "ksg.png"},
+    {"name": "MCET", "logo": "mcet.png"},
+    {"name": "Nandha", "logo": "nandha.png"},
+    {"name": "PSG CAS", "logo": "psg cas.png"},
+    {"name": "PSG ITAR", "logo": "psgitarlogo 1.png"},
+    {"name": "SAN", "logo": "san.png"},
+    {"name": "Sankara", "logo": "sankara.png"},
+    {"name": "SNR", "logo": "SNR.png 1.png"},
+    {"name": "SNMV", "logo": "snmv-logo-ad-page-scaled 1.png"},
+    {"name": "SPCLOGO", "logo": "SPCLOGO 1.png"},
+    {"name": "SRCS", "logo": "srcs.png"},
+    {"name": "SSR", "logo": "ssr.png"},
+    {"name": "Vanavarayar", "logo": "vanavarayar.png"},
+    {"name": "Vethathiri", "logo": "vethathiri.png"},
+    {"name": "Vidya Vikas", "logo": "vidya vikas.png"},
+    {"name": "Viveganandha Global Academy", "logo": "Viveganandha-Global-Academy.png"},
+    {"name": "VMKVMCH", "logo": "VMKVMCH-.png"},
 ]
