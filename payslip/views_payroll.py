@@ -4,6 +4,7 @@ and generated payslips. Org-scoped throughout; cross-org access 404s.
 from __future__ import annotations
 
 import calendar
+import datetime
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -206,27 +207,149 @@ def employee_export(request: HttpRequest) -> HttpResponse:
     return resp
 
 
+def tenure_label(doj, today=None) -> str:
+    """'3 yr 4 mo' / '7 mo' / '< 1 mo' / '' for a joining date, as of today."""
+    if not doj:
+        return ""
+    today = today or timezone.localdate()
+    months = (today.year - doj.year) * 12 + (today.month - doj.month)
+    if today.day < doj.day:
+        months -= 1
+    if months < 0:
+        return "Joins " + doj.strftime("%d %b %Y")
+    years, months = divmod(months, 12)
+    if years == 0:
+        return f"{months} mo" if months else "< 1 mo"
+    if months == 0:
+        return f"{years} yr"
+    return f"{years} yr {months} mo"
+
+
+def _financial_year_start(today) -> datetime.date:
+    """Indian FY starts 1 April."""
+    year = today.year if today.month >= 4 else today.year - 1
+    return datetime.date(year, 4, 1)
+
+
+EMPLOYEE_SORTS = {
+    "doj_desc": "newest joiners first",
+    "doj_asc": "longest serving first",
+    "desig": "designation A to Z",
+    "name": "name A to Z",
+}
+
+
+def _sort_employees(employees: list, sort: str) -> list:
+    """Stable in-memory ordering. Employees without a joining date go last
+    for the DOJ orders; blank designations go last for the designation order."""
+    far_past, far_future = datetime.date.min, datetime.date.max
+    if sort == "doj_asc":
+        return sorted(employees, key=lambda e: (e.doj or far_future, e.name.lower()))
+    if sort == "desig":
+        return sorted(employees, key=lambda e: (not e.designation, e.designation.lower(),
+                                                e.doj or far_future, e.name.lower()))
+    if sort == "name":
+        return sorted(employees, key=lambda e: (e.name.lower(), e.doj or far_future))
+    # doj_desc (default): newest first; undated last.
+    return sorted(employees, key=lambda e: (e.doj is None, -(e.doj or far_past).toordinal(),
+                                            e.name.lower()))
+
+
+def _group_by_designation(employees: list) -> list[dict]:
+    """[{label, count, employees}] - designations A-Z, DOJ ascending within
+    each. Employees without a designation form a trailing 'No designation'
+    group. Input must already be in 'desig' order."""
+    groups: list[dict] = []
+    for e in employees:
+        label = e.designation or "No designation"
+        if not groups or groups[-1]["label"] != label:
+            groups.append({"label": label, "count": 0, "employees": []})
+        groups[-1]["employees"].append(e)
+        groups[-1]["count"] += 1
+    return groups
+
+
 @module_required("payroll")
 def employee_list(request: HttpRequest) -> HttpResponse:
+    """Employees master. Query params: q (name/code/designation), status
+    (active|inactive|all), sort (doj_desc|doj_asc|desig|name) and
+    group=designation for a grouped register."""
+    from urllib.parse import urlencode
     from .services.employee_export import EXPORTABLE_COLUMNS
+
     q = (request.GET.get("q") or "").strip()
     status_filter = (request.GET.get("status") or "active").lower()
-    employees = Employee.objects.filter(organization=request.organization)
+    if status_filter not in ("active", "inactive", "all"):
+        status_filter = "active"
+    sort = (request.GET.get("sort") or "doj_desc").lower()
+    if sort not in EMPLOYEE_SORTS:
+        sort = "doj_desc"
+    grouped = (request.GET.get("group") or "").lower() == "designation"
+
+    everyone = list(Employee.objects.filter(organization=request.organization))
+    active_all = [e for e in everyone if e.is_active]
+    inactive_all = [e for e in everyone if not e.is_active]
+
+    employees = everyone
+    if status_filter == "active":
+        employees = active_all
+    elif status_filter == "inactive":
+        employees = inactive_all
     if q:
-        employees = employees.filter(name__icontains=q)
-    employees = list(employees)
-    active_employees = [e for e in employees if e.is_active]
-    inactive_employees = [e for e in employees if not e.is_active]
+        needle = q.lower()
+        employees = [e for e in employees
+                     if needle in e.name.lower() or needle in e.employee_code.lower()
+                     or needle in (e.designation or "").lower()]
+
+    today = timezone.localdate()
+    for i, e in enumerate(sorted(employees, key=lambda e: e.pk)):
+        e.tenure_label = tenure_label(e.doj, today)
+        e.avatar_class = f"c{(i % 6) + 1}"
+
+    if grouped:
+        groups = _group_by_designation(_sort_employees(employees, "desig"))
+    else:
+        groups = [{"label": "", "count": len(employees),
+                   "employees": _sort_employees(employees, sort)}]
+
+    # Links for the toolbar keep the other params intact.
+    def link(**changes) -> str:
+        params = {"q": q, "status": status_filter, "sort": sort}
+        if grouped:
+            params["group"] = "designation"
+        params.update(changes)
+        params = {k: v for k, v in params.items() if v}
+        if params.get("sort") == "doj_desc":
+            params.pop("sort")
+        if params.get("status") == "active":
+            params.pop("status")
+        return "?" + urlencode(params) if params else "?"
+
+    fy_start = _financial_year_start(today)
+    designations = sorted({e.designation for e in active_all if e.designation}, key=str.lower)
+    departments = {e.department for e in active_all if e.department}
     return render(request, "payslip/payroll/employee_list.html", {
-        "active_employees": active_employees,
-        "inactive_employees": inactive_employees,
+        "groups": groups,
+        "grouped": grouped,
+        "shown_count": len(employees),
+        "total_count": len(everyone),
         "q": q,
         "status_filter": status_filter,
-        "active_count": len(active_employees),
-        "inactive_count": len(inactive_employees),
-        "monthly_cost": sum((e.current_monthly_package for e in active_employees), Decimal("0")),
-        "esi_count": sum(1 for e in active_employees if e.is_esi_eligible),
-        "pf_count": sum(1 for e in active_employees if e.is_pf_applicable),
+        "sort": sort,
+        "sort_label": EMPLOYEE_SORTS[sort],
+        "sort_urls": {key: link(sort=key, group="") for key in EMPLOYEE_SORTS},
+        "doj_toggle_url": link(sort="doj_asc" if sort == "doj_desc" else "doj_desc", group=""),
+        "group_url": link(group="" if grouped else "designation"),
+        "status_urls": {key: link(status=key) for key in ("active", "inactive", "all")},
+        "active_count": len(active_all),
+        "inactive_count": len(inactive_all),
+        "joined_fy_count": sum(1 for e in active_all if e.doj and e.doj >= fy_start),
+        "fy_start": fy_start,
+        "designation_count": len(designations),
+        "department_count": len(departments),
+        "monthly_cost": sum((e.current_monthly_package for e in active_all), Decimal("0")),
+        "esi_count": sum(1 for e in active_all if e.is_esi_eligible),
+        "pf_count": sum(1 for e in active_all if e.is_pf_applicable),
         "export_columns": EXPORTABLE_COLUMNS,
     })
 
@@ -272,6 +395,14 @@ def employee_export(request: HttpRequest) -> HttpResponse:
     })
 
 
+def _org_designations(org) -> list[str]:
+    """Distinct designations in use - feeds the form's datalist so reusing
+    one keeps the Employees report groupable."""
+    values = (Employee.objects.filter(organization=org).exclude(designation="")
+              .values_list("designation", flat=True).distinct())
+    return sorted(set(values), key=str.lower)
+
+
 def _next_employee_code(org) -> str:
     n = Employee.objects.filter(organization=org).count() + 1
     while Employee.objects.filter(organization=org, employee_code=f"EMP-{n:04d}").exists():
@@ -294,6 +425,7 @@ def employee_create(request: HttpRequest) -> HttpResponse:
         return redirect("employee_detail", pk=employee.pk)
     return render(request, "payslip/payroll/employee_detail.html", {
         "employee": None, "form": form, "heading": "Add Employee", "entries": [],
+        "designations": _org_designations(org),
     })
 
 
@@ -333,6 +465,8 @@ def employee_detail(request: HttpRequest, pk: int) -> HttpResponse:
     )
     return render(request, "payslip/payroll/employee_detail.html", {
         "employee": employee, "form": form, "heading": employee.name, "entries": entries,
+        "designations": _org_designations(org),
+        "tenure": tenure_label(employee.doj),
     })
 
 
@@ -522,13 +656,117 @@ def payroll_run_detail(request: HttpRequest, pk: int) -> HttpResponse:
         "ctc": sum((e.ctc for e in entries), Decimal("0")),
     }
     generated_pdfs = sum(1 for e in entries if e.pdf)
+    comparison = _build_comparison(org, run, entries)
+    register = _build_register(request, entries, comparison)
     return render(request, "payslip/payroll/run_detail.html", {
         "run": run, "entries": entries, "totals": totals,
         "negative_count": negative_count,
         "generated_pdfs": generated_pdfs,
         "missing_pdfs": len(entries) - generated_pdfs,
-        "comparison": _build_comparison(org, run, entries),
+        "comparison": comparison,
+        **register,
     })
+
+
+REGISTER_ORDERS = {
+    "desig": "Designation, then joining date",
+    "doj_desc": "Joining date (newest)",
+    "doj_asc": "Joining date (oldest)",
+    "net_desc": "Net payable (high to low)",
+    "name": "Name A-Z",
+}
+
+
+def _annotate_change(entry: PayslipEntry, comparison: dict | None) -> None:
+    """One pill per register row: what moved since last month. Priority:
+    new joiner, LOP, advance recovery, net-pay delta, else 'No change'."""
+    prev_net = None
+    if comparison:
+        if any(j.pk == entry.pk for j in comparison["joiners"]):
+            entry.change_label, entry.change_tone = "New this month", "blue"
+            return
+        for r in comparison["rows"]:
+            if r["employee"].pk == entry.employee_id:
+                prev_net = r["prev"]
+                break
+    if entry.lop_days and entry.lop_days > 0:
+        days = entry.lop_days.normalize()
+        days = int(days) if days == days.to_integral_value() else days
+        entry.change_label = f"{days} LOP day{'s' if days != 1 else ''}"
+        entry.change_tone = "amber"
+        return
+    if entry.salary_advance and entry.salary_advance > 0:
+        entry.change_label, entry.change_tone = "Advance recovery", "red"
+        return
+    if prev_net is not None:
+        delta = entry.net_payable - prev_net
+        if delta > 0:
+            entry.change_label, entry.change_tone = f"+\u20b9{delta:,.0f}", "green"
+            return
+        if delta < 0:
+            entry.change_label, entry.change_tone = f"\u2212\u20b9{-delta:,.0f}", "red"
+            return
+    entry.change_label, entry.change_tone = "No change", "gray"
+
+
+def _build_register(request: HttpRequest, entries: list, comparison: dict | None) -> dict:
+    """Read-only salary register: `dept` filter + `order` param, grouped by
+    designation for the default order, with a total row. The editable grid
+    stays unfiltered (its POST handler reads every entry)."""
+    dept = (request.GET.get("dept") or "").strip()
+    order = (request.GET.get("order") or "desig").lower()
+    if order not in REGISTER_ORDERS:
+        order = "desig"
+
+    rows = [e for e in entries if not dept or e.employee.department == dept]
+    far_future = datetime.date.max
+    if order == "doj_desc":
+        rows.sort(key=lambda e: (e.employee.doj is None,
+                                 -(e.employee.doj or datetime.date.min).toordinal(),
+                                 e.employee.name.lower()))
+    elif order == "doj_asc":
+        rows.sort(key=lambda e: (e.employee.doj or far_future, e.employee.name.lower()))
+    elif order == "net_desc":
+        rows.sort(key=lambda e: (-e.net_payable, e.employee.name.lower()))
+    elif order == "name":
+        rows.sort(key=lambda e: e.employee.name.lower())
+    else:
+        rows.sort(key=lambda e: (not e.employee.designation, e.employee.designation.lower(),
+                                 e.employee.doj or far_future, e.employee.name.lower()))
+
+    for e in rows:
+        _annotate_change(e, comparison)
+
+    if order == "desig":
+        groups: list[dict] = []
+        for e in rows:
+            label = e.employee.designation or "No designation"
+            if not groups or groups[-1]["label"] != label:
+                groups.append({"label": label, "count": 0, "entries": []})
+            groups[-1]["entries"].append(e)
+            groups[-1]["count"] += 1
+    else:
+        groups = [{"label": "", "count": len(rows), "entries": rows}]
+
+    def total(attr):
+        return sum((getattr(e, attr) for e in rows), Decimal("0"))
+
+    return {
+        "register_groups": groups,
+        "register_count": len(rows),
+        "register_totals": {
+            "gross": total("gross_salary"), "pf": total("pf_employee"),
+            "esi": total("esi_employee"), "tds": total("tds"),
+            "advance": total("salary_advance"), "net": total("net_payable"),
+            "pay_days": total("pay_days"), "twd": sum(e.total_working_days for e in rows),
+        },
+        "register_order": order,
+        "register_orders": REGISTER_ORDERS,
+        "register_dept": dept,
+        "register_depts": sorted({e.employee.department for e in entries if e.employee.department},
+                                 key=str.lower),
+        "changed_count": sum(1 for e in rows if e.change_tone != "gray"),
+    }
 
 
 def _build_comparison(org, run, entries) -> dict | None:

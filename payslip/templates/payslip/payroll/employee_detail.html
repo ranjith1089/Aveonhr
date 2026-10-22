@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{% load humanize theme_extras %}<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -6,150 +6,295 @@
 <title>{{ heading }} - Payroll - Aveon HR Suite</title>
 {% include "payslip/payroll/_payroll_style.html" %}
 <style>
-  .crumb { font-size:12.5px; font-weight:700; color:#64748B; margin-bottom:4px; }
-  .crumb a { color:#1565C0; text-decoration:none; }
+  .photo-box { width:76px; height:76px; border-radius:14px; background:#E8EDF3; border:1px dashed #CBD5E1;
+               display:inline-flex; align-items:center; justify-content:center; color:#94A3B8; overflow:hidden; flex:0 0 76px; }
+  .photo-box img { width:100%; height:100%; object-fit:cover; }
+  .f .remove-photo { display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:500; color:#334155; margin:0; }
+  .f .remove-photo input { width:15px; height:15px; margin:0; }
+  .preview-box { border:1px solid var(--base-300); border-radius:8px; padding:10px 12px; font-size:12.5px; color:#475569;
+                 display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:4px 12px; background:#F8FAFC; }
+  .preview-box .r { text-align:right; font-variant-numeric:tabular-nums; }
+  .danger-zone { border-top:1.5px dashed var(--base-300); padding-top:14px; }
 </style>
 </head>
 <body>
-<div class="container" style="max-width:900px;">
-  {% include "payslip/payroll/_payroll_nav.html" with active_page="employees" %}
+<div class="shell">
+  {% include "payslip/theme/_rail_nav.html" with rail_module="payroll" rail_page="employees" %}
 
-  <div class="card">
-    <div class="crumb"><a href="{% url 'employee_list' %}">👔 Employees</a> › {{ heading }}</div>
-    <h1>{{ heading }}
-      {% if employee %}
-      {% if employee.is_active %}<span class="badge blue" style="vertical-align:middle;">Active</span>
-      {% else %}<span class="badge red" style="vertical-align:middle;">Inactive</span>{% endif %}
-      {% endif %}
-    </h1>
+  <main class="main">
+    {% include "payslip/theme/_messages.html" %}
+
+    <header class="pg-head">
+      <div class="pg-head-text">
+        <div class="pg-crumb"><a href="{% url 'payroll_run_list' %}">Payroll</a><span class="sep" aria-hidden="true">/</span><a href="{% url 'employee_list' %}">Employees</a><span class="sep" aria-hidden="true">/</span>{% if employee %}{{ employee.name }}{% else %}New employee{% endif %}</div>
+        <h1 class="pg-title">
+          {% if employee %}{{ employee.name }}
+            {% if employee.is_active %}<span class="badge green">Active</span>{% else %}<span class="badge red">Inactive</span>{% endif %}
+          {% else %}Add employee{% endif %}
+        </h1>
+        <p class="pg-lede">
+          {% if employee %}{{ employee.employee_code }}{% if employee.designation %} · {{ employee.designation }}{% endif %}{% if tenure %} · {{ tenure }} with the company{% endif %}
+          {% else %}Only the first two sections are needed to run payroll. Everything else can be filled later.{% endif %}
+        </p>
+      </div>
+      <div class="pg-actions">
+        <a class="btn secondary" href="{% url 'employee_list' %}">Cancel</a>
+        <button class="btn" type="submit" form="emp-form">{% if employee %}Save details{% else %}Save employee{% endif %}</button>
+      </div>
+    </header>
+
     {% if form.errors %}
-    <div class="msg error" style="margin-top:10px;">
-      {% for field, errs in form.errors.items %}{% for err in errs %}<div><b>{{ field }}:</b> {{ err }}</div>{% endfor %}{% endfor %}
+    <div class="notice danger">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+      <span class="txt">Please fix the highlighted fields:
+        {% for field, errs in form.errors.items %}{% for err in errs %}<b>{{ field }}</b>: {{ err }} {% endfor %}{% endfor %}</span>
     </div>
     {% endif %}
-    <form method="post" enctype="multipart/form-data" {% if not employee %}action="{% url 'employee_create' %}"{% endif %} style="margin-top:14px;">
-      {% csrf_token %}
-      {% if employee %}<input type="hidden" name="action" value="save_employee" />{% endif %}
 
-      {# ===== Photo ===== #}
-      <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px; flex-wrap:wrap;">
-        <div style="width:84px; height:84px; border-radius:14px; overflow:hidden; background:var(--base-200); border:1px solid var(--base-300); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-          {% if employee.photo %}<img src="{% url 'employee_photo' employee.pk %}" alt="Photo" style="width:100%; height:100%; object-fit:cover;" />
-          {% else %}<span style="font-size:30px;">👤</span>{% endif %}
+    <div class="form-layout">
+      <aside class="form-anchors" aria-label="Form sections">
+        <a class="anchor on" href="#basics"><span class="n">1</span>Basics</a>
+        <a class="anchor" href="#employment"><span class="n">2</span>Employment &amp; pay</a>
+        <a class="anchor" href="#personal"><span class="n">3</span>Personal</a>
+        <a class="anchor" href="#contact"><span class="n">4</span>Contact</a>
+        <a class="anchor" href="#statutory"><span class="n">5</span>Bank &amp; statutory</a>
+        <a class="anchor" href="#exit"><span class="n">6</span>Exit</a>
+        <p class="note">Required fields are marked <span class="req">*</span>. Changes are saved only when you press Save.</p>
+      </aside>
+
+      <form id="emp-form" class="form-col" method="post" enctype="multipart/form-data" {% if not employee %}action="{% url 'employee_create' %}"{% endif %}>
+        {% csrf_token %}
+        {% if employee %}<input type="hidden" name="action" value="save_employee" />{% endif %}
+
+        {# ===== 1 Basics ===== #}
+        <section class="card sec" id="basics">
+          <div class="sec-head">
+            <h2>Basics</h2>
+            <p>Who this person is and how they appear on payslips.</p>
+          </div>
+          <div style="display:flex; gap:18px; align-items:center; flex-wrap:wrap;">
+            <span class="photo-box" aria-hidden="true">
+              {% if employee.photo %}<img src="{% url 'employee_photo' employee.pk %}" alt="" />
+              {% else %}<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>{% endif %}
+            </span>
+            <div class="f" style="flex:1 1 220px;">
+              <label class="lbl" for="{{ form.photo_upload.id_for_label }}">Photo</label>
+              {{ form.photo_upload }}
+              <span class="help">JPG or PNG. Resized to 512px and shown on the payslip header.</span>
+              {% if employee.photo %}<label class="remove-photo">{{ form.remove_photo }} Remove current photo</label>{% endif %}
+              {{ form.photo_upload.errors }}
+            </div>
+          </div>
+          <div class="grid">
+            <div class="f">
+              <label class="lbl" for="{{ form.employee_code.id_for_label }}">Employee code{% if form.employee_code.field.required %}<span class="req">*</span>{% endif %}</label>
+              {{ form.employee_code }}
+              <span class="help">{% if employee %}Must stay unique within the company.{% else %}Next free code suggested. Must be unique.{% endif %}</span>
+              {{ form.employee_code.errors }}
+            </div>
+            <div class="f">
+              <label class="lbl" for="{{ form.name.id_for_label }}">Full name{% if form.name.field.required %}<span class="req">*</span>{% endif %}</label>
+              {{ form.name }}
+              <span class="help">As it should print on the payslip.</span>
+              {{ form.name.errors }}
+            </div>
+            <div class="f">
+              <label class="lbl" for="id_designation">Designation</label>
+              <input type="text" name="designation" id="id_designation" list="desig-list" maxlength="200"
+                     value="{{ form.designation.value|default_if_none:'' }}" placeholder="Start typing to pick an existing one" />
+              <datalist id="desig-list">
+                {% for d in designations %}<option value="{{ d }}"></option>{% endfor %}
+              </datalist>
+              <span class="help">Reusing a designation keeps the Employees report groupable.</span>
+              {{ form.designation.errors }}
+            </div>
+            <div class="f">
+              <label class="lbl" for="{{ form.department.id_for_label }}">Department</label>
+              {{ form.department }}
+              {{ form.department.errors }}
+            </div>
+          </div>
+        </section>
+
+        {# ===== 2 Employment & pay ===== #}
+        <section class="card sec" id="employment">
+          <div class="sec-head">
+            <h2>Employment &amp; pay</h2>
+            <p>Drives pay days, tenure and the monthly package snapshot in every run.</p>
+          </div>
+          <div class="grid">
+            <div class="f">
+              <label class="lbl" for="{{ form.doj.id_for_label }}">Date of joining</label>
+              {{ form.doj }}
+              <span class="help">Tenure on the Employees report is counted from this date.</span>
+              {{ form.doj.errors }}
+            </div>
+            <div class="f">
+              <label class="lbl" for="{{ form.employment_status.id_for_label }}">Employment status</label>
+              {{ form.employment_status }}
+              <span class="help">Display only. Payroll runs use the Active switch below.</span>
+              {{ form.employment_status.errors }}
+            </div>
+            <div class="f">
+              <label class="lbl" for="{{ form.current_monthly_package.id_for_label }}">Monthly package (₹){% if form.current_monthly_package.field.required %}<span class="req">*</span>{% endif %}</label>
+              {{ form.current_monthly_package }}
+              <span class="help">Change only at increment time. Each run snapshots this value.</span>
+              {{ form.current_monthly_package.errors }}
+            </div>
+            <div class="f">
+              <span class="lbl">Structure preview</span>
+              <div class="preview-box">
+                <span>Basic, HRA, allowances</span><span class="r">from salary structure</span>
+                <span>ESI / PF</span><span class="r">per switches below</span>
+              </div>
+              <span class="help">Exact split is computed in each payroll run from the active structure.</span>
+            </div>
+            <label class="sw">{{ form.is_active }}<span class="sw-text"><span class="sw-title">Active</span><span class="help">Included in new payroll runs</span></span></label>
+            <label class="sw">{{ form.is_pf_applicable }}<span class="sw-text"><span class="sw-title">PF applicable</span><span class="help">Sticky. Not every employee is PF enrolled</span></span></label>
+            <label class="sw">{{ form.is_esi_eligible }}<span class="sw-text"><span class="sw-title">ESI eligible</span><span class="help">Sticky. Does not change month to month</span></span></label>
+            <label class="sw">{{ form.agreement_signed }}<span class="sw-text"><span class="sw-title">Agreement signed</span><span class="help">Reveals the date of signing</span></span></label>
+            <div class="f" id="agreement-date-field">
+              <label class="lbl" for="{{ form.agreement_sign_date.id_for_label }}">Date of sign</label>
+              {{ form.agreement_sign_date }}
+              {{ form.agreement_sign_date.errors }}
+            </div>
+          </div>
+        </section>
+
+        {# ===== 3 Personal ===== #}
+        <section class="card sec" id="personal">
+          <div class="sec-head">
+            <h2>Personal</h2>
+            <p>Optional. Used on letters and the employee profile.</p>
+          </div>
+          <div class="grid">
+            <div class="f"><label class="lbl" for="{{ form.date_of_birth.id_for_label }}">Date of birth</label>{{ form.date_of_birth }}{{ form.date_of_birth.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.blood_group.id_for_label }}">Blood group</label>{{ form.blood_group }}{{ form.blood_group.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.marital_status.id_for_label }}">Marital status</label>{{ form.marital_status }}{{ form.marital_status.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.parent_spouse_name.id_for_label }}">Parent / spouse name</label>{{ form.parent_spouse_name }}{{ form.parent_spouse_name.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.aadhar_no.id_for_label }}">Aadhaar number</label>{{ form.aadhar_no }}<span class="help">12 digits. Never printed on payslips.</span>{{ form.aadhar_no.errors }}</div>
+            <div class="f full"><label class="lbl" for="{{ form.address.id_for_label }}">Address</label>{{ form.address }}{{ form.address.errors }}</div>
+          </div>
+        </section>
+
+        {# ===== 4 Contact ===== #}
+        <section class="card sec" id="contact">
+          <div class="sec-head">
+            <h2>Contact</h2>
+          </div>
+          <div class="grid">
+            <div class="f"><label class="lbl" for="{{ form.personal_email.id_for_label }}">Personal email</label>{{ form.personal_email }}{{ form.personal_email.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.official_email.id_for_label }}">Official email</label>{{ form.official_email }}{{ form.official_email.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.contact_no.id_for_label }}">Contact number</label>{{ form.contact_no }}{{ form.contact_no.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.official_no.id_for_label }}">Official number</label>{{ form.official_no }}{{ form.official_no.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.emergency_no.id_for_label }}">Emergency contact</label>{{ form.emergency_no }}{{ form.emergency_no.errors }}</div>
+          </div>
+        </section>
+
+        {# ===== 5 Bank & statutory ===== #}
+        <section class="card sec" id="statutory">
+          <div class="sec-head">
+            <h2>Bank &amp; statutory</h2>
+            <p>Needed for bank transfer files and PF / ESI returns.</p>
+          </div>
+          <div class="grid">
+            <div class="f"><label class="lbl" for="{{ form.bank_name.id_for_label }}">Bank name</label>{{ form.bank_name }}{{ form.bank_name.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.bank_account_number.id_for_label }}">Account number</label>{{ form.bank_account_number }}{{ form.bank_account_number.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.ifsc_code.id_for_label }}">IFSC code</label>{{ form.ifsc_code }}<span class="help">11 characters: 4 letters, 0, then 6 characters.</span>{{ form.ifsc_code.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.pan_number.id_for_label }}">PAN</label>{{ form.pan_number }}{{ form.pan_number.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.pf_uan.id_for_label }}">UAN</label>{{ form.pf_uan }}{{ form.pf_uan.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.pf_number.id_for_label }}">PF number</label>{{ form.pf_number }}{{ form.pf_number.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.esi_number.id_for_label }}">ESI number</label>{{ form.esi_number }}{{ form.esi_number.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.biometric_id.id_for_label }}">Biometric ID</label>{{ form.biometric_id }}{{ form.biometric_id.errors }}</div>
+          </div>
+        </section>
+
+        {# ===== 6 Exit ===== #}
+        <section class="card sec" id="exit">
+          <div class="sec-head">
+            <h2>Exit</h2>
+            <p>Leave blank while employed. Deactivate below to stop future runs.</p>
+          </div>
+          <div class="grid">
+            <div class="f"><label class="lbl" for="{{ form.relieving_date.id_for_label }}">Last working day</label>{{ form.relieving_date }}{{ form.relieving_date.errors }}</div>
+            <div class="f"><label class="lbl" for="{{ form.reason_for_leaving.id_for_label }}">Reason for leaving</label>{{ form.reason_for_leaving }}{{ form.reason_for_leaving.errors }}</div>
+            <div class="f full"><label class="lbl" for="{{ form.notes.id_for_label }}">Notes</label>{{ form.notes }}<span class="help">Internal notes. Never printed.</span>{{ form.notes.errors }}</div>
+          </div>
+        </section>
+
+        <div class="action-bar-card">
+          <span class="note" id="required-note">All required fields are filled.</span>
+          <div class="btns">
+            <a class="btn secondary" href="{% url 'employee_list' %}">Cancel</a>
+            <button class="btn" type="submit">{% if employee %}Save details{% else %}Save employee{% endif %}</button>
+          </div>
         </div>
-        <div style="flex:1; min-width:200px;">
-          <label>Photo</label>{{ form.photo_upload }}
-          {% if employee.photo %}<label style="display:flex; align-items:center; gap:6px; margin-top:6px; font-weight:500;">{{ form.remove_photo }} Remove current photo</label>{% endif %}
-        </div>
-      </div>
-
-      <div class="grid">
-        <p><label>Employee Code</label>{{ form.employee_code }}</p>
-        <p><label>Name</label>{{ form.name }}</p>
-        <p><label>Designation</label>{{ form.designation }}</p>
-        <p><label>Department</label>{{ form.department }}</p>
-        <p><label>Date of Joining</label>{{ form.doj }}</p>
-        <p><label>Current Status</label>{{ form.employment_status }}</p>
-        <p><label>Monthly Package (₹)</label>{{ form.current_monthly_package }}
-          <span class="muted">Edit only at increment time - each payroll run snapshots this.</span></p>
-        <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
-          {{ form.is_esi_eligible }}<label style="margin:0;">ESI eligible (sticky - doesn't change month to month)</label>
-        </p>
-        <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
-          {{ form.is_pf_applicable }}<label style="margin:0;">PF applicable (sticky - not every employee is PF-enrolled)</label>
-        </p>
-        <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
-          {{ form.is_active }}<label style="margin:0;">Active (included in new payroll runs)</label>
-        </p>
-
-        <div style="grid-column:1/-1; font-size:12px; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px; margin:10px 0 4px; padding-bottom:6px; border-bottom:1.5px solid var(--base-300);">Personal details</div>
-        <p><label>Date of Birth</label>{{ form.date_of_birth }}</p>
-        <p><label>Blood Group</label>{{ form.blood_group }}</p>
-        <p><label>Marital Status</label>{{ form.marital_status }}</p>
-        <p><label>Parent / Spouse Name</label>{{ form.parent_spouse_name }}</p>
-        <p><label>Aadhaar No</label>{{ form.aadhar_no }}</p>
-        <p class="full"><label>Address</label>{{ form.address }}</p>
-
-        <div style="grid-column:1/-1; font-size:12px; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px; margin:10px 0 4px; padding-bottom:6px; border-bottom:1.5px solid var(--base-300);">Contact details</div>
-        <p><label>Personal Email</label>{{ form.personal_email }}</p>
-        <p><label>Official Email</label>{{ form.official_email }}</p>
-        <p><label>Contact No</label>{{ form.contact_no }}</p>
-        <p><label>Official No</label>{{ form.official_no }}</p>
-        <p><label>Emergency No</label>{{ form.emergency_no }}</p>
-
-        <div style="grid-column:1/-1; font-size:12px; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px; margin:10px 0 4px; padding-bottom:6px; border-bottom:1.5px solid var(--base-300);">Employment &amp; statutory details</div>
-        <p style="display:flex; align-items:center; gap:8px; padding-top:22px;">
-          {{ form.agreement_signed }}<label style="margin:0;">Agreement signed</label>
-        </p>
-        <p id="agreement-date-field"><label>Date of Sign</label>{{ form.agreement_sign_date }}</p>
-        <p><label>Bio-Metric ID</label>{{ form.biometric_id }}</p>
-        <p><label>Bank Name</label>{{ form.bank_name }}</p>
-        <p><label>Account Number</label>{{ form.bank_account_number }}</p>
-        <p><label>IFSC Code</label>{{ form.ifsc_code }}</p>
-        <p><label>PAN Number</label>{{ form.pan_number }}</p>
-        <p><label>PF Number</label>{{ form.pf_number }}</p>
-        <p><label>UAN</label>{{ form.pf_uan }}</p>
-        <p><label>ESI Number</label>{{ form.esi_number }}</p>
-
-        <div style="grid-column:1/-1; font-size:12px; font-weight:800; color:var(--primary); text-transform:uppercase; letter-spacing:1px; margin:10px 0 4px; padding-bottom:6px; border-bottom:1.5px solid var(--base-300);">Exit details</div>
-        <p><label>Last Working Day</label>{{ form.relieving_date }}</p>
-        <p class="full"><label>Reason for Leaving</label>{{ form.reason_for_leaving }}</p>
-
-        <p class="full"><label>Notes</label>{{ form.notes }}</p>
-      </div>
-      <div style="margin-top:16px; display:flex; gap:10px;">
-        <button class="btn" type="submit">{% if employee %}Save Details{% else %}Add Employee{% endif %}</button>
-        <a class="btn secondary" href="{% url 'employee_list' %}">Cancel</a>
-      </div>
-    </form>
+      </form>
+    </div>
 
     {% if employee %}
-    <form method="post" style="margin-top:14px; padding-top:14px; border-top:1.5px dashed #E2E8F0;">
-      {% csrf_token %}
-      {% if employee.is_active %}
-      <input type="hidden" name="action" value="deactivate_employee" />
-      <button class="btn danger" type="submit"
-              onclick="return confirm('Deactivate {{ employee.name|escapejs }}? They will no longer be included in new payroll runs. Existing payslip history is kept.');">
-        Deactivate Employee
-      </button>
-      {% else %}
-      <input type="hidden" name="action" value="reactivate_employee" />
-      <button class="btn secondary" type="submit">Reactivate Employee</button>
-      {% endif %}
-    </form>
-    {% endif %}
-  </div>
+    <div class="form-layout">
+      <aside class="form-anchors" aria-hidden="true"></aside>
+      <div class="form-col">
+        <section class="card sec">
+          <div class="sec-head">
+            <h2>Payslip history</h2>
+            <p>One row per payroll run this employee was part of.</p>
+          </div>
+          {% if entries %}
+          <div class="tbl-wrap">
+            <table>
+              <thead>
+                <tr><th class="th">Month</th><th class="th">Status</th><th class="th num">Gross</th><th class="th num">Deductions</th><th class="th num">Net payable</th><th class="th"></th></tr>
+              </thead>
+              <tbody>
+              {% for e in entries %}
+              <tr class="row">
+                <td class="td">{{ e.run.period|date:"F Y" }}</td>
+                <td class="td">
+                  {% if e.run.status == "FINALIZED" %}<span class="badge green">Finalized</span>
+                  {% else %}<span class="badge amber">Draft</span>{% endif %}
+                </td>
+                <td class="td num">₹{{ e.gross_salary|floatformat:0|intcomma }}</td>
+                <td class="td num">₹{{ e.total_deductions|floatformat:0|intcomma }}</td>
+                <td class="td num" style="font-weight:700;">₹{{ e.net_payable|floatformat:0|intcomma }}</td>
+                <td class="td" style="white-space:nowrap; text-align:right;">
+                  <a class="btn small secondary" href="{% url 'payroll_run_detail' e.run_id %}">Open run</a>
+                  {% if e.pdf %}<a class="btn small secondary" href="{% url 'payroll_entry_pdf' e.pk 'view' %}">View payslip</a>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="empty">No payslips yet - run payroll for a month to generate one.</div>
+          {% endif %}
+        </section>
 
-  {% if employee %}
-  <div class="card">
-    <h2>📁 Payslip history</h2>
-    {% if entries %}
-    <div class="tbl-wrap">
-      <table>
-        <tr><th>Month</th><th>Status</th><th class="num">Gross (₹)</th><th class="num">Deductions (₹)</th><th class="num">Net Payable (₹)</th><th></th></tr>
-        {% for e in entries %}
-        <tr>
-          <td>{{ e.run.period|date:"F Y" }}</td>
-          <td>
-            {% if e.run.status == "FINALIZED" %}<span class="badge green">Finalized</span>
-            {% else %}<span class="badge amber">Draft</span>{% endif %}
-          </td>
-          <td class="num">{{ e.gross_salary }}</td>
-          <td class="num">{{ e.total_deductions }}</td>
-          <td class="num">{{ e.net_payable }}</td>
-          <td>
-            <a class="btn small secondary" href="{% url 'payroll_run_detail' e.run_id %}">Open run</a>
-            {% if e.pdf %}<a class="btn small secondary" href="{% url 'payroll_entry_pdf' e.pk 'view' %}">View payslip</a>{% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </table>
+        <section class="card sec">
+          <div class="sec-head">
+            <h2>{% if employee.is_active %}Deactivate{% else %}Reactivate{% endif %}</h2>
+            <p>{% if employee.is_active %}Removes them from new payroll runs. Existing payslip history is kept.{% else %}Puts them back into new payroll runs.{% endif %}</p>
+          </div>
+          <form method="post">
+            {% csrf_token %}
+            {% if employee.is_active %}
+            <input type="hidden" name="action" value="deactivate_employee" />
+            <button class="btn danger" type="submit"
+                    onclick="return confirm('Deactivate {{ employee.name|escapejs }}? They will no longer be included in new payroll runs. Existing payslip history is kept.');">
+              Deactivate employee
+            </button>
+            {% else %}
+            <input type="hidden" name="action" value="reactivate_employee" />
+            <button class="btn secondary" type="submit">Reactivate employee</button>
+            {% endif %}
+          </form>
+        </section>
+      </div>
     </div>
-    {% else %}
-    <div class="empty"><div class="big">📁</div>No payslips yet - run payroll for a month to generate one.</div>
     {% endif %}
-  </div>
-  {% endif %}
+  </main>
 </div>
 <script>
   // Show "Date of Sign" only when "Agreement signed" is ticked.
@@ -160,6 +305,45 @@
     function sync() { dateField.style.display = cb.checked ? '' : 'none'; }
     cb.addEventListener('change', sync);
     sync();
+  })();
+
+  // Bottom bar: which required fields are still empty.
+  (function () {
+    var form = document.getElementById('emp-form');
+    var note = document.getElementById('required-note');
+    if (!form || !note) return;
+    function labelFor(el) {
+      var lbl = el.closest('.f') && el.closest('.f').querySelector('.lbl');
+      return lbl ? lbl.textContent.replace('*', '').trim() : el.name;
+    }
+    function sync() {
+      var missing = [];
+      form.querySelectorAll('input[required], select[required], textarea[required]').forEach(function (el) {
+        if (el.type === 'checkbox' || el.type === 'file') return;
+        if (!String(el.value || '').trim()) missing.push(labelFor(el));
+      });
+      note.textContent = missing.length
+        ? missing.length + ' required field' + (missing.length > 1 ? 's' : '') + ' still empty: ' + missing.join(', ') + '.'
+        : 'All required fields are filled.';
+    }
+    form.addEventListener('input', sync);
+    sync();
+  })();
+
+  // Highlight the section anchor for the card in view.
+  (function () {
+    var anchors = document.querySelectorAll('.form-anchors .anchor');
+    if (!anchors.length || !('IntersectionObserver' in window)) return;
+    var map = {};
+    anchors.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        anchors.forEach(function (a) { a.classList.remove('on'); });
+        if (map[en.target.id]) map[en.target.id].classList.add('on');
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    Object.keys(map).forEach(function (id) { var el = document.getElementById(id); if (el) io.observe(el); });
   })();
 </script>
 </body>

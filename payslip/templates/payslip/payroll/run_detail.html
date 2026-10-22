@@ -1,333 +1,398 @@
-{% load humanize %}<!DOCTYPE html>
+{% load humanize theme_extras %}<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Payroll - {{ run.period|date:"F Y" }} - Aveon HR Suite</title>
 {% include "payslip/payroll/_payroll_style.html" %}
+<style>
+  .kpi-grid.five { grid-template-columns:repeat(auto-fit, minmax(170px,1fr)); }
+  table.reg { width:100%; border-collapse:collapse; min-width:1040px; }
+  details.strip > summary { list-style:none; cursor:pointer; display:flex; flex-wrap:wrap; align-items:center; gap:10px 28px; width:100%; }
+  details.strip > summary::-webkit-details-marker { display:none; }
+  details.strip > summary .toggle { font-size:13px; font-weight:600; color:var(--primary); margin-left:auto; }
+  details.strip > summary .toggle .less { display:none; }
+  details.strip[open] > summary .toggle .less { display:inline; }
+  details.strip[open] > summary .toggle .more { display:none; }
+  details.strip > .strip-body { flex:1 1 100%; margin-top:12px; border-top:1px solid #EEF2F6; padding-top:12px; }
+  .grid-actions { display:inline-flex; gap:4px; }
+  .lop-warn { color:#B45309; font-weight:600; }
+</style>
 </head>
 <body>
-<div class="container" style="max-width:1400px;">
-  {% include "payslip/payroll/_payroll_nav.html" with active_page="runs" %}
+<div class="shell">
+  {% include "payslip/theme/_rail_nav.html" with rail_module="payroll" rail_page="runs" %}
 
-  <div class="card">
-    <div class="page-head" style="margin-bottom:0;">
-      <div>
-        <div class="crumb"><a href="{% url 'payroll_run_list' %}">Payroll Runs</a> › {{ run.period|date:"F Y" }}</div>
-        <h1 style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-          {{ run.period|date:"F Y" }}
-          {% if run.is_finalized %}<span class="badge green">Finalized</span>
-          {% else %}<span class="badge amber">Draft</span>{% endif %}
+  <main class="main">
+    {% include "payslip/theme/_messages.html" %}
+
+    <header class="pg-head">
+      <div class="pg-head-text">
+        <div class="pg-crumb"><a href="{% url 'payroll_run_list' %}">Payroll</a><span class="sep" aria-hidden="true">/</span><a href="{% url 'payroll_run_list' %}">Payroll runs</a><span class="sep" aria-hidden="true">/</span>{{ run.period|date:"F Y" }}</div>
+        <h1 class="pg-title">{{ run.period|date:"F Y" }}
+          {% if run.is_finalized %}<span class="badge green">Finalized</span>{% else %}<span class="badge amber">Draft</span>{% endif %}
         </h1>
-        <p class="sub" style="margin:6px 0 0;">
+        <p class="pg-lede">
           {{ entries|length }} employee{{ entries|length|pluralize }}
-          {% if run.finalized_at %} · finalized {{ run.finalized_at|date:"d M Y" }} by {{ run.finalized_by.username|default:"—" }}{% endif %}
+          · created {{ run.created_at|date:"d M Y" }}{% if run.created_by %} by {{ run.created_by.username }}{% endif %}
+          {% if run.finalized_at %} · finalized {{ run.finalized_at|date:"d M Y" }} by {{ run.finalized_by.username|default:"—" }}{% else %} · figures recompute on every save{% endif %}
         </p>
       </div>
-      <a class="btn secondary" href="{% url 'payroll_register_export' run.pk %}">⬇ Export Register</a>
+      <div class="pg-actions">
+        <a class="chip" href="{% url 'payroll_register_export' run.pk %}">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M6 11l6 6 6-6M4 21h16"/></svg>Export register
+        </a>
+        {% if request.membership.is_admin %}
+          {% if run.is_finalized and missing_pdfs %}
+          <a class="chip" href="#payslips">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>Generate payslips
+          </a>
+          {% elif not run.is_finalized %}
+          <a class="btn success" href="#finalize">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Finalize run
+          </a>
+          {% endif %}
+        {% endif %}
+      </div>
+    </header>
+
+    <section class="kpi-grid five" aria-label="Run totals">
+      <div class="kpi"><span class="kpi-lbl">Gross</span><span class="kpi-val">₹{{ totals.gross|floatformat:0|intcomma }}</span><span class="kpi-sub">Before deductions</span></div>
+      <div class="kpi"><span class="kpi-lbl">Deductions</span><span class="kpi-val">₹{{ totals.deductions|floatformat:0|intcomma }}</span><span class="kpi-sub">ESI · PF · TDS · advance</span></div>
+      <div class="kpi is-primary"><span class="kpi-lbl">Net payable</span><span class="kpi-val">₹{{ totals.net|floatformat:0|intcomma }}</span><span class="kpi-sub">{% if run.is_finalized %}Disbursed{% else %}To disburse{% endif %} for {{ run.period|date:"M Y" }}</span></div>
+      <div class="kpi"><span class="kpi-lbl">Employer cost</span><span class="kpi-val">₹{{ totals.ctc|floatformat:0|intcomma }}</span><span class="kpi-sub">incl. ₹{{ totals.employer|floatformat:0|intcomma }} employer PF + ESI</span></div>
+      <div class="kpi {% if not missing_pdfs and entries %}is-good{% endif %}"><span class="kpi-lbl">Payslips</span><span class="kpi-val">{{ generated_pdfs }} / {{ entries|length }}</span><span class="kpi-sub">{% if missing_pdfs %}{% if run.is_finalized %}{{ missing_pdfs }} not generated{% else %}Generated on finalize{% endif %}{% else %}All generated{% endif %}</span></div>
+    </section>
+
+    {% if negative_count %}
+    <div class="notice danger">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+      <span class="txt"><b>{{ negative_count }} negative net payable.</b> A large advance or TDS recovery can push net pay below zero. That is allowed, but finalizing needs an explicit confirmation.</span>
     </div>
+    {% endif %}
 
-    <div class="kpi-grid" style="margin-top:18px;">
-      <div class="kpi is-primary">
-        <div class="kpi-top"><span class="kpi-ico">💰</span><span class="kpi-lbl">Gross</span></div>
-        <div class="kpi-val">₹{{ totals.gross|floatformat:0|intcomma }}</div>
-        <div class="kpi-sub">Before deductions</div>
-      </div>
-      <div class="kpi is-warn">
-        <div class="kpi-top"><span class="kpi-ico">📉</span><span class="kpi-lbl">Deductions</span></div>
-        <div class="kpi-val">₹{{ totals.deductions|floatformat:0|intcomma }}</div>
-        <div class="kpi-sub">ESI · PF · advance · TDS</div>
-      </div>
-      <div class="kpi is-good">
-        <div class="kpi-top"><span class="kpi-ico">🏦</span><span class="kpi-lbl">Net Payable</span></div>
-        <div class="kpi-val">₹{{ totals.net|floatformat:0|intcomma }}</div>
-        <div class="kpi-sub">Actually disbursed</div>
-      </div>
-      <div class="kpi is-muted">
-        <div class="kpi-top"><span class="kpi-ico">🏢</span><span class="kpi-lbl">Employer Cost (CTC)</span></div>
-        <div class="kpi-val">₹{{ totals.ctc|floatformat:0|intcomma }}</div>
-        <div class="kpi-sub">incl. ₹{{ totals.employer|floatformat:0|intcomma }} employer</div>
-      </div>
-      <div class="kpi {% if missing_pdfs %}is-muted{% else %}is-good{% endif %}">
-        <div class="kpi-top"><span class="kpi-ico">📄</span><span class="kpi-lbl">Payslips</span></div>
-        <div class="kpi-val">{{ generated_pdfs }} / {{ entries|length }}</div>
-        <div class="kpi-sub">{% if missing_pdfs %}{{ missing_pdfs }} not generated{% else %}All generated{% endif %}</div>
-      </div>
-    </div>
-  </div>
-
-  {% if negative_count %}
-  <div class="card" style="border-left:4px solid #C62828;">
-    <h2 style="color:#C62828;">⚠️ {{ negative_count }} negative net payable</h2>
-    <p class="sub" style="margin:0;">A large advance or TDS recovery can push net pay below zero. That's allowed, but finalizing needs an explicit confirmation below.</p>
-  </div>
-  {% endif %}
-
-  {% if comparison %}
-  <div class="card">
-    <details class="section">
+    {% if comparison %}
+    <details class="strip">
       <summary>
-        <h2 style="margin-bottom:0;">📊 Compared with {{ comparison.prev_run.period|date:"F Y" }}</h2>
-        {# Headline figure stays visible while the section is collapsed. #}
-        <span class="sec-peek">
-          <span class="delta {% if comparison.net_delta < 0 %}down{% elif comparison.net_delta > 0 %}up{% else %}flat{% endif %}">
-            {% if comparison.net_delta < 0 %}−₹{{ comparison.net_delta|floatformat:0|slice:"1:"|intcomma }}
-            {% elif comparison.net_delta > 0 %}+₹{{ comparison.net_delta|floatformat:0|intcomma }}
-            {% else %}No change{% endif %}
-          </span>
-          <span>{{ comparison.changed_count }} employee{{ comparison.changed_count|pluralize }} changed</span>
-        </span>
-        <span class="sec-chev">
-          <span class="ico">▼</span>
-          <span class="open-lbl">Show comparison</span>
-          <span class="close-lbl">Hide comparison</span>
-        </span>
+        <span class="ttl">Compared with {{ comparison.prev_run.period|date:"F Y" }}</span>
+        <span>Net
+          {% if comparison.net_delta < 0 %}<strong style="color:#B91C1C;">−₹{{ comparison.net_delta|floatformat:0|slice:"1:"|intcomma }}</strong>
+          {% elif comparison.net_delta > 0 %}<strong style="color:#15803D;">+₹{{ comparison.net_delta|floatformat:0|intcomma }}</strong>
+          {% else %}<strong>no change</strong>{% endif %}
+          · {{ comparison.prev_headcount }} → {{ comparison.curr_headcount }} employee{{ comparison.curr_headcount|pluralize }}</span>
+        <span><strong>{{ comparison.changed_count }} changed</strong>{% if comparison.joiners %} · {{ comparison.joiners|length }} new{% endif %}{% if comparison.leavers %} · {{ comparison.leavers|length }} not paid this month{% endif %}</span>
+        <span class="toggle"><span class="more">Show changed rows</span><span class="less">Hide changed rows</span></span>
       </summary>
-
-      <div class="sec-body">
-    <p class="sub">What moved since last month — a quick sanity check before finalizing.</p>
-
-    <div class="kpi-grid">
-      <div class="kpi is-muted">
-        <div class="kpi-top"><span class="kpi-ico">📅</span><span class="kpi-lbl">{{ comparison.prev_run.period|date:"M Y" }} Net</span></div>
-        <div class="kpi-val">₹{{ comparison.prev_net|floatformat:0|intcomma }}</div>
-        <div class="kpi-sub">{{ comparison.prev_headcount }} employee{{ comparison.prev_headcount|pluralize }}</div>
-      </div>
-      <div class="kpi is-primary">
-        <div class="kpi-top"><span class="kpi-ico">📆</span><span class="kpi-lbl">{{ run.period|date:"M Y" }} Net</span></div>
-        <div class="kpi-val">₹{{ comparison.curr_net|floatformat:0|intcomma }}</div>
-        <div class="kpi-sub">{{ comparison.curr_headcount }} employee{{ comparison.curr_headcount|pluralize }}</div>
-      </div>
-      <div class="kpi {% if comparison.net_delta < 0 %}is-bad{% elif comparison.net_delta > 0 %}is-good{% else %}is-muted{% endif %}">
-        <div class="kpi-top"><span class="kpi-ico">{% if comparison.net_delta < 0 %}▼{% elif comparison.net_delta > 0 %}▲{% else %}—{% endif %}</span><span class="kpi-lbl">Change</span></div>
-        {# Sign belongs outside the currency symbol: −₹21,178, not ₹-21,178. #}
-        <div class="kpi-val">
-          {% if comparison.net_delta < 0 %}−₹{{ comparison.net_delta|floatformat:0|slice:"1:"|intcomma }}
-          {% elif comparison.net_delta > 0 %}+₹{{ comparison.net_delta|floatformat:0|intcomma }}
-          {% else %}₹0{% endif %}
+      <div class="strip-body">
+        {% if comparison.joiners or comparison.leavers %}
+        <p style="margin:0 0 10px; font-size:13px;">
+          {% if comparison.joiners %}<b>New this month:</b> {% for e in comparison.joiners %}{{ e.employee.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}
+          {% if comparison.leavers %}{% if comparison.joiners %}<br />{% endif %}<b>Paid last month but not this one:</b> {% for e in comparison.leavers %}{{ e.employee.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}
+        </p>
+        {% endif %}
+        {% if comparison.rows %}
+        <div class="tbl-wrap">
+          <table style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr>
+                <th class="th">Employee</th>
+                <th class="th num">{{ comparison.prev_run.period|date:"M Y" }}</th>
+                <th class="th num">{{ run.period|date:"M Y" }}</th>
+                <th class="th num">Change</th>
+                <th class="th num">LOP Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in comparison.rows %}
+              <tr class="row">
+                <td class="td"><a href="{% url 'employee_detail' r.employee.pk %}">{{ r.employee.name }}</a></td>
+                <td class="td num">₹{{ r.prev|floatformat:0|intcomma }}</td>
+                <td class="td num">₹{{ r.curr|floatformat:0|intcomma }}</td>
+                <td class="td num"><span class="delta {% if r.delta < 0 %}down{% else %}up{% endif %}">{% if r.delta > 0 %}+{% endif %}{{ r.delta|floatformat:0|intcomma }}</span></td>
+                <td class="td num">{% if r.lop_delta %}<span class="delta {% if r.lop_delta > 0 %}down{% else %}up{% endif %}">{% if r.lop_delta > 0 %}+{% endif %}{{ r.lop_delta|floatformat:"-2" }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
-        <div class="kpi-sub">{{ comparison.changed_count }} employee{{ comparison.changed_count|pluralize }} changed</div>
-      </div>
-      <div class="kpi is-muted">
-        <div class="kpi-top"><span class="kpi-ico">👥</span><span class="kpi-lbl">Headcount</span></div>
-        <div class="kpi-val">{{ comparison.prev_headcount }} → {{ comparison.curr_headcount }}</div>
-        <div class="kpi-sub">
-          {% if comparison.joiners %}+{{ comparison.joiners|length }} new{% endif %}
-          {% if comparison.joiners and comparison.leavers %} · {% endif %}
-          {% if comparison.leavers %}−{{ comparison.leavers|length }} not paid{% endif %}
-          {% if not comparison.joiners and not comparison.leavers %}No change{% endif %}
-        </div>
-      </div>
-    </div>
-
-    {% if comparison.joiners or comparison.leavers %}
-    <div class="hint" style="margin-top:14px;">
-      {% if comparison.joiners %}<b>New this month:</b>
-        {% for e in comparison.joiners %}{{ e.employee.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.
-      {% endif %}
-      {% if comparison.leavers %}{% if comparison.joiners %}<br />{% endif %}<b>Paid last month but not this one:</b>
-        {% for e in comparison.leavers %}{{ e.employee.name }}{% if not forloop.last %}, {% endif %}{% endfor %}.
-      {% endif %}
-    </div>
-    {% endif %}
-
-    {% if comparison.rows %}
-    {# One continuous table - the whole section already collapses. #}
-    <div class="tbl-wrap" style="margin-top:14px;">
-      <table>
-        <thead>
-          <tr>
-            <th>Employee</th>
-            <th class="num">{{ comparison.prev_run.period|date:"M Y" }}</th>
-            <th class="num">{{ run.period|date:"M Y" }}</th>
-            <th class="num">Change</th>
-            <th class="num">LOP Δ</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in comparison.rows %}
-          <tr>
-            <td><a href="{% url 'employee_detail' r.employee.pk %}">{{ r.employee.name }}</a></td>
-            <td class="num">{{ r.prev|floatformat:0|intcomma }}</td>
-            <td class="num">{{ r.curr|floatformat:0|intcomma }}</td>
-            <td class="num"><span class="delta {% if r.delta < 0 %}down{% else %}up{% endif %}">{% if r.delta > 0 %}+{% endif %}{{ r.delta|floatformat:0|intcomma }}</span></td>
-            <td class="num">{% if r.lop_delta %}<span class="delta {% if r.lop_delta > 0 %}down{% else %}up{% endif %}">{% if r.lop_delta > 0 %}+{% endif %}{{ r.lop_delta|floatformat:"-2" }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <p class="col-note" style="margin-top:10px;">{{ comparison.unchanged }} employee{{ comparison.unchanged|pluralize }} unchanged.</p>
-    {% else %}
-    <p class="sub" style="margin-top:12px;">No net-pay changes between the two months.</p>
-    {% endif %}
+        <p class="col-note" style="margin-top:10px;">{{ comparison.unchanged }} employee{{ comparison.unchanged|pluralize }} unchanged.</p>
+        {% else %}
+        <p class="sub" style="margin:0;">No net-pay changes between the two months.</p>
+        {% endif %}
       </div>
     </details>
-  </div>
-  {% endif %}
-
-  <div class="card">
-    <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-      <h2 style="margin-bottom:0;">🧾 Attendance &amp; salary grid</h2>
-      {% if not run.is_finalized %}
-      <span class="col-note">Shaded columns are editable — everything else recomputes on save.</span>
-      {% endif %}
-    </div>
-
-    {% if not run.is_finalized %}
-    <form method="post" id="grid-form" style="margin-top:12px;">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="save_grid" />
-    {% else %}
-    <div style="margin-top:12px;">
     {% endif %}
-      <div class="tbl-scroll">
-        <table class="grid-tbl">
+
+    {# ===== Salary register (read-only, grouped) ===== #}
+    <section class="card flush" aria-label="Salary register">
+      <form method="get" class="toolbar">
+        <h2>Salary register</h2>
+        <span class="spacer"></span>
+        <label for="dept" class="tool-lbl">Department</label>
+        <select id="dept" name="dept" class="sel" onchange="this.form.submit()">
+          <option value="">All departments</option>
+          {% for d in register_depts %}<option value="{{ d }}" {% if d == register_dept %}selected{% endif %}>{{ d }}</option>{% endfor %}
+        </select>
+        <label for="order" class="tool-lbl">Order</label>
+        <select id="order" name="order" class="sel" onchange="this.form.submit()">
+          {% for key, label in register_orders.items %}<option value="{{ key }}" {% if key == register_order %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+        <noscript><button class="chip" type="submit">Apply</button></noscript>
+      </form>
+
+      {% if register_count %}
+      <div class="tbl-wrap">
+        <table class="reg">
           <thead>
             <tr>
-              <th>Employee</th>
-              <th class="num">TWD</th><th class="num">CL</th><th class="num">Leave</th><th class="num">LOP</th>
-              <th class="num">Present</th><th class="num">Pay Days</th>
-              <th class="num">Basic</th><th class="num">DA</th><th class="num">HRA</th>
-              <th class="num">Transport</th><th class="num">Food</th>
-              <th class="num">Internet</th><th class="num">Arrear</th><th class="num">Gross</th>
-              <th class="num">ESI Emp</th><th class="num">ESI Er</th>
-              <th class="num">PF Emp</th><th class="num">PF Er</th>
-              <th class="num">Advance</th><th class="num">TDS</th>
-              <th class="num">Total Ded.</th><th class="num">Net Payable</th>
-              <th>Remarks</th><th></th>
+              <th class="th" style="width:24%;">Employee</th>
+              <th class="th">Designation</th>
+              <th class="th">Joined</th>
+              <th class="th num">Pay days</th>
+              <th class="th num">Gross</th>
+              <th class="th num">PF</th>
+              <th class="th num">ESI</th>
+              <th class="th num">TDS</th>
+              <th class="th num">Advance</th>
+              <th class="th num">Net payable</th>
+              <th class="th">Change</th>
             </tr>
           </thead>
           <tbody>
-          {% for e in entries %}
-          <tr>
-            <td><a href="{% url 'employee_detail' e.employee_id %}">{{ e.employee.name }}</a></td>
-            {% if run.is_finalized %}
-            <td class="computed">{{ e.total_working_days }}</td>
-            <td class="computed">{{ e.cl_credit|floatformat:"-2" }}</td>
-            <td class="computed">{{ e.emp_leave_days|floatformat:"-2" }}</td>
-            <td class="computed">{{ e.lop_days|floatformat:"-2" }}</td>
-            {% else %}
-            <td class="editable"><input class="grid-input" type="number" name="twd_{{ e.pk }}" value="{{ e.total_working_days }}" /></td>
-            <td class="editable"><input class="grid-input" type="number" step="0.5" name="cl_{{ e.pk }}" value="{{ e.cl_credit|floatformat:"-2" }}" /></td>
-            <td class="editable"><input class="grid-input" type="number" step="0.5" name="empleave_{{ e.pk }}" value="{{ e.emp_leave_days|floatformat:"-2" }}" /></td>
-            <td class="editable"><input class="grid-input" type="number" step="0.5" name="lop_{{ e.pk }}" value="{{ e.lop_days|floatformat:"-2" }}" /></td>
-            {% endif %}
-            <td class="computed">{{ e.present_days|floatformat:"-2" }}</td>
-            <td class="computed">{{ e.pay_days|floatformat:"-2" }}</td>
-            <td class="computed">{{ e.basic|floatformat:0|intcomma }}</td>
-            <td class="computed">{{ e.da|floatformat:0|intcomma }}</td>
-            <td class="computed">{{ e.hra|floatformat:0|intcomma }}</td>
-            <td class="computed">{{ e.transport_allowance|floatformat:0|intcomma }}</td>
-            <td class="computed">{{ e.food_allowance|floatformat:0|intcomma }}</td>
-            {% if run.is_finalized %}
-            <td class="computed">{{ e.internet_allowance|floatformat:0|intcomma }}</td>
-            <td class="computed">{{ e.salary_arrear_allowance|floatformat:0|intcomma }}</td>
-            {% else %}
-            <td class="editable"><input class="grid-input" type="number" step="0.01" name="internet_{{ e.pk }}" value="{{ e.internet_allowance|floatformat:"-2" }}" /></td>
-            <td class="editable"><input class="grid-input" type="number" step="0.01" name="arrear_{{ e.pk }}" value="{{ e.salary_arrear_allowance|floatformat:"-2" }}" /></td>
-            {% endif %}
-            <td class="computed money"><b>{{ e.gross_salary|floatformat:0|intcomma }}</b></td>
-            <td class="computed">{{ e.esi_employee|floatformat:0|intcomma }}</td>
-            <td class="computed">{{ e.esi_employer|floatformat:0|intcomma }}</td>
-            <td class="computed">{{ e.pf_employee|floatformat:0|intcomma }}</td>
-            <td class="computed">{{ e.pf_employer|floatformat:0|intcomma }}</td>
-            {% if run.is_finalized %}
-            <td class="computed">{{ e.salary_advance|floatformat:0|intcomma }}</td>
-            <td class="computed">{{ e.tds|floatformat:0|intcomma }}</td>
-            {% else %}
-            <td class="editable"><input class="grid-input" type="number" step="0.01" name="advance_{{ e.pk }}" value="{{ e.salary_advance|floatformat:"-2" }}" /></td>
-            <td class="editable"><input class="grid-input" type="number" step="0.01" name="tds_{{ e.pk }}" value="{{ e.tds|floatformat:"-2" }}" /></td>
-            {% endif %}
-            <td class="computed">{{ e.total_deductions|floatformat:0|intcomma }}</td>
-            <td class="computed money {% if e.net_payable < 0 %}neg{% endif %}"><b>{{ e.net_payable|floatformat:0|intcomma }}</b></td>
-            {% if run.is_finalized %}
-            <td>{{ e.remarks|default:"—" }}</td>
-            {% else %}
-            <td class="editable"><input class="grid-input wide" type="text" name="remarks_{{ e.pk }}" value="{{ e.remarks }}" /></td>
-            {% endif %}
-            <td style="white-space:nowrap;">
-                <a class="btn small secondary" href="{% url 'payroll_entry_breakdown' e.pk %}" title="Salary breakdown">🧾</a>
-                {% if e.pdf %}<a class="btn small secondary" href="{% url 'payroll_entry_pdf' e.pk 'view' %}" title="View payslip">👁</a>
-                <a class="btn small secondary" href="{% url 'payroll_entry_pdf' e.pk 'download' %}" title="Download payslip">⬇</a>{% endif %}</td>
-          </tr>
-          {% endfor %}
+            {% for g in register_groups %}
+            {% if g.label %}<tr class="grp"><td class="td" colspan="11">{{ g.label }} <span class="cnt">· {{ g.count }}</span></td></tr>{% endif %}
+            {% for e in g.entries %}
+            <tr class="row row-link" style="cursor:pointer;" onclick="window.location='{% url 'payroll_entry_breakdown' e.pk %}'">
+              <td class="td"><a href="{% url 'employee_detail' e.employee_id %}" style="font-weight:600; color:var(--content);" onclick="event.stopPropagation()">{{ e.employee.name }}</a><span class="who-sub" style="display:block;">{{ e.employee.employee_code }}</span></td>
+              <td class="td">{{ e.employee.designation|default:"—" }}</td>
+              <td class="td" style="white-space:nowrap;">{{ e.employee.doj|date:"d M Y"|default:"—" }}</td>
+              <td class="td num {% if e.lop_days > 0 %}lop-warn{% endif %}">{{ e.pay_days|floatformat:"-2" }} / {{ e.total_working_days }}</td>
+              <td class="td num">₹{{ e.gross_salary|floatformat:0|intcomma }}</td>
+              <td class="td num">{% if e.pf_employee %}₹{{ e.pf_employee|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+              <td class="td num">{% if e.esi_employee %}₹{{ e.esi_employee|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+              <td class="td num">{% if e.tds %}₹{{ e.tds|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+              <td class="td num" {% if e.salary_advance %}style="color:#B91C1C;"{% endif %}>{% if e.salary_advance %}₹{{ e.salary_advance|floatformat:0|intcomma }}{% else %}—{% endif %}</td>
+              <td class="td num" style="font-weight:700; {% if e.net_payable < 0 %}color:var(--error);{% endif %}">₹{{ e.net_payable|floatformat:0|intcomma }}</td>
+              <td class="td"><span class="badge {{ e.change_tone }}">{{ e.change_label }}</span></td>
+            </tr>
+            {% endfor %}
+            {% endfor %}
+            <tr class="tot">
+              <td class="td" colspan="3">Total · {{ register_count }} employee{{ register_count|pluralize }}{% if register_dept %} in {{ register_dept }}{% endif %}</td>
+              <td class="td num">{{ register_totals.pay_days|floatformat:"-2" }} / {{ register_totals.twd }}</td>
+              <td class="td num">₹{{ register_totals.gross|floatformat:0|intcomma }}</td>
+              <td class="td num">₹{{ register_totals.pf|floatformat:0|intcomma }}</td>
+              <td class="td num">₹{{ register_totals.esi|floatformat:0|intcomma }}</td>
+              <td class="td num">₹{{ register_totals.tds|floatformat:0|intcomma }}</td>
+              <td class="td num">₹{{ register_totals.advance|floatformat:0|intcomma }}</td>
+              <td class="td num">₹{{ register_totals.net|floatformat:0|intcomma }}</td>
+              <td class="td"></td>
+            </tr>
           </tbody>
         </table>
       </div>
-    {% if not run.is_finalized %}
-      <div class="action-bar">
-        <button class="btn" type="submit">💾 Save &amp; Recompute</button>
-        <span class="col-note">Saving recalculates basic, gross, ESI, PF and net for every row.</span>
+      <div class="card-foot">
+        <span>{% if register_order == 'desig' %}Grouped by designation, longest serving first within each group.{% else %}Ordered by {{ register_orders|get_item:register_order|lower }}.{% endif %}{% if changed_count %} {{ changed_count }} row{{ changed_count|pluralize }} changed since last month.{% endif %}</span>
+        <span>Click any row for the full earnings and deductions breakdown.</span>
       </div>
-    </form>
-    {% else %}
-    </div>
-    {% endif %}
-  </div>
-
-  {% if request.membership.is_admin %}
-  <div class="card">
-    {% if run.is_finalized %}
-    <h2>📄 Payslips &amp; editing</h2>
-    {% if missing_pdfs %}
-    <p class="sub">{{ missing_pdfs }} of {{ entries|length }} payslip{{ entries|length|pluralize }} {{ missing_pdfs|pluralize:"has,have" }} no PDF yet — imported runs arrive without them.</p>
-    <form method="post" action="{% url 'payroll_generate_payslips' run.pk %}">
-      {% csrf_token %}
-      <button class="btn" type="submit">📄 Generate {{ missing_pdfs }} Missing Payslip{{ missing_pdfs|pluralize }}</button>
-    </form>
-    {% else %}
-    <p class="sub">All {{ entries|length }} payslip{{ entries|length|pluralize }} generated — use 👁 / ⬇ in the grid above.</p>
-    <form method="post" action="{% url 'payroll_generate_payslips' run.pk %}"
-          onsubmit="return confirm('Regenerate all {{ entries|length }} payslip PDFs for {{ run.period|date:"F Y" }}?');">
-      {% csrf_token %}
-      <input type="hidden" name="regenerate" value="1" />
-      <button class="btn secondary" type="submit">🔄 Regenerate All Payslips</button>
-    </form>
-    {% endif %}
-
-    <details class="fold" style="margin-top:18px;">
-      <summary>
-        <span class="chev">▼</span>
-        <span class="more-txt">Reopen this run for editing</span>
-        <span class="less-txt">Hide reopen options</span>
-      </summary>
-      <div class="fold-body">
-        <p class="sub">Reopening switches the run back to Draft so attendance, leave and LOP become editable again. Every generated payslip PDF is cleared, since they'd otherwise go stale.</p>
-        <form method="post" action="{% url 'payroll_run_reopen' run.pk %}"
-              onsubmit="return confirm('Reopen {{ run.period|date:"F Y" }}? All generated payslip PDFs will be cleared.');">
-          {% csrf_token %}
-          <button class="btn danger" type="submit">Reopen for Editing</button>
-        </form>
-      </div>
-    </details>
-    {% else %}
-    <h2>🔄 Recalculate roster</h2>
-    <p class="sub">Re-sync this run with the current employee list and salary structure — adds newly-active
-      employees, removes deactivated ones, and refreshes each package, ESI/PF flag and formula.
-      Your entered attendance (working days, leave, LOP, advance, TDS) is kept.</p>
-    <form method="post" action="{% url 'payroll_run_recalculate' run.pk %}" style="margin-bottom:18px;"
-          onsubmit="return confirm('Recalculate {{ run.period|date:"F Y" }}? Rows for deactivated employees will be removed.');">
-      {% csrf_token %}
-      <button class="btn secondary" type="submit">🔄 Recalculate</button>
-    </form>
-
-    <h2>✅ Finalize &amp; generate payslips</h2>
-    <p class="sub">This recomputes every row one last time, generates each employee's payslip PDF, and locks the run.</p>
-    <form method="post" action="{% url 'payroll_run_finalize' run.pk %}">
-      {% csrf_token %}
-      {% if negative_count %}
-      <p style="margin-bottom:10px; display:flex; align-items:center; gap:8px;">
-        <input type="checkbox" name="confirm_negative" value="1" id="confirm-negative" style="width:auto;" />
-        <label for="confirm-negative" style="margin:0; font-weight:600;">I confirm the {{ negative_count }} negative net payable amount{{ negative_count|pluralize }} above {{ negative_count|pluralize:"is,are" }} correct.</label>
-      </p>
+      {% else %}
+      <div class="empty">{% if register_dept %}No employees in {{ register_dept }} this month.{% else %}No employees in this run.{% endif %}</div>
       {% endif %}
-      <button class="btn" type="submit">✅ Finalize &amp; Generate Payslips</button>
-    </form>
+    </section>
+
+    {# ===== Attendance & salary grid (editable while draft) ===== #}
+    <div class="card">
+      <details class="section" {% if not run.is_finalized %}open{% endif %}>
+        <summary>
+          <h2 style="margin-bottom:0;">Attendance &amp; salary grid</h2>
+          <span class="sec-peek">{% if run.is_finalized %}Locked. Reopen the run to edit attendance.{% else %}Shaded columns are editable.{% endif %}</span>
+          <span class="sec-chev">
+            <span class="ico">▼</span>
+            <span class="open-lbl">Show grid</span>
+            <span class="close-lbl">Hide grid</span>
+          </span>
+        </summary>
+        <div class="sec-body">
+          {% if not run.is_finalized %}
+          <p class="col-note" style="margin-bottom:10px;">Shaded columns are editable — everything else recomputes on save.</p>
+          <form method="post" id="grid-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_grid" />
+          {% else %}
+          <div>
+          {% endif %}
+            <div class="tbl-scroll">
+              <table class="grid-tbl">
+                <thead>
+                  <tr>
+                    <th>Employee</th>
+                    <th class="num">TWD</th><th class="num">CL</th><th class="num">Leave</th><th class="num">LOP</th>
+                    <th class="num">Present</th><th class="num">Pay Days</th>
+                    <th class="num">Basic</th><th class="num">DA</th><th class="num">HRA</th>
+                    <th class="num">Transport</th><th class="num">Food</th>
+                    <th class="num">Internet</th><th class="num">Arrear</th><th class="num">Gross</th>
+                    <th class="num">ESI Emp</th><th class="num">ESI Er</th>
+                    <th class="num">PF Emp</th><th class="num">PF Er</th>
+                    <th class="num">Advance</th><th class="num">TDS</th>
+                    <th class="num">Total Ded.</th><th class="num">Net Payable</th>
+                    <th>Remarks</th><th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                {% for e in entries %}
+                <tr>
+                  <td><a href="{% url 'employee_detail' e.employee_id %}">{{ e.employee.name }}</a></td>
+                  {% if run.is_finalized %}
+                  <td class="computed">{{ e.total_working_days }}</td>
+                  <td class="computed">{{ e.cl_credit|floatformat:"-2" }}</td>
+                  <td class="computed">{{ e.emp_leave_days|floatformat:"-2" }}</td>
+                  <td class="computed">{{ e.lop_days|floatformat:"-2" }}</td>
+                  {% else %}
+                  <td class="editable"><input class="grid-input" type="number" name="twd_{{ e.pk }}" value="{{ e.total_working_days }}" /></td>
+                  <td class="editable"><input class="grid-input" type="number" step="0.5" name="cl_{{ e.pk }}" value="{{ e.cl_credit|floatformat:"-2" }}" /></td>
+                  <td class="editable"><input class="grid-input" type="number" step="0.5" name="empleave_{{ e.pk }}" value="{{ e.emp_leave_days|floatformat:"-2" }}" /></td>
+                  <td class="editable"><input class="grid-input" type="number" step="0.5" name="lop_{{ e.pk }}" value="{{ e.lop_days|floatformat:"-2" }}" /></td>
+                  {% endif %}
+                  <td class="computed">{{ e.present_days|floatformat:"-2" }}</td>
+                  <td class="computed">{{ e.pay_days|floatformat:"-2" }}</td>
+                  <td class="computed">{{ e.basic|floatformat:0|intcomma }}</td>
+                  <td class="computed">{{ e.da|floatformat:0|intcomma }}</td>
+                  <td class="computed">{{ e.hra|floatformat:0|intcomma }}</td>
+                  <td class="computed">{{ e.transport_allowance|floatformat:0|intcomma }}</td>
+                  <td class="computed">{{ e.food_allowance|floatformat:0|intcomma }}</td>
+                  {% if run.is_finalized %}
+                  <td class="computed">{{ e.internet_allowance|floatformat:0|intcomma }}</td>
+                  <td class="computed">{{ e.salary_arrear_allowance|floatformat:0|intcomma }}</td>
+                  {% else %}
+                  <td class="editable"><input class="grid-input" type="number" step="0.01" name="internet_{{ e.pk }}" value="{{ e.internet_allowance|floatformat:"-2" }}" /></td>
+                  <td class="editable"><input class="grid-input" type="number" step="0.01" name="arrear_{{ e.pk }}" value="{{ e.salary_arrear_allowance|floatformat:"-2" }}" /></td>
+                  {% endif %}
+                  <td class="computed money"><b>{{ e.gross_salary|floatformat:0|intcomma }}</b></td>
+                  <td class="computed">{{ e.esi_employee|floatformat:0|intcomma }}</td>
+                  <td class="computed">{{ e.esi_employer|floatformat:0|intcomma }}</td>
+                  <td class="computed">{{ e.pf_employee|floatformat:0|intcomma }}</td>
+                  <td class="computed">{{ e.pf_employer|floatformat:0|intcomma }}</td>
+                  {% if run.is_finalized %}
+                  <td class="computed">{{ e.salary_advance|floatformat:0|intcomma }}</td>
+                  <td class="computed">{{ e.tds|floatformat:0|intcomma }}</td>
+                  {% else %}
+                  <td class="editable"><input class="grid-input" type="number" step="0.01" name="advance_{{ e.pk }}" value="{{ e.salary_advance|floatformat:"-2" }}" /></td>
+                  <td class="editable"><input class="grid-input" type="number" step="0.01" name="tds_{{ e.pk }}" value="{{ e.tds|floatformat:"-2" }}" /></td>
+                  {% endif %}
+                  <td class="computed">{{ e.total_deductions|floatformat:0|intcomma }}</td>
+                  <td class="computed money {% if e.net_payable < 0 %}neg{% endif %}"><b>{{ e.net_payable|floatformat:0|intcomma }}</b></td>
+                  {% if run.is_finalized %}
+                  <td>{{ e.remarks|default:"—" }}</td>
+                  {% else %}
+                  <td class="editable"><input class="grid-input wide" type="text" name="remarks_{{ e.pk }}" value="{{ e.remarks }}" /></td>
+                  {% endif %}
+                  <td style="white-space:nowrap;">
+                    <span class="grid-actions">
+                      <a class="ico-btn" href="{% url 'payroll_entry_breakdown' e.pk %}" title="Salary breakdown" aria-label="Salary breakdown"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9M10 19V5M16 19v-8M22 19H2"/></svg></a>
+                      {% if e.pdf %}
+                      <a class="ico-btn" href="{% url 'payroll_entry_pdf' e.pk 'view' %}" title="View payslip" aria-label="View payslip"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                      <a class="ico-btn" href="{% url 'payroll_entry_pdf' e.pk 'download' %}" title="Download payslip" aria-label="Download payslip"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M6 11l6 6 6-6M4 21h16"/></svg></a>
+                      {% endif %}
+                    </span>
+                  </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% if not run.is_finalized %}
+            <div class="action-bar">
+              <button class="btn" type="submit">Save &amp; recompute</button>
+              <span class="col-note">Saving recalculates basic, gross, ESI, PF and net for every row.</span>
+            </div>
+          </form>
+          {% else %}
+          </div>
+          {% endif %}
+        </div>
+      </details>
+    </div>
+
+    {% if request.membership.is_admin %}
+    {% if run.is_finalized %}
+    <section class="card sec" id="payslips">
+      <div class="sec-head">
+        <h2>Payslips &amp; editing</h2>
+        {% if missing_pdfs %}
+        <p>{{ missing_pdfs }} of {{ entries|length }} payslip{{ entries|length|pluralize }} {{ missing_pdfs|pluralize:"has,have" }} no PDF yet — imported runs arrive without them.</p>
+        {% else %}
+        <p>All {{ entries|length }} payslip{{ entries|length|pluralize }} generated — use the view and download buttons in the grid above.</p>
+        {% endif %}
+      </div>
+      {% if missing_pdfs %}
+      <form method="post" action="{% url 'payroll_generate_payslips' run.pk %}">
+        {% csrf_token %}
+        <button class="btn" type="submit">Generate {{ missing_pdfs }} missing payslip{{ missing_pdfs|pluralize }}</button>
+      </form>
+      {% else %}
+      <form method="post" action="{% url 'payroll_generate_payslips' run.pk %}"
+            onsubmit="return confirm('Regenerate all {{ entries|length }} payslip PDFs for {{ run.period|date:"F Y" }}?');">
+        {% csrf_token %}
+        <input type="hidden" name="regenerate" value="1" />
+        <button class="btn secondary" type="submit">Regenerate all payslips</button>
+      </form>
+      {% endif %}
+
+      <details class="fold">
+        <summary>
+          <span class="chev">▼</span>
+          <span class="more-txt">Reopen this run for editing</span>
+          <span class="less-txt">Hide reopen options</span>
+        </summary>
+        <div class="fold-body">
+          <p class="sub">Reopening switches the run back to Draft so attendance, leave and LOP become editable again. Every generated payslip PDF is cleared, since they'd otherwise go stale.</p>
+          <form method="post" action="{% url 'payroll_run_reopen' run.pk %}"
+                onsubmit="return confirm('Reopen {{ run.period|date:"F Y" }}? All generated payslip PDFs will be cleared.');">
+            {% csrf_token %}
+            <button class="btn danger" type="submit">Reopen for editing</button>
+          </form>
+        </div>
+      </details>
+    </section>
+    {% else %}
+    <section class="notice" id="finalize" aria-label="Before finalizing">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#92400E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+      <span class="txt">Finalizing recomputes every row one last time, generates each payslip PDF and locks the run.{% if changed_count %} {{ changed_count }} row{{ changed_count|pluralize }} changed since last month; confirm {{ changed_count|pluralize:"it is,they are" }} intended before locking.{% endif %}</span>
+    </section>
+
+    <section class="card sec">
+      <div class="sec-head">
+        <h2>Recalculate roster</h2>
+        <p>Re-sync this run with the current employee list and salary structure — adds newly-active employees, removes deactivated ones, and refreshes each package, ESI/PF flag and formula. Your entered attendance (working days, leave, LOP, advance, TDS) is kept.</p>
+      </div>
+      <form method="post" action="{% url 'payroll_run_recalculate' run.pk %}"
+            onsubmit="return confirm('Recalculate {{ run.period|date:"F Y" }}? Rows for deactivated employees will be removed.');">
+        {% csrf_token %}
+        <button class="btn secondary" type="submit">Recalculate</button>
+      </form>
+    </section>
+
+    <section class="card sec">
+      <div class="sec-head">
+        <h2>Finalize &amp; generate payslips</h2>
+        <p>This recomputes every row one last time, generates each employee's payslip PDF, and locks the run.</p>
+      </div>
+      <form method="post" action="{% url 'payroll_run_finalize' run.pk %}">
+        {% csrf_token %}
+        {% if negative_count %}
+        <label class="sw" style="margin-bottom:12px; max-width:640px;">
+          <input type="checkbox" name="confirm_negative" value="1" id="confirm-negative" />
+          <span class="sw-text"><span class="sw-title">I confirm the {{ negative_count }} negative net payable amount{{ negative_count|pluralize }} above {{ negative_count|pluralize:"is,are" }} correct.</span></span>
+        </label>
+        {% endif %}
+        <button class="btn success" type="submit">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>Finalize &amp; generate payslips
+        </button>
+      </form>
+    </section>
     {% endif %}
-  </div>
-  {% endif %}
+    {% endif %}
+  </main>
 </div>
 </body>
 </html>

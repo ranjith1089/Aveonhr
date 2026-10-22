@@ -1,4 +1,4 @@
-{% load humanize %}<!DOCTYPE html>
+{% load humanize theme_extras %}<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -7,9 +7,9 @@
 {% include "payslip/payroll/_payroll_style.html" %}
 <style>
   tr.row-link { cursor:pointer; }
-<<<<<<< HEAD
   .salary-cell { cursor:pointer; user-select:none; }
   .salary-cell:hover { opacity:0.8; }
+  /* Inactive section (kept for the collapsed inactive block when status=all). */
   details.inactive-section { margin-top:18px; }
   details.inactive-section > summary {
     list-style:none; cursor:pointer; display:inline-flex; align-items:center; gap:8px;
@@ -22,158 +22,189 @@
   details.inactive-section[open] > summary::before { transform:rotate(90deg); }
   details.inactive-section > summary:hover { border-color:var(--content-faint); }
   details.inactive-section .tbl-wrap { margin-top:12px; }
-=======
+  /* Export modal */
   .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:1000;align-items:center;justify-content:center;}
   .modal-overlay.open{display:flex;}
   .modal-box{background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);padding:24px 28px;max-width:560px;width:92%;max-height:80vh;overflow-y:auto;}
-  .modal-box h2{margin:0 0 6px;font-size:17px;}
+  .modal-box h2{margin:0 0 6px;font-size:17px;color:var(--content);text-transform:none;letter-spacing:0;}
   .modal-box .sub{margin:0 0 14px;color:#64748B;font-size:13px;}
   .col-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;}
   .col-grid label{display:flex;align-items:center;gap:7px;font-size:13px;padding:5px 0;cursor:pointer;}
   .col-grid input[type=checkbox]{accent-color:#1a73e8;width:15px;height:15px;}
   .modal-actions{margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
   .modal-actions .link-btn{background:none;border:none;color:#1a73e8;cursor:pointer;font-size:13px;font-weight:600;padding:0;}
->>>>>>> 0c30938e5baa2448b43204b93d6c97e9f2672e31
+  /* Sort direction glyphs in sortable headers */
+  .th .dir { display:inline-flex; width:12px; height:12px; }
+  table.emp { width:100%; border-collapse:collapse; min-width:980px; font-size:13.5px; }
+  table.emp .td { padding:12px; }
+  @media (max-width:720px) { table.emp { min-width:720px; } }
 </style>
 </head>
 <body>
-<div class="container">
-  {% include "payslip/payroll/_payroll_nav.html" with active_page="employees" %}
+<div class="shell">
+  {% include "payslip/theme/_rail_nav.html" with rail_module="payroll" rail_page="employees" %}
 
-  <div class="page-head">
-    <div>
-      <h1>👔 Employees</h1>
-      <p class="sub" style="margin:0;">The payroll master — each run picks up every active employee.</p>
-    </div>
-    <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-      <form method="get" style="display:flex; gap:8px; align-items:center;">
-        <input type="text" name="q" value="{{ q }}" placeholder="🔍 Search name…" style="max-width:220px;" />
-        <select name="status" onchange="this.form.submit()" style="padding:7px 10px;border-radius:7px;border:1.5px solid #CBD5E1;font-size:13px;">
-          <option value="active" {% if status_filter == "active" %}selected{% endif %}>Active</option>
-          <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
-          <option value="all" {% if status_filter == "all" %}selected{% endif %}>All</option>
-        </select>
-        <button class="btn small secondary" type="submit">Search</button>
-      </form>
-      <button class="btn secondary" type="button" onclick="document.getElementById('exportModal').classList.add('open')">📥 Export Excel</button>
-      <a class="btn" href="{% url 'employee_create' %}">+ Add Employee</a>
-    </div>
-  </div>
+  <main class="main">
+    {% include "payslip/theme/_messages.html" %}
 
-  {% if active_employees or inactive_employees %}
-  <div class="kpi-grid" style="margin-bottom:16px;">
-    <div class="kpi is-primary">
-      <div class="kpi-top"><span class="kpi-ico">👥</span><span class="kpi-lbl">Active</span></div>
-      <div class="kpi-val">{{ active_count }}</div>
-      <div class="kpi-sub">{% if inactive_count %}{{ inactive_count }} inactive{% else %}Everyone on payroll{% endif %}</div>
-    </div>
-    <div class="kpi is-good">
-      <div class="kpi-top"><span class="kpi-ico">👥</span><span class="kpi-lbl">Total employees</span></div>
-      <div class="kpi-val">{{ active_count|add:inactive_count }}</div>
-      <div class="kpi-sub">Active + inactive</div>
-    </div>
-    <div class="kpi is-muted">
-      <div class="kpi-top"><span class="kpi-ico">🛡️</span><span class="kpi-lbl">ESI enrolled</span></div>
-      <div class="kpi-val">{{ esi_count }} / {{ active_count }}</div>
-      <div class="kpi-sub">Active employees</div>
-    </div>
-    <div class="kpi is-muted">
-      <div class="kpi-top"><span class="kpi-ico">🏛️</span><span class="kpi-lbl">PF enrolled</span></div>
-      <div class="kpi-val">{{ pf_count }} / {{ active_count }}</div>
-      <div class="kpi-sub">Active employees</div>
-    </div>
-  </div>
-  {% endif %}
+    <header class="pg-head">
+      <div class="pg-head-text">
+        <div class="pg-crumb"><a href="{% url 'payroll_run_list' %}">Payroll</a><span class="sep" aria-hidden="true">/</span>Employees</div>
+        <h1 class="pg-title">Employees <span class="count-pill">{{ shown_count }} shown</span></h1>
+        <p class="pg-lede">The payroll master. Every active employee is picked up by the next run.</p>
+      </div>
+      <div class="pg-actions">
+        <button class="chip" type="button" onclick="document.getElementById('exportModal').classList.add('open')">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M6 11l6 6 6-6M4 21h16"/></svg>Export Excel
+        </button>
+        <a class="btn" href="{% url 'employee_create' %}">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add employee
+        </a>
+      </div>
+    </header>
 
-  <div class="card">
-    {# ===== Active Employees ===== #}
-    {% if active_employees %}
-    <h2 style="margin:0 0 8px; font-size:16px;">Active Employees <span class="muted" style="font-weight:500;">({{ active_count }})</span></h2>
-    <div class="tbl-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Code</th><th>Name</th><th>Designation</th><th>DOJ</th>
-            <th class="num">Monthly Package</th>
-            <th class="mid">ESI</th><th class="mid">PF</th><th></th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for e in active_employees %}
-        <tr class="row-link" onclick="window.location='{% url 'employee_detail' e.pk %}'">
-          <td class="muted">{{ e.employee_code }}</td>
-          <td><a href="{% url 'employee_detail' e.pk %}"><b>{{ e.name }}</b></a></td>
-          <td>{{ e.designation|default:"—" }}</td>
-          <td style="white-space:nowrap;">{{ e.doj|date:"d M Y"|default:"—" }}</td>
-          <td class="num salary-cell">
-            <b class="salary-masked">*******</b>
-            <b class="salary-revealed" style="display:none;">₹{{ e.current_monthly_package|floatformat:0|intcomma }}</b>
-          </td>
-          <td class="mid">{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
-          <td class="mid">{% if e.is_pf_applicable %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
-          <td><a class="btn small secondary" href="{% url 'employee_detail' e.pk %}">Edit →</a></td>
-        </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <div class="empty">
-      <div class="big">👔</div>
-      {% if q %}No active employees match "{{ q }}".{% else %}No active employees yet — add one to start running payroll.{% endif %}
-    </div>
+    {% if total_count %}
+    <section class="kpi-grid" aria-label="Summary">
+      <div class="kpi">
+        <span class="kpi-lbl">Active employees</span>
+        <span class="kpi-val">{{ active_count }}</span>
+        <span class="kpi-sub">{{ inactive_count }} inactive on file</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-lbl">Joined this financial year</span>
+        <span class="kpi-val">{{ joined_fy_count }}</span>
+        <span class="kpi-sub">Since {{ fy_start|date:"j M Y" }}</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-lbl">Designations</span>
+        <span class="kpi-val">{{ designation_count }}</span>
+        <span class="kpi-sub">Across {{ department_count }} department{{ department_count|pluralize }}</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi-lbl">ESI · PF enrolled</span>
+        <span class="kpi-val">{{ esi_count }} · {{ pf_count }}</span>
+        <span class="kpi-sub">of {{ active_count }} active</span>
+      </div>
+    </section>
     {% endif %}
-  </div>
 
-  {# ===== Inactive Employees (collapsible) ===== #}
-  {% if inactive_employees %}
-  <details class="inactive-section">
-    <summary>🗂️ Inactive Employees ({{ inactive_count }})</summary>
-    <div class="card">
+    <section class="card flush" aria-label="Employee list">
+      <form method="get" class="toolbar" id="filterForm">
+        {% if sort != "doj_desc" %}<input type="hidden" name="sort" value="{{ sort }}" />{% endif %}
+        {% if grouped %}<input type="hidden" name="group" value="designation" />{% endif %}
+        {% if status_filter != "active" %}<input type="hidden" name="status" value="{{ status_filter }}" />{% endif %}
+        <label for="q" class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">Search employees</label>
+        <div class="search">
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="q" type="search" name="q" value="{{ q }}" placeholder="Search name, code or designation" />
+        </div>
+
+        <div class="seg" role="group" aria-label="Status">
+          <a href="{{ status_urls.active }}" class="{% if status_filter == 'active' %}on{% endif %}" {% if status_filter == 'active' %}aria-current="true"{% endif %}>Active</a>
+          <a href="{{ status_urls.inactive }}" class="{% if status_filter == 'inactive' %}on{% endif %}" {% if status_filter == 'inactive' %}aria-current="true"{% endif %}>Inactive</a>
+          <a href="{{ status_urls.all }}" class="{% if status_filter == 'all' %}on{% endif %}" {% if status_filter == 'all' %}aria-current="true"{% endif %}>All</a>
+        </div>
+
+        <span class="spacer"></span>
+
+        <span class="tool-lbl">Sort</span>
+        <a class="chip {% if sort == 'doj_desc' and not grouped %}on{% endif %}" href="{{ sort_urls.doj_desc }}">Newest joiners</a>
+        <a class="chip {% if sort == 'doj_asc' and not grouped %}on{% endif %}" href="{{ sort_urls.doj_asc }}">Longest serving</a>
+        <a class="chip {% if sort == 'desig' and not grouped %}on{% endif %}" href="{{ sort_urls.desig }}">Designation A–Z</a>
+        <a class="chip {% if grouped %}on{% endif %}" href="{{ group_url }}" aria-pressed="{% if grouped %}true{% else %}false{% endif %}">
+          <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h6"/></svg>Group by designation
+        </a>
+      </form>
+
+      {% if shown_count %}
       <div class="tbl-wrap">
-        <table>
+        <table class="emp">
           <thead>
             <tr>
-              <th>Code</th><th>Name</th><th>Designation</th><th>DOJ</th>
-              <th class="num">Monthly Package</th>
-              <th class="mid">ESI</th><th class="mid">PF</th><th></th>
+              <th class="th {% if sort == 'name' %}sorted{% endif %}" style="width:28%;">
+                <a href="{{ sort_urls.name }}">Employee
+                  {% if sort == 'name' and not grouped %}<svg class="dir" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>{% endif %}</a>
+              </th>
+              <th class="th {% if sort == 'desig' or grouped %}sorted{% endif %}">
+                <a href="{{ sort_urls.desig }}">Designation
+                  {% if sort == 'desig' or grouped %}<svg class="dir" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>{% endif %}</a>
+              </th>
+              <th class="th">Department</th>
+              <th class="th {% if sort == 'doj_desc' or sort == 'doj_asc' %}sorted{% endif %}">
+                <a href="{{ doj_toggle_url }}">Date of joining
+                  {% if not grouped and sort == 'doj_desc' %}<svg class="dir" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
+                  {% elif not grouped and sort == 'doj_asc' %}<svg class="dir" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>{% endif %}</a>
+              </th>
+              <th class="th">Tenure</th>
+              <th class="th num">Monthly package</th>
+              <th class="th mid">ESI</th>
+              <th class="th mid">PF</th>
+              <th class="th"><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">Actions</span></th>
             </tr>
           </thead>
           <tbody>
-          {% for e in inactive_employees %}
-          <tr class="row-link" onclick="window.location='{% url 'employee_detail' e.pk %}'" style="opacity:.55;">
-            <td class="muted">{{ e.employee_code }}</td>
-            <td><a href="{% url 'employee_detail' e.pk %}"><b>{{ e.name }}</b></a> <span class="badge red">Inactive</span></td>
-            <td>{{ e.designation|default:"—" }}</td>
-            <td style="white-space:nowrap;">{{ e.doj|date:"d M Y"|default:"—" }}</td>
-            <td class="num salary-cell">
-              <b class="salary-masked">*******</b>
-              <b class="salary-revealed" style="display:none;">₹{{ e.current_monthly_package|floatformat:0|intcomma }}</b>
-            </td>
-            <td class="mid">{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
-            <td class="mid">{% if e.is_pf_applicable %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
-            <td><a class="btn small secondary" href="{% url 'employee_detail' e.pk %}">Edit →</a></td>
-          </tr>
+          {% for g in groups %}
+            {% if g.label %}
+            <tr class="grp"><td class="td" colspan="9">{{ g.label }} <span class="cnt">· {{ g.count }}</span></td></tr>
+            {% endif %}
+            {% for e in g.employees %}
+            <tr class="row row-link {% if not e.is_active %}dim{% endif %}" onclick="window.location='{% url 'employee_detail' e.pk %}'">
+              <td class="td">
+                <div class="who">
+                  <span class="avatar {{ e.avatar_class }}" aria-hidden="true">{{ e.name|initials }}</span>
+                  <span class="who-text">
+                    <a href="{% url 'employee_detail' e.pk %}">{{ e.name }}</a>
+                    <span class="who-sub">{{ e.employee_code }}{% if not e.is_active %} · <span class="badge red">Inactive</span>{% endif %}</span>
+                  </span>
+                </div>
+              </td>
+              <td class="td" style="font-weight:500;">{{ e.designation|default:"—" }}</td>
+              <td class="td" style="color:#475569;">{{ e.department|default:"—" }}</td>
+              <td class="td" style="white-space:nowrap; font-variant-numeric:tabular-nums;">{{ e.doj|date:"d M Y"|default:"—" }}</td>
+              <td class="td" style="color:#475569; white-space:nowrap;">{{ e.tenure_label|default:"—" }}</td>
+              <td class="td num salary-cell" title="Click to reveal for 10 seconds">
+                <b class="salary-masked masked">••••••</b>
+                <b class="salary-revealed" style="display:none;">₹{{ e.current_monthly_package|floatformat:0|intcomma }}</b>
+              </td>
+              <td class="td mid">{% if e.is_esi_eligible %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
+              <td class="td mid">{% if e.is_pf_applicable %}<span class="badge green">Yes</span>{% else %}<span class="badge gray">No</span>{% endif %}</td>
+              <td class="td" style="text-align:right;"><a href="{% url 'employee_detail' e.pk %}" style="font-size:12.5px; font-weight:600; white-space:nowrap;">Open</a></td>
+            </tr>
+            {% endfor %}
           {% endfor %}
           </tbody>
         </table>
       </div>
-    </div>
-  </details>
-  {% endif %}
+      <div class="card-foot">
+        <span>Showing {{ shown_count }} of {{ total_count }} employee{{ total_count|pluralize }} · sorted by {% if grouped %}designation A to Z, grouped by designation{% else %}{{ sort_label }}{% endif %}.</span>
+        <span>Monthly package is masked. Click a value to reveal it for 10 seconds.</span>
+      </div>
+      {% else %}
+      <div class="empty">
+        <svg aria-hidden="true" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px; color:#CBD5E1;"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.5a5 5 0 0 1 6 5"/></svg>
+        <div>
+          {% if q %}No {% if status_filter != 'all' %}{{ status_filter }} {% endif %}employees match "{{ q }}".
+          {% elif status_filter == 'inactive' %}No inactive employees.
+          {% elif total_count %}No active employees. <a href="{{ status_urls.all }}">Show everyone</a>.
+          {% else %}No employees yet — add one to start running payroll.{% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </section>
+  </main>
 </div>
 
 <div class="modal-overlay" id="exportModal" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="modal-box">
-    <h2>📥 Export Employees to Excel</h2>
+    <h2>Export employees to Excel</h2>
     <p class="sub">Select the columns you want in your .xlsx file, then click Export.</p>
     <form id="exportForm" method="get" action="{% url 'employee_export' %}">
       <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
-        <label style="font-size:13px;font-weight:700;">Employee Status:</label>
-        <select name="status" style="padding:6px 10px;border-radius:7px;border:1.5px solid #CBD5E1;font-size:13px;">
-          <option value="active">Active Only</option>
-          <option value="inactive">Inactive Only</option>
-          <option value="all" selected>All Employees</option>
+        <label style="font-size:13px;font-weight:700;margin:0;">Employee status:</label>
+        <select name="status" class="sel">
+          <option value="active">Active only</option>
+          <option value="inactive">Inactive only</option>
+          <option value="all" selected>All employees</option>
         </select>
       </div>
       <div class="col-grid">
@@ -182,9 +213,9 @@
         {% endfor %}
       </div>
       <div class="modal-actions">
-        <button class="btn" type="submit">Export Selected</button>
-        <button class="link-btn" type="button" onclick="toggleAll(true)">Select All</button>
-        <button class="link-btn" type="button" onclick="toggleAll(false)">Deselect All</button>
+        <button class="btn" type="submit">Export selected</button>
+        <button class="link-btn" type="button" onclick="toggleAll(true)">Select all</button>
+        <button class="link-btn" type="button" onclick="toggleAll(false)">Deselect all</button>
         <button class="btn secondary" type="button" onclick="document.getElementById('exportModal').classList.remove('open')">Cancel</button>
       </div>
     </form>
@@ -192,6 +223,7 @@
 </div>
 
 <script>
+// Masked package: click reveals the value for 10 seconds, then re-masks.
 document.querySelectorAll('.salary-cell').forEach(cell => {
   cell.addEventListener('click', function(e) {
     e.stopPropagation();
@@ -200,6 +232,11 @@ document.querySelectorAll('.salary-cell').forEach(cell => {
     if (masked.style.display !== 'none') {
       masked.style.display = 'none';
       revealed.style.display = 'inline';
+      clearTimeout(this._remask);
+      this._remask = setTimeout(() => {
+        masked.style.display = '';
+        revealed.style.display = 'none';
+      }, 10000);
     }
   });
 });

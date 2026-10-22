@@ -1,339 +1,288 @@
-{% load static %}<!DOCTYPE html>
+{% load theme_extras %}<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Offer Letter Builder — Aveon</title>
-<link rel="stylesheet" href="{% static 'payslip/styles.css' %}" />
+<title>Offer letter — Aveon HR Suite</title>
+{% include "payslip/theme/_flyon_theme.html" %}
 <style>
-  /* Section / grid primitives reused from the Proposal Builder pattern. */
-  .pb-section { margin-top: 20px; padding-top: 18px; border-top: 1px solid #E5E7EB; }
-  .pb-section:first-child { margin-top: 0; padding-top: 0; border-top: none; }
-  .pb-section[hidden] { display: none; }
-  .pb-section h3 {
-    font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase;
-    color: #475569; margin: 0 0 12px; font-weight: 700;
-  }
-  .pb-help { color: #64748B; font-size: 12.5px; margin: 4px 0 12px; }
-
-  .pb-mode { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
-  .pb-mode label {
-    flex: 1; min-width: 220px;
-    border: 2px solid #E2E8F0; border-radius: 10px;
-    padding: 14px 18px; cursor: pointer;
-    background: #fff;
-    transition: all 0.15s;
-  }
-  .pb-mode input[type=radio] { margin-right: 8px; }
-  .pb-mode label:has(input:checked) {
-    border-color: #1565C0; background: #EEF4FF;
-    box-shadow: 0 0 0 3px rgba(21,101,192,0.08);
-  }
-  .pb-mode strong { display: block; font-size: 14px; color: #1A1A2E; }
-  .pb-mode em { font-style: normal; font-size: 12px; color: #64748B; margin-top: 2px; display: block; }
-
-  .pb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .pb-grid p { margin: 0; }
-  .pb-grid p.full { grid-column: 1 / -1; }
-  .pb-grid label { display: block; font-size: 12.5px; font-weight: 600; color: #334155; margin-bottom: 4px; }
-  .pb-grid input[type=text], .pb-grid input[type=number], .pb-grid input[type=date],
-  .pb-grid select, .pb-grid textarea {
-    width: 100%; padding: 8px 10px; font-size: 13px;
-    border: 1px solid #CBD5E1; border-radius: 6px; background: #fff;
-  }
-  .pb-field-error { display: block; color: #B91C1C; font-size: 12px; margin-top: 4px; }
-  .pb-computed {
-    display: inline-block; margin-top: 6px;
-    background: #F8FAFC; border: 1px dashed #94A3B8; border-radius: 6px;
-    padding: 4px 10px; font-size: 12.5px; color: #475569;
-  }
-  .pb-grid input.auto-filled { background: #EFF6FF; border-color: #93C5FD; }
-  .pb-suggest {
-    display: block; margin-top: 6px; font-size: 12px; color: #475569;
-  }
-  .pb-suggest a { color: #1565C0; cursor: pointer; font-weight: 600; }
-
-  .pb-summary {
-    margin: 14px 0 0;
-    background: linear-gradient(135deg, #FFFBEB, #FEF3C7);
-    border: 2px solid #F59E0B; border-radius: 10px;
-    padding: 14px 18px;
-    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  }
-  .pb-summary-label {
-    font-size: 11px; font-weight: 800; letter-spacing: 1.5px;
-    text-transform: uppercase; color: #92400E; margin-right: 6px;
-  }
-  .pb-summary-val {
-    font-size: 15px; font-weight: 700; color: #78350F;
-  }
-  .pb-summary-sep { color: #B45309; font-size: 16px; font-weight: 700; margin: 0 4px; }
-  .pb-summary-empty { font-size: 13px; color: #92400E; font-style: italic; }
-
-  .pb-result {
-    margin-top: 18px; padding: 18px;
-    background: #ECFDF5; border: 2px solid #10B981; border-radius: 12px;
-  }
-  .pb-result h3 { margin: 0 0 8px; color: #065F46; font-size: 14px; }
-  .pb-result a { margin-right: 10px; }
-
-  .pb-errors {
-    background: #FEF2F2; border-left: 4px solid #DC2626;
-    padding: 12px 14px; border-radius: 6px; margin-bottom: 16px;
-  }
-  .pb-errors ul { margin: 0; padding-left: 18px; }
-  .pb-errors li { font-size: 13px; color: #991B1B; }
-
-  .pb-draft-pill {
-    position: fixed; top: 16px; right: 16px;
-    background: #1565C0; color: #fff;
-    padding: 8px 14px; border-radius: 999px;
-    font-size: 12.5px; font-weight: 600;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    opacity: 0; transform: translateY(-8px);
-    transition: opacity 0.25s, transform 0.25s;
-    pointer-events: none; z-index: 1000;
-  }
-  .pb-draft-pill.show { opacity: 1; transform: translateY(0); }
+  .ol-layout { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start; }
+  .ol-form { flex:1 1 520px; min-width:0; display:flex; flex-direction:column; gap:16px; }
+  .ol-aside { flex:1 1 360px; min-width:0; max-width:460px; display:flex; flex-direction:column; gap:10px; position:sticky; top:16px; }
+  .ol-aside .head { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:12.5px; font-weight:600; color:var(--content-muted); }
+  .ol-aside .foot { margin:0; font-size:12px; color:var(--content-muted); line-height:1.5; }
+  section[data-offer-type][hidden] { display:none; }
+  .card.sec .grid { grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .card.sec .grid p { margin:0; display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .card.sec .grid p > label { font-size:12.5px; font-weight:600; color:#334155; margin:0; }
+  .card.sec .grid p input[type=text], .card.sec .grid p input[type=number], .card.sec .grid p input[type=date],
+  .card.sec .grid p select, .card.sec .grid p textarea {
+    width:100%; min-height:40px; padding:0 12px; border:1px solid #CBD5E1; border-radius:8px; font-size:13.5px; background:#fff; }
+  .card.sec .grid p textarea { padding:10px 12px; min-height:72px; }
+  .card.sec .grid p .errorlist { list-style:none; margin:0; padding:0; font-size:12px; color:#B91C1C; font-weight:500; }
+  .card.sec .grid input.auto-filled { background:#EFF6FF; border-color:#93C5FD; }
+  .card.sec h3 { font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--content-muted); margin:4px 0 0; }
+  .computed .apply { font-weight:600; cursor:pointer; color:var(--primary); }
+  .pb-result { border:1px solid #86EFAC; background:#F0FDF4; border-radius:12px; padding:16px 18px; display:flex; flex-direction:column; gap:10px; }
+  .pb-result h3 { margin:0; color:#166534; font-size:14px; }
+  .pb-result .links { display:flex; flex-wrap:wrap; gap:8px; }
+  .pb-draft-pill { position:fixed; top:16px; right:16px; background:var(--primary); color:#fff; padding:8px 14px; border-radius:999px;
+    font-size:12.5px; font-weight:600; box-shadow:0 4px 12px rgba(0,0,0,.2); opacity:0; transform:translateY(-8px);
+    transition:opacity .25s, transform .25s; pointer-events:none; z-index:1000; }
+  .pb-draft-pill.show { opacity:1; transform:translateY(0); }
+  .paper .muted-line { color:#94A3B8; }
+  @media (max-width:720px) { .card.sec .grid { grid-template-columns:1fr; } .ol-aside { position:static; max-width:none; } }
 </style>
 </head>
 <body>
-<div class="container">
-  <a href="/" class="back-button">← Back to Home</a>
+<div class="shell">
+  {% include "payslip/theme/_rail_nav.html" with rail_module="documents" rail_page="offer_letter" %}
 
-  <header class="card" style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
-    <div>
-      <h1>📄 Offer Letter Builder</h1>
-      <p>Internship, Appointment, or Employment Offer — pick a type, fill the fields, get a polished PDF.</p>
+  <main class="main">
+    {% include "payslip/theme/_messages.html" %}
+
+    <header class="pg-head">
+      <div class="pg-head-text">
+        <div class="pg-crumb"><a href="{% url 'landing' %}">Documents</a><span class="sep" aria-hidden="true">/</span>Offer letter</div>
+        <h1 class="pg-title">Offer letter</h1>
+        <p class="pg-lede">Three steps. The letter previews on the right as you type and is filed to the candidate's record on generate.</p>
+      </div>
+      <div class="steps" aria-label="Progress">
+        <span class="step {% if preview_url %}done{% else %}on{% endif %}" id="step-type"><span class="n">1</span>Document type</span>
+        <span class="step {% if preview_url %}done{% endif %}" id="step-details"><span class="n">2</span>Details</span>
+        <span class="step {% if preview_url %}done{% endif %}" id="step-generate"><span class="n">3</span>Generate</span>
+      </div>
+    </header>
+
+    {% if prefill_person %}
+    <div class="notice info">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.5a5 5 0 0 1 6 5"/></svg>
+      <span class="txt"><b>Prefilled from {{ prefill_person.name }}</b> — review the details below; generating will log the letter to their record.</span>
     </div>
-    <a href="{% url 'people_list' %}"
-       style="display: inline-block; padding: 10px 18px; background: #fff; color: #1565C0; border: 1.5px solid #1565C0; border-radius: 8px; text-decoration: none; font-size: 14px; font-weight: 600; white-space: nowrap;">
-      👥 People
-    </a>
-  </header>
-
-  {% if prefill_person %}
-  <section class="card" style="border-left: 4px solid #1565C0; padding: 14px 20px; margin-bottom: 16px;">
-    👥 <b>Prefilled from {{ prefill_person.name }}</b> — review the details below; generating will
-    log the letter to their record.
-  </section>
-  {% endif %}
-
-  {% if preview_url %}
-  <section class="card pb-result">
-    <h3>✓ Offer letter generated</h3>
-    <a href="{{ preview_url }}" target="_blank" class="primary">Open Preview</a>
-    <a href="{{ download_url }}" class="secondary" download="{{ download_filename }}">Download with letterhead</a>
-    <a href="{{ download_plain_url }}" class="secondary" download="{{ download_plain_name }}">Download plain (pre-printed paper)</a>
-    <p class="pb-help" style="margin-top: 8px;">
-      Use “plain” when printing on paper that already has your company letterhead.
-    </p>
-    {% if captured_person %}
-    <p style="margin-top: 8px; font-size: 13.5px;">
-      👥 Saved to <b>{{ captured_person.name }}</b>'s record —
-      <a href="{% url 'person_detail' captured_person.pk %}">open their page</a>
-    </p>
     {% endif %}
-  </section>
-  {% endif %}
 
-  {% if form.errors %}
-  <div class="card pb-errors">
-    <strong>Please fix the following:</strong>
-    <ul>
-      {% for field, errs in form.errors.items %}
-        {% for err in errs %}<li><b>{{ field }}:</b> {{ err }}</li>{% endfor %}
-      {% endfor %}
-    </ul>
-  </div>
-  {% endif %}
+    {% if form.errors %}
+    <div class="notice danger">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+      <span class="txt"><b>Please fix the following:</b>
+        {% for field, errs in form.errors.items %}{% for err in errs %}<span style="display:block;"><b>{{ field }}:</b> {{ err }}</span>{% endfor %}{% endfor %}
+      </span>
+    </div>
+    {% endif %}
 
-  <section class="card">
-    <form method="post" id="ol-form" novalidate>
-      {% csrf_token %}
+    <div class="ol-layout">
+      <form method="post" id="ol-form" class="ol-form" novalidate>
+        {% csrf_token %}
 
-      <!-- =========================================================
-           DOCUMENT TYPE — radio cards
-           ========================================================= -->
-      <div class="pb-section">
-        <h3>Document Type</h3>
-        <p class="pb-help">Each type uses a different template and produces a different PDF.</p>
-        <div class="pb-mode">
-          {% for value, label in form.offer_type.field.choices %}
-            {% if value %}
-            <label>
-              <input type="radio" name="offer_type" value="{{ value }}"
-                {% if form.offer_type.value == value %}checked{% endif %}>
-              <strong>
-                {% if value == 'internship' %}🎓 Internship Offer Letter
-                {% elif value == 'appointment' %}📜 Appointment Order
-                {% elif value == 'employment_offer' %}💼 Offer Letter (Employment)
-                {% else %}{{ label }}{% endif %}
-              </strong>
-              <em>
-                {% if value == 'internship' %}For students joining for a fixed-duration internship.
-                {% elif value == 'appointment' %}For confirmed hires — sent after acceptance.
-                {% elif value == 'employment_offer' %}Pre-joining offer with full compensation breakdown.
-                {% endif %}
-              </em>
-            </label>
-            {% endif %}
-          {% endfor %}
+        {# ===== Step 1: document type ===== #}
+        <section class="card sec" id="doc-type">
+          <div class="sec-head">
+            <h2>Document type</h2>
+            <p>Each type uses a different template and produces a different PDF.</p>
+          </div>
+          <div class="modes">
+            {% for value, label in form.offer_type.field.choices %}
+              {% if value %}
+              <label class="mode {% if form.offer_type.value == value %}on{% endif %}">
+                <input type="radio" name="offer_type" value="{{ value }}" {% if form.offer_type.value == value %}checked{% endif %}>
+                <span class="sw-text">
+                  <span class="sw-title">
+                    {% if value == 'internship' %}Internship offer letter
+                    {% elif value == 'appointment' %}Appointment order
+                    {% elif value == 'employment_offer' %}Offer letter (employment)
+                    {% else %}{{ label }}{% endif %}
+                  </span>
+                  <span class="help">
+                    {% if value == 'internship' %}For students joining for a fixed-duration internship.
+                    {% elif value == 'appointment' %}For confirmed hires — sent after acceptance.
+                    {% elif value == 'employment_offer' %}Pre-joining offer with full compensation breakdown.
+                    {% endif %}
+                  </span>
+                </span>
+              </label>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {{ form.offer_type.errors }}
+        </section>
+
+        {# ===== Step 2: details — internship ===== #}
+        <section class="card sec" data-offer-type="internship" hidden>
+          <div class="sec-head">
+            <h2>Intern &amp; college</h2>
+            <p>Name and role print on the letter. The end date is computed from the start date and duration.</p>
+          </div>
+          <div class="grid">
+            <p><label>Name</label>{{ form.name }}{{ form.name.errors }}</p>
+            <p><label>Roll number</label>{{ form.roll_number }}{{ form.roll_number.errors }}</p>
+            <p class="full"><label>Course</label>{{ form.course }}{{ form.course.errors }}</p>
+            <p class="full"><label>College name</label>{{ form.college_name }}{{ form.college_name.errors }}</p>
+            <p class="full"><label>College address</label>{{ form.college_address }}{{ form.college_address.errors }}</p>
+          </div>
+          <h3>Role &amp; duration</h3>
+          <div class="grid">
+            <p class="full"><label>Internship role</label>{{ form.internship_role }}{{ form.internship_role.errors }}</p>
+            <p><label>Start date</label>{{ form.start_date }}{{ form.start_date.errors }}</p>
+            <p><label>Internship duration (months)</label>{{ form.duration_months }}{{ form.duration_months.errors }}</p>
+          </div>
+          <div class="computed">
+            <span class="tag">Computed</span>
+            <span id="ol-end-date" aria-live="polite">Internship ends on: —</span>
+          </div>
+          <h3>Signatory</h3>
+          <div class="grid">
+            <p><label>Signatory name</label>{{ form.intern_signatory }}{{ form.intern_signatory.errors }}</p>
+            <p><label>Signatory designation</label>{{ form.intern_signatory_designation }}{{ form.intern_signatory_designation.errors }}</p>
+          </div>
+        </section>
+
+        {# ===== Step 2: details — appointment order ===== #}
+        <section class="card sec" data-offer-type="appointment" hidden>
+          <div class="sec-head">
+            <h2>Employee &amp; terms</h2>
+            <p>Designation and joining date print on the order and seed the employee record on conversion.</p>
+          </div>
+          <div class="grid">
+            <p><label>Ref no</label>{{ form.serial_no }}{{ form.serial_no.errors }}</p>
+            <p><label>Joining date</label>{{ form.join_date }}{{ form.join_date.errors }}</p>
+            <p><label>Employee name</label>{{ form.employee_name }}{{ form.employee_name.errors }}</p>
+            <p><label>Designation</label>{{ form.designation }}{{ form.designation.errors }}</p>
+          </div>
+          <h3>Address</h3>
+          <div class="grid">
+            <p class="full"><label>Address line 1</label>{{ form.present_address1 }}{{ form.present_address1.errors }}</p>
+            <p class="full"><label>Address line 2</label>{{ form.present_address2 }}{{ form.present_address2.errors }}</p>
+            <p class="full"><label>Address line 3</label>{{ form.present_address3 }}{{ form.present_address3.errors }}</p>
+            <p><label>City</label>{{ form.present_address_city }}{{ form.present_address_city.errors }}</p>
+            <p><label>State</label>{{ form.present_address_state }}{{ form.present_address_state.errors }}</p>
+            <p><label>PIN code</label>{{ form.present_address_pin }}{{ form.present_address_pin.errors }}</p>
+          </div>
+          <h3>Terms</h3>
+          <div class="grid">
+            <p><label>Probation period (days)</label>{{ form.probation_period }}{{ form.probation_period.errors }}</p>
+            <p><label>CTC (in words)</label>{{ form.ctc }}{{ form.ctc.errors }}</p>
+          </div>
+          <div class="computed">
+            <span class="tag">Computed</span>
+            <span id="ol-confirm-date" aria-live="polite">Confirmation on: —</span>
+          </div>
+          <h3>Company</h3>
+          <div class="grid">
+            <p><label>Company name</label>{{ form.company_name }}{{ form.company_name.errors }}</p>
+            <p><label>Signatory name</label>{{ form.signatory }}{{ form.signatory.errors }}</p>
+            <p class="full"><label>Signatory designation</label>{{ form.signatory_designation }}{{ form.signatory_designation.errors }}</p>
+          </div>
+        </section>
+
+        {# ===== Step 2: details — employment offer ===== #}
+        <section class="card sec" data-offer-type="employment_offer" hidden>
+          <div class="sec-head">
+            <h2>Candidate &amp; role</h2>
+            <p>Position and joining date print on the letter.</p>
+          </div>
+          <div class="grid">
+            <p><label>Candidate name</label>{{ form.candidate_name }}{{ form.candidate_name.errors }}</p>
+            <p><label>Position</label>{{ form.position }}{{ form.position.errors }}</p>
+            <p><label>Joining date</label>{{ form.joining_date }}{{ form.joining_date.errors }}</p>
+          </div>
+          <h3>Compensation breakdown</h3>
+          <p class="help" style="margin:-8px 0 0;">Enter monthly figures — annuals auto-fill as 12× monthly. Override the annual manually if needed.</p>
+          <div class="grid" id="ol-comp-grid">
+            <p><label>Basic (monthly)</label>{{ form.basic_monthly }}</p>
+            <p><label>Basic (annual)</label>{{ form.basic_annual }}</p>
+            <p><label>DA (monthly)</label>{{ form.da_monthly }}</p>
+            <p><label>DA (annual)</label>{{ form.da_annual }}</p>
+            <p><label>HRA (monthly)</label>{{ form.hra_monthly }}</p>
+            <p><label>HRA (annual)</label>{{ form.hra_annual }}</p>
+            <p><label>TA (monthly)</label>{{ form.ta_monthly }}</p>
+            <p><label>TA (annual)</label>{{ form.ta_annual }}</p>
+            <p><label>Food allowance (monthly)</label>{{ form.food_allowance_monthly }}</p>
+            <p><label>Food allowance (annual)</label>{{ form.food_allowance_annual }}</p>
+            <p><label>PF employee (monthly)</label>{{ form.pf_employee_monthly }}</p>
+            <p><label>PF employee (annual)</label>{{ form.pf_employee_annual }}</p>
+            <p><label>PF employer (monthly)</label>{{ form.pf_employer_monthly }}</p>
+            <p><label>PF employer (annual)</label>{{ form.pf_employer_annual }}</p>
+          </div>
+          <div class="computed">
+            <span class="tag">Computed</span>
+            <span>Monthly gross <strong id="ol-monthly-gross">—</strong></span>
+            <span id="ol-ctc-suggest" hidden>Annual CTC from breakdown <strong id="ol-ctc-suggest-val">—</strong> <a id="ol-ctc-apply" class="apply" role="button" tabindex="0">Apply</a></span>
+          </div>
+          <h3>CTC</h3>
+          <div class="grid">
+            <p><label>Annual CTC (Rs.)</label>{{ form.annual_ctc }}{{ form.annual_ctc.errors }}</p>
+            <p><label>CTC in words</label>{{ form.ctc_in_words }}{{ form.ctc_in_words.errors }}</p>
+          </div>
+          <h3>Employer</h3>
+          <div class="grid">
+            <p><label>Employer name</label>{{ form.employer_name }}{{ form.employer_name.errors }}</p>
+            <p><label>Employer designation</label>{{ form.employer_designation }}{{ form.employer_designation.errors }}</p>
+          </div>
+        </section>
+
+        <div class="action-bar-card">
+          <a href="{% url 'people_list' %}" style="font-size:13px; font-weight:600; color:#334155;">People registry</a>
+          <div class="btns">
+            <button type="submit" class="btn">
+              <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>Generate offer letter
+            </button>
+          </div>
         </div>
+      </form>
 
-        <!-- Live summary banner — JS-driven -->
-        <div class="pb-summary" id="ol-summary">
-          <span class="pb-summary-empty" id="ol-summary-empty">
-            Fill in the form below to see a live summary.
-          </span>
-          <span id="ol-summary-active" hidden>
-            <span class="pb-summary-label" id="ol-summary-label">Candidate</span>
-            <span class="pb-summary-val" id="ol-summary-name">—</span>
-            <span class="pb-summary-sep">›</span>
-            <span class="pb-summary-val" id="ol-summary-role">—</span>
-            <span class="pb-summary-sep">›</span>
-            <span class="pb-summary-val" id="ol-summary-date">—</span>
-          </span>
+      {# ===== Live preview column ===== #}
+      <aside class="ol-aside" aria-label="Letter preview">
+        {% if preview_url %}
+        <div class="pb-result">
+          <h3>Offer letter generated</h3>
+          <div class="links">
+            <a href="{{ preview_url }}" target="_blank" class="btn small">Open preview</a>
+            <a href="{{ download_url }}" class="btn small secondary" download="{{ download_filename }}">Download with letterhead</a>
+            <a href="{{ download_plain_url }}" class="btn small secondary" download="{{ download_plain_name }}">Download plain</a>
+          </div>
+          <p class="help" style="margin:0;">Use “plain” when printing on paper that already has your company letterhead.</p>
+          {% if captured_person %}
+          <p style="margin:0; font-size:13px;">Saved to <b>{{ captured_person.name }}</b>'s record — <a href="{% url 'person_detail' captured_person.pk %}">open their page</a>.</p>
+          {% endif %}
         </div>
-      </div>
-
-      <!-- =========================================================
-           INTERNSHIP
-           ========================================================= -->
-      <section class="pb-section" data-offer-type="internship" hidden>
-        <h3>Personal</h3>
-        <div class="pb-grid">
-          <p><label>Name</label>{{ form.name }}{{ form.name.errors }}</p>
-          <p><label>Roll Number</label>{{ form.roll_number }}{{ form.roll_number.errors }}</p>
-          <p class="full"><label>Course</label>{{ form.course }}{{ form.course.errors }}</p>
+        {% endif %}
+        <div class="head">
+          <span>Live preview</span>
+          <span id="ol-preview-type">Pick a document type</span>
         </div>
-
-        <h3 style="margin-top: 22px;">College</h3>
-        <div class="pb-grid">
-          <p class="full"><label>College Name</label>{{ form.college_name }}{{ form.college_name.errors }}</p>
-          <p class="full"><label>College Address</label>{{ form.college_address }}{{ form.college_address.errors }}</p>
-        </div>
-
-        <h3 style="margin-top: 22px;">Role & Duration</h3>
-        <div class="pb-grid">
-          <p class="full"><label>Internship Role</label>{{ form.internship_role }}{{ form.internship_role.errors }}</p>
-          <p><label>Start Date</label>{{ form.start_date }}{{ form.start_date.errors }}</p>
-          <p>
-            <label>Internship Duration (months)</label>
-            {{ form.duration_months }}
-            {{ form.duration_months.errors }}
-            <span class="pb-computed" id="ol-end-date" aria-live="polite">Internship ends on: —</span>
-          </p>
-        </div>
-
-        <h3 style="margin-top: 22px;">Signatory</h3>
-        <div class="pb-grid">
-          <p><label>Signatory Name</label>{{ form.intern_signatory }}{{ form.intern_signatory.errors }}</p>
-          <p><label>Signatory Designation</label>{{ form.intern_signatory_designation }}{{ form.intern_signatory_designation.errors }}</p>
-        </div>
-      </section>
-
-      <!-- =========================================================
-           APPOINTMENT ORDER
-           ========================================================= -->
-      <section class="pb-section" data-offer-type="appointment" hidden>
-        <h3>Reference</h3>
-        <div class="pb-grid">
-          <p><label>Ref No</label>{{ form.serial_no }}{{ form.serial_no.errors }}</p>
-          <p><label>Joining Date</label>{{ form.join_date }}{{ form.join_date.errors }}</p>
-        </div>
-
-        <h3 style="margin-top: 22px;">Employee</h3>
-        <div class="pb-grid">
-          <p><label>Employee Name</label>{{ form.employee_name }}{{ form.employee_name.errors }}</p>
-          <p><label>Designation</label>{{ form.designation }}{{ form.designation.errors }}</p>
-        </div>
-
-        <h3 style="margin-top: 22px;">Address</h3>
-        <div class="pb-grid">
-          <p class="full"><label>Address Line 1</label>{{ form.present_address1 }}{{ form.present_address1.errors }}</p>
-          <p class="full"><label>Address Line 2</label>{{ form.present_address2 }}{{ form.present_address2.errors }}</p>
-          <p class="full"><label>Address Line 3</label>{{ form.present_address3 }}{{ form.present_address3.errors }}</p>
-          <p><label>City</label>{{ form.present_address_city }}{{ form.present_address_city.errors }}</p>
-          <p><label>State</label>{{ form.present_address_state }}{{ form.present_address_state.errors }}</p>
-          <p><label>PIN Code</label>{{ form.present_address_pin }}{{ form.present_address_pin.errors }}</p>
-        </div>
-
-        <h3 style="margin-top: 22px;">Terms</h3>
-        <div class="pb-grid">
-          <p>
-            <label>Probation Period (days)</label>
-            {{ form.probation_period }}
-            {{ form.probation_period.errors }}
-            <span class="pb-computed" id="ol-confirm-date" aria-live="polite">Confirmation on: —</span>
-          </p>
-          <p><label>CTC (in words)</label>{{ form.ctc }}{{ form.ctc.errors }}</p>
-        </div>
-
-        <h3 style="margin-top: 22px;">Company</h3>
-        <div class="pb-grid">
-          <p><label>Company Name</label>{{ form.company_name }}{{ form.company_name.errors }}</p>
-          <p><label>Signatory Name</label>{{ form.signatory }}{{ form.signatory.errors }}</p>
-          <p class="full"><label>Signatory Designation</label>{{ form.signatory_designation }}{{ form.signatory_designation.errors }}</p>
-        </div>
-      </section>
-
-      <!-- =========================================================
-           EMPLOYMENT OFFER
-           ========================================================= -->
-      <section class="pb-section" data-offer-type="employment_offer" hidden>
-        <h3>Candidate</h3>
-        <div class="pb-grid">
-          <p><label>Candidate Name</label>{{ form.candidate_name }}{{ form.candidate_name.errors }}</p>
-          <p><label>Position</label>{{ form.position }}{{ form.position.errors }}</p>
-          <p><label>Joining Date</label>{{ form.joining_date }}{{ form.joining_date.errors }}</p>
-        </div>
-
-        <h3 style="margin-top: 22px;">Compensation Breakdown</h3>
-        <p class="pb-help">Enter monthly figures — annuals auto-fill as 12× monthly. Override the annual manually if needed.</p>
-        <div class="pb-grid" id="ol-comp-grid">
-          <p><label>Basic (Monthly)</label>{{ form.basic_monthly }}</p>
-          <p><label>Basic (Annual)</label>{{ form.basic_annual }}</p>
-          <p><label>DA (Monthly)</label>{{ form.da_monthly }}</p>
-          <p><label>DA (Annual)</label>{{ form.da_annual }}</p>
-          <p><label>HRA (Monthly)</label>{{ form.hra_monthly }}</p>
-          <p><label>HRA (Annual)</label>{{ form.hra_annual }}</p>
-          <p><label>TA (Monthly)</label>{{ form.ta_monthly }}</p>
-          <p><label>TA (Annual)</label>{{ form.ta_annual }}</p>
-          <p><label>Food Allowance (Monthly)</label>{{ form.food_allowance_monthly }}</p>
-          <p><label>Food Allowance (Annual)</label>{{ form.food_allowance_annual }}</p>
-          <p><label>PF Employee (Monthly)</label>{{ form.pf_employee_monthly }}</p>
-          <p><label>PF Employee (Annual)</label>{{ form.pf_employee_annual }}</p>
-          <p><label>PF Employer (Monthly)</label>{{ form.pf_employer_monthly }}</p>
-          <p><label>PF Employer (Annual)</label>{{ form.pf_employer_annual }}</p>
-        </div>
-
-        <h3 style="margin-top: 22px;">CTC</h3>
-        <div class="pb-grid">
-          <p>
-            <label>Annual CTC (Rs.)</label>
-            {{ form.annual_ctc }}
-            {{ form.annual_ctc.errors }}
-            <span class="pb-suggest" id="ol-ctc-suggest" hidden>
-              Suggested annual CTC based on breakdown: <strong id="ol-ctc-suggest-val">—</strong>
-              <a id="ol-ctc-apply">Apply</a>
+        <div class="paper" id="ol-paper">
+          <div class="ph">
+            <span style="display:flex; flex-direction:column; gap:2px;">
+              <span style="font-weight:800; font-size:14px; color:#0F172A;">{{ request.organization.company_name|default:"Your company" }}</span>
+              <span style="color:#64748B;">{% if request.organization.city %}{{ request.organization.city }}{% else %}[COMPANY ADDRESS]{% endif %}</span>
             </span>
-          </p>
-          <p><label>CTC in Words</label>{{ form.ctc_in_words }}{{ form.ctc_in_words.errors }}</p>
+            <span style="color:#64748B;" id="ol-preview-date">{% now "d M Y" %}</span>
+          </div>
+          <p><strong id="ol-summary-name">[NAME]</strong><br><span class="muted-line" id="ol-preview-addr">[ADDRESS]</span></p>
+          <p style="font-weight:700; color:#0F172A;">Subject: <span id="ol-preview-subject">Offer of employment</span></p>
+          <p>Dear <span id="ol-preview-dear">[NAME]</span>,</p>
+          <p id="ol-preview-body">Choose a document type and fill in the details. This preview updates as you type.</p>
+          <div class="annex" id="ol-preview-annex" hidden>
+            <span style="font-weight:700; color:#0F172A;">Annexure A · monthly</span><span></span>
+            <span>Basic</span><span class="r" id="pv-basic">—</span>
+            <span>DA</span><span class="r" id="pv-da">—</span>
+            <span>HRA</span><span class="r" id="pv-hra">—</span>
+            <span>TA</span><span class="r" id="pv-ta">—</span>
+            <span>Food allowance</span><span class="r" id="pv-food">—</span>
+            <span style="font-weight:700;">Gross</span><span class="r" style="font-weight:700;" id="pv-gross">—</span>
+          </div>
+          <p class="muted-line">Standard terms continue on the generated PDF.</p>
+          <div class="pf">
+            <span style="display:flex; flex-direction:column; gap:2px;"><span style="font-weight:700; color:#0F172A;" id="ol-preview-sig">[SIGNATORY]</span><span style="color:#64748B;" id="ol-preview-sig-desig">[DESIGNATION]</span></span>
+            <span class="muted-line">Page 1</span>
+          </div>
         </div>
-
-        <h3 style="margin-top: 22px;">Employer</h3>
-        <div class="pb-grid">
-          <p><label>Employer Name</label>{{ form.employer_name }}{{ form.employer_name.errors }}</p>
-          <p><label>Employer Designation</label>{{ form.employer_designation }}{{ form.employer_designation.errors }}</p>
-        </div>
-      </section>
-
-      <div class="proposal-actions" style="margin-top: 20px;">
-        <button type="submit" class="primary">Generate Offer Letter</button>
-      </div>
-    </form>
-  </section>
+        {# Hidden summary fields kept for the JS summary logic. #}
+        <span hidden id="ol-summary-label"></span><span hidden id="ol-summary-role"></span><span hidden id="ol-summary-date"></span>
+        <p class="foot">On <strong>Generate</strong>, two PDFs are produced (letterhead and plain) and the letter is filed to the matching person in the People registry.</p>
+      </aside>
+    </div>
+  </main>
 </div>
 
 <div class="pb-draft-pill" id="ol-draft-pill">Draft restored</div>
@@ -341,20 +290,25 @@
 <script>
 (function () {
   const form = document.getElementById('ol-form');
-  const summaryEmpty = document.getElementById('ol-summary-empty');
-  const summaryActive = document.getElementById('ol-summary-active');
   const summaryLabel = document.getElementById('ol-summary-label');
   const summaryName = document.getElementById('ol-summary-name');
   const summaryRole = document.getElementById('ol-summary-role');
   const summaryDate = document.getElementById('ol-summary-date');
+  const pv = (id) => document.getElementById(id);
+  const stepType = document.getElementById('step-type');
+  const stepDetails = document.getElementById('step-details');
+  const HAS_PREVIEW = {% if preview_url %}true{% else %}false{% endif %};
+  const HAS_PREFILL = {% if prefill_person %}true{% else %}false{% endif %};
 
-  // Per-doc-type field mapping for the live summary banner.
+  // Per-doc-type field mapping for the live summary / preview.
   const SUMMARY_FIELDS = {
-    internship:       { label: 'Intern',    name: 'name',           role: 'internship_role', date: 'start_date'   },
-    appointment:      { label: 'Employee',  name: 'employee_name',  role: 'designation',     date: 'join_date'    },
-    employment_offer: { label: 'Candidate', name: 'candidate_name', role: 'position',        date: 'joining_date' },
+    internship:       { label: 'Intern',    name: 'name',           role: 'internship_role', date: 'start_date',   sig: 'intern_signatory', sigDesig: 'intern_signatory_designation' },
+    appointment:      { label: 'Employee',  name: 'employee_name',  role: 'designation',     date: 'join_date',    sig: 'signatory',        sigDesig: 'signatory_designation' },
+    employment_offer: { label: 'Candidate', name: 'candidate_name', role: 'position',        date: 'joining_date', sig: 'employer_name',    sigDesig: 'employer_designation' },
   };
+  const TYPE_TITLES = { internship: 'Internship offer letter', appointment: 'Appointment order', employment_offer: 'Offer letter' };
 
+  function val(name) { const el = form.querySelector(`[name=${name}]`); return el ? (el.value || '') : ''; }
   function activeType() {
     const r = form.querySelector('input[name=offer_type]:checked');
     return r ? r.value : '';
@@ -365,10 +319,19 @@
     form.querySelectorAll('section[data-offer-type]').forEach(s => {
       s.hidden = (s.dataset.offerType !== t);
     });
+    form.querySelectorAll('.mode').forEach(m => {
+      const r = m.querySelector('input[type=radio]');
+      m.classList.toggle('on', !!(r && r.checked));
+    });
+    if (!HAS_PREVIEW) {
+      stepType.classList.toggle('done', !!t);
+      stepType.classList.toggle('on', !t);
+      stepDetails.classList.toggle('on', !!t);
+    }
     refreshSummary();
   }
 
-  // ---------- Live Summary banner ----------
+  // ---------- Live preview ----------
   function fmtDate(s) {
     if (!s) return '';
     const d = new Date(s + 'T00:00:00');
@@ -376,23 +339,65 @@
     const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
     return `${m}. ${d.getDate()}, ${d.getFullYear()}`;
   }
+  function fmtInr(n) { return '₹' + Math.round(n).toLocaleString('en-IN'); }
   function refreshSummary() {
     const t = activeType();
     const cfg = SUMMARY_FIELDS[t];
+    pv('ol-preview-type').textContent = cfg ? TYPE_TITLES[t] : 'Pick a document type';
+    pv('ol-preview-annex').hidden = true;
     if (!cfg) {
-      summaryEmpty.hidden = false;
-      summaryActive.hidden = true;
+      summaryName.textContent = '[NAME]';
+      pv('ol-preview-dear').textContent = '[NAME]';
+      pv('ol-preview-subject').textContent = 'Offer of employment';
+      pv('ol-preview-body').textContent = 'Choose a document type and fill in the details. This preview updates as you type.';
+      pv('ol-preview-addr').textContent = '[ADDRESS]';
+      pv('ol-preview-sig').textContent = '[SIGNATORY]';
+      pv('ol-preview-sig-desig').textContent = '[DESIGNATION]';
       return;
     }
-    const nameVal = (form.querySelector(`[name=${cfg.name}]`) || {}).value || '';
-    const roleVal = (form.querySelector(`[name=${cfg.role}]`) || {}).value || '';
-    const dateVal = (form.querySelector(`[name=${cfg.date}]`) || {}).value || '';
+    const nameVal = val(cfg.name), roleVal = val(cfg.role), dateVal = val(cfg.date);
     summaryLabel.textContent = cfg.label;
-    summaryName.textContent = nameVal || '—';
+    summaryName.textContent = nameVal || '[NAME]';
     summaryRole.textContent = roleVal || '—';
     summaryDate.textContent = fmtDate(dateVal) || '—';
-    summaryEmpty.hidden = true;
-    summaryActive.hidden = false;
+    pv('ol-preview-dear').textContent = (nameVal || '[NAME]').split(' ')[0];
+    pv('ol-preview-sig').textContent = val(cfg.sig) || '[SIGNATORY]';
+    pv('ol-preview-sig-desig').textContent = val(cfg.sigDesig) || '[DESIGNATION]';
+    const role = roleVal || '[ROLE]', when = fmtDate(dateVal) || '[DATE]';
+    if (t === 'internship') {
+      pv('ol-preview-subject').textContent = 'Internship offer – ' + role;
+      pv('ol-preview-addr').textContent = [val('college_name'), val('college_address')].filter(Boolean).join(', ') || '[COLLEGE ADDRESS]';
+      const months = parseInt(val('duration_months'), 10);
+      pv('ol-preview-body').textContent = `We are pleased to offer you an internship as ${role}` +
+        (val('course') ? ` (${val('course')})` : '') + `, starting ${when}` +
+        (months > 0 ? ` for ${months} month${months === 1 ? '' : 's'}.` : '.');
+    } else if (t === 'appointment') {
+      pv('ol-preview-subject').textContent = 'Appointment order – ' + role;
+      pv('ol-preview-addr').textContent = [val('present_address1'), val('present_address2'), val('present_address3'),
+        val('present_address_city'), val('present_address_state'), val('present_address_pin')].filter(Boolean).join(', ') || '[ADDRESS]';
+      const days = parseInt(val('probation_period'), 10);
+      pv('ol-preview-body').textContent = `We are pleased to appoint you as ${role}` +
+        (val('company_name') ? ` at ${val('company_name')}` : '') + `. Your date of joining will be ${when}.` +
+        (days > 0 ? ` The first ${days} days of your employment will be a probation period.` : '') +
+        (val('ctc') ? ` Your CTC will be ${val('ctc')}.` : '');
+    } else {
+      pv('ol-preview-subject').textContent = 'Offer of employment – ' + role;
+      pv('ol-preview-addr').textContent = '[CANDIDATE ADDRESS]';
+      const ctc = parseFloat(val('annual_ctc'));
+      pv('ol-preview-body').textContent = `We are pleased to offer you the position of ${role}. Your date of joining will be ${when}.` +
+        (Number.isFinite(ctc) && ctc > 0 ? ` Your annual CTC will be ${fmtInr(ctc)}, structured as shown in Annexure A.` : '');
+      const m = (n) => parseFloat(val(n));
+      const parts = { 'pv-basic': m('basic_monthly'), 'pv-da': m('da_monthly'), 'pv-hra': m('hra_monthly'), 'pv-ta': m('ta_monthly'), 'pv-food': m('food_allowance_monthly') };
+      let gross = 0, any = false;
+      for (const [id, v] of Object.entries(parts)) {
+        const ok = Number.isFinite(v);
+        pv(id).textContent = ok ? fmtInr(v) : '—';
+        if (ok) { gross += v; any = true; }
+      }
+      pv('pv-gross').textContent = any ? fmtInr(gross) : '—';
+      pv('ol-monthly-gross').textContent = any ? fmtInr(gross) : '—';
+      pv('ol-preview-annex').hidden = !any;
+    }
   }
 
   // ---------- Internship: end date ----------
@@ -485,7 +490,7 @@
     const num = parseFloat(sumText.replace(/[^\d.]/g, ''));
     if (!Number.isFinite(num)) return;
     const ctcInp = form.querySelector('[name=annual_ctc]');
-    if (ctcInp) ctcInp.value = num.toFixed(2);
+    if (ctcInp) { ctcInp.value = num.toFixed(2); refreshSummary(); scheduleDraftSave(); }
   });
 
   // Clear auto-filled state when user manually edits an annual field.
@@ -516,8 +521,6 @@
 
   // ---------- localStorage draft save / restore ----------
   const DRAFT_KEY = 'offerLetterDraft.v1';
-  const HAS_PREVIEW = {% if preview_url %}true{% else %}false{% endif %};
-  const HAS_PREFILL = {% if prefill_person %}true{% else %}false{% endif %};
   let saveTimer = null;
   function scheduleDraftSave() {
     if (saveTimer) clearTimeout(saveTimer);
